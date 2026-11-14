@@ -3,6 +3,8 @@
  * whatever was linked when the survey was built, which is null when the account came later); else the snapshot.
  */
 export function ratedAccountOf(ratee: { picId?: string | null; userId: string | null }, linkedByPic: ReadonlyMap<string, string | null>): string | null {
-    const linked = ratee.picId ? linkedByPic.get(ratee.picId) : undefined;
-    return linked ?? ratee.userId ?? null;
+    if (ratee.picId && linkedByPic.has(ratee.picId)) {
+        return linkedByPic.get(ratee.picId) ?? null;
+    }
+    return ratee.userId ?? null;
 }

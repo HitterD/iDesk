@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
-import { CreatePeriodDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from './period.dto';
+import { CreatePeriodDto, PeriodOverlapQueryDto, SetPeriodRatersDto, SetRateesDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from './period.dto';
+import { CsiUnitRuleDto } from './unit-rules.dto';
 
 const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
 const parse = (metatype: any, value: unknown) => pipe.transform(value, { type: 'body', metatype });
@@ -77,5 +78,13 @@ describe('CSI period DTO validation', () => {
         await expect(parse(SetRateesDto, { ratees: [{ userId: 'x', dimensionIds: [SITE] }] })).rejects.toThrow();
         expect(await parse(SetRateesDto, { ratees: [{ userId: SITE, dimensionIds: [SITE] }] }))
             .toMatchObject({ ratees: [{ userId: SITE, dimensionIds: [SITE] }] });
+    });
+
+    it('rejects invalid overlap queries and invalid HC unit rule service codes', async () => {
+        await expect(parse(PeriodOverlapQueryDto, { siteIds: '', startDate: '2026-10-01', endDate: '2026-10-31' })).rejects.toThrow();
+        await expect(parse(PeriodOverlapQueryDto, { siteIds: SITE, startDate: '2026-02-30', endDate: '2026-03-01' })).rejects.toThrow();
+        await expect(parse(SetPeriodRatersDto, { userIds: Array(5001).fill(SITE) })).rejects.toThrow();
+        await expect(parse(CsiUnitRuleDto, { division: 'OPS', serviceCode: 'ICT' })).rejects.toThrow();
+        expect(await parse(CsiUnitRuleDto, { division: 'OPS', serviceCode: 'HCC' })).toMatchObject({ division: 'OPS', serviceCode: 'HCC' });
     });
 });

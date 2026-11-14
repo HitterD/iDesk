@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, Raw, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, QueryFailedError, Raw, Repository } from 'typeorm';
 import { PickKeysByType } from 'typeorm/common/PickKeysByType';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { User } from '../../users/entities/user.entity';
@@ -161,7 +161,7 @@ export class CsiMasterService {
 
     searchUsers(search = '', limit = DEFAULT_USER_SEARCH_LIMIT) {
         if (!Number.isInteger(limit) || limit < 1) throw new BadRequestException('Batas hasil harus berupa bilangan bulat positif');
-        const term = search.trim();
+        const term = search.trim().replace(/[\\%_]/g, (char) => `\\${char}`);
         return this.users.find({
             where: term ? [
                 { isActive: true, fullName: ILike(`%${term}%`) },
@@ -181,7 +181,13 @@ export class CsiMasterService {
         const existing = await this.raters.find({ where: { scope, userId: In(ids) } });
         const registered = new Set(existing.map((row) => row.userId));
         const additions = ids.filter((id) => !registered.has(id)).map((userId) => this.raters.create({ scope, userId }));
-        if (additions.length) await this.raters.save(additions);
+        if (additions.length) {
+            try {
+                await this.raters.save(additions);
+            } catch (error) {
+                if (!(error instanceof QueryFailedError && (error.driverError as { code?: string })?.code === '23505')) throw error;
+            }
+        }
         return this.listRaters(scope);
     }
 }

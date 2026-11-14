@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AddTemplatePicDto, AddTemplateRaterDto, ApplyTemplatesToPeriodDto, CreatePeriodFromTemplateDto, CreatePeriodFromTemplatesDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
-    PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, UpdateTemplatePicDto } from '../dto/template.dto';
+    PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, TemplateAccountSuggestionsQueryDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { PicResolution } from '../org/csi-template-identity';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
@@ -87,8 +87,8 @@ export class CsiAdminTemplateController {
     }
 
     @Get(':id/account-suggestions')
-    accountSuggestions(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Query('name') name: string) {
-        return this.templates.accountSuggestions(hc(req), id, name);
+    accountSuggestions(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Query() query: TemplateAccountSuggestionsQueryDto) {
+        return this.templates.accountSuggestions(hc(req), id, query.name);
     }
 
     /** Empty workbook to fill in for a location (SPJ/KRW/SKD/SMG/JTB), with its active employees to copy names from. */

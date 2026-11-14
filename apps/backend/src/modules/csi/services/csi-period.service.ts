@@ -236,7 +236,11 @@ export class CsiPeriodService {
         if (!detail.readiness.ready) throw new BadRequestException(INCOMPLETE_MESSAGE);
         await this.dataSource.transaction(async (manager) => {
             await lockScopeSchedule(manager, scope);
-            await this.assertNoOverlap(scope, detail.sites.map((site) => site.id), detail.startDate, detail.endDate, detail.title, id, manager);
+            await lockPeriodRow(manager, id);
+            const current = assertPeriodInScope(await manager.getRepository(CsiPeriod).findOne({ where: { id }, relations: WITH_SITES }), scope);
+            if (current.publishStatus === CsiPeriodPublishStatus.PUBLISHED) return;
+            if (current.publishStatus === CsiPeriodPublishStatus.CANCELLED) throw new BadRequestException(CANCELLED_MESSAGE);
+            await this.assertNoOverlap(scope, siteIdsOf(current), current.startDate, current.endDate, current.title, id, manager);
             await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
         });
         return this.get(scope, id);
@@ -263,7 +267,11 @@ export class CsiPeriodService {
         if (computeStatus(period, now) === 'ENDED') throw new BadRequestException('Survei sudah melewati tanggal selesai. Buat survei baru atau ubah tanggalnya dulu.');
         await this.dataSource.transaction(async (manager) => {
             await lockScopeSchedule(manager, scope);
-            await this.assertNoOverlap(scope, siteIdsOf(period), period.startDate, period.endDate, period.title, id, manager);
+            await lockPeriodRow(manager, id);
+            const current = assertPeriodInScope(await manager.getRepository(CsiPeriod).findOne({ where: { id }, relations: WITH_SITES }), scope);
+            if (current.publishStatus !== CsiPeriodPublishStatus.CANCELLED) return;
+            if (computeStatus(current, now) === 'ENDED') throw new BadRequestException('Survei sudah melewati tanggal selesai. Buat survei baru atau ubah tanggalnya dulu.');
+            await this.assertNoOverlap(scope, siteIdsOf(current), current.startDate, current.endDate, current.title, id, manager);
             await manager.getRepository(CsiPeriod).update({ id, scope }, {
                 publishStatus: CsiPeriodPublishStatus.PUBLISHED, cancelledAt: null, cancelledById: null, cancelReason: null,
             });
@@ -273,24 +281,31 @@ export class CsiPeriodService {
 
     /** Deletes a cancelled survey with all its answers (second step after cancel; title retyped again). */
     async purge(scope: ServiceScope, id: string, input: { confirmTitle: string; reason: string }) {
-        const period = await this.findInScope(scope, id);
-        if (period.publishStatus !== CsiPeriodPublishStatus.CANCELLED) throw new BadRequestException('Batalkan survei dulu sebelum menghapus permanen.');
-        const reason = assertConfirmed(period, input);
-        const responses = await this.countOne(id);
-        await this.dataSource.transaction(async (manager) => {
+        await this.findInScope(scope, id);
+        const result = await this.dataSource.transaction(async (manager) => {
             await lockPeriodRow(manager, id);
+            const current = assertPeriodInScope(await manager.getRepository(CsiPeriod).findOne({ where: { id } }), scope);
+            if (current.publishStatus !== CsiPeriodPublishStatus.CANCELLED) throw new BadRequestException('Batalkan survei dulu sebelum menghapus permanen.');
+            const reason = assertConfirmed(current, input);
+            const responses = await manager.getRepository(CsiResponse).count({ where: { periodId: id } });
             // csi_responses has no ON DELETE CASCADE to periods (items/comments cascade from responses).
             await manager.delete(CsiResponse, { periodId: id });
             await manager.delete(CsiPeriod, { id, scope });
+            return { period: current, audit: { reason, responses } };
         });
-        return { period, audit: { reason, responses } };
+        return result;
     }
 
     /** "Siapa menilai siapa" mode chosen in the wizard; ALL also clears the pairs. */
     async setPairMode(scope: ServiceScope, id: string, mode: CsiPairMode) {
         await this.findInScope(scope, id);
-        await this.periods.update({ id, scope }, { pairMode: mode });
-        if (mode === CsiPairMode.ALL && (await this.assignments.hasPairs(id))) await this.assignments.setPairs(scope, id, []);
+        await this.dataSource.transaction(async (manager) => {
+            await lockUnlockedPeriod(manager, id);
+            await manager.getRepository(CsiPeriod).update({ id, scope }, { pairMode: mode });
+            if (mode === CsiPairMode.ALL && (await this.assignments.hasPairs(id, manager))) {
+                await this.assignments.setPairs(scope, id, [], manager);
+            }
+        });
         return this.get(scope, id);
     }
 
@@ -347,44 +362,54 @@ export class CsiPeriodService {
             });
             await this.writeRatees(manager, saved.id, copied.ratees);
             await this.writeRaters(manager, saved.id, copied.raterIds);
+            // A copied period takes the source's pairs inside the same transaction; a fresh one gets the scope
+            // template once it has members (see applyTemplateWhileUnmapped in setRatees/setRaters).
+            if (source) await this.assignments.copyPairs(scope, source.id, saved.id, manager);
             return saved.id;
         });
-        // A copied period takes the source's pairs; a fresh one gets the scope template once it has members
-        // (see applyTemplateWhileUnmapped in setRatees/setRaters).
-        if (source) await this.assignments.copyPairs(scope, source.id, periodId);
         return this.get(scope, periodId);
     }
 
     async update(scope: ServiceScope, id: string, dto: UpdatePeriodDto) {
-        const { sites, ...period } = await this.findInScope(scope, id, { sites: true });
+        const initial = await this.findInScope(scope, id, { sites: true });
         const { siteIds: requestedSiteIds, ...fields } = dto;
-        const next = { ...period, ...definedOnly(fields) };
-        assertDateOrder(next.startDate, next.endDate);
-        assertSomeSection(next);
-        assertBandOrder(bandsOf(next));
-        const currentSiteIds = (sites ?? []).map((row) => row.siteId);
-        const siteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : currentSiteIds;
-        if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, next.title, id);
-        // A published period's dates/sites can only move inside the clash rules; others ignore them (see overlaps()).
-        const sitesChanged = !sameIds(siteIds, currentSiteIds);
-        if (sitesChanged || changesLockedField(period, dto)) {
-            // Sites, respondent mode, sections and team label are frozen after the first answer (title, texts, dates and
-            // the SLA target stay editable). The exclusive row lock serialises this with respondent submits (FOR SHARE),
-            // so a first answer cannot commit between the check and the save.
-            await this.dataSource.transaction(async (manager) => {
+        const resolvedSiteIds = requestedSiteIds ? await this.resolveSiteIds(requestedSiteIds) : null;
+        await this.dataSource.transaction(async (manager) => {
+            if (initial.publishStatus === CsiPeriodPublishStatus.PUBLISHED) {
+                await lockScopeSchedule(manager, scope);
+            }
+            const previewCurrentSiteIds = (initial.sites ?? []).map((row) => row.siteId);
+            const previewSiteIds = resolvedSiteIds ?? previewCurrentSiteIds;
+            const lockedUpdate = !sameIds(previewSiteIds, previewCurrentSiteIds) || changesLockedField(initial, dto);
+            if (lockedUpdate) {
                 await lockUnlockedPeriod(manager, id);
-                if (sitesChanged) {
-                    await manager.delete(CsiPeriodSite, { periodId: id });
-                    await manager.save(CsiPeriodSite, siteIds.map((siteId) => ({ periodId: id, siteId })));
-                    // A team belongs to one period site: drop the teams of removed sites (their pairs/questions cascade).
-                    await manager.delete(CsiPeriodRatee, { periodId: id, kind: CsiRateeKind.TEAM, siteId: Not(In(siteIds)) });
-                }
-                // teamLabel is kept for compatibility only: team ratees are named after their csi_teams master.
-                await manager.getRepository(CsiPeriod).save(next);
-            });
-        } else {
-            await this.periods.save(next);
-        }
+            } else {
+                await lockPeriodRow(manager, id);
+            }
+            const loaded = assertPeriodInScope(await manager.getRepository(CsiPeriod).findOne({ where: { id }, relations: WITH_SITES }), scope);
+            const { sites, ...period } = loaded;
+            const next = { ...period, ...definedOnly(fields) };
+            assertDateOrder(next.startDate, next.endDate);
+            assertSomeSection(next);
+            assertBandOrder(bandsOf(next));
+            const currentSiteIds = (sites ?? []).map((row) => row.siteId);
+            const siteIds = resolvedSiteIds ?? currentSiteIds;
+            const sitesChanged = !sameIds(siteIds, currentSiteIds);
+            if ((sitesChanged || changesLockedField(period, dto)) && !lockedUpdate) {
+                await lockUnlockedPeriod(manager, id);
+            }
+            if (period.publishStatus === CsiPeriodPublishStatus.PUBLISHED) {
+                await this.assertNoOverlap(scope, siteIds, next.startDate, next.endDate, next.title, id, manager);
+            }
+            if (sitesChanged) {
+                await manager.delete(CsiPeriodSite, { periodId: id });
+                await manager.save(CsiPeriodSite, siteIds.map((siteId) => ({ periodId: id, siteId })));
+                // A team belongs to one period site: drop the teams of removed sites (their pairs/questions cascade).
+                await manager.delete(CsiPeriodRatee, { periodId: id, kind: CsiRateeKind.TEAM, siteId: Not(In(siteIds)) });
+            }
+            // teamLabel is kept for compatibility only: team ratees are named after their csi_teams master.
+            await manager.getRepository(CsiPeriod).save(next);
+        });
         return this.get(scope, id);
     }
 
@@ -400,14 +425,15 @@ export class CsiPeriodService {
     async setRatees(scope: ServiceScope, id: string, assignments: RateeAssignmentDto[]) {
         await this.findInScope(scope, id);
         const ratees = await this.resolveRatees(scope, assignments);
-        const unmapped = !(await this.assignments.hasPairs(id));
-        const beforeRatees = !unmapped
-            ? new Set((await this.ratees.find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
-            : undefined;
-        await this.dataSource.transaction(async (manager) => {
+        const { unmapped, beforeRatees } = await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
+            const hasPairsBefore = await this.assignments.hasPairs(id, manager);
+            const existingRatees = hasPairsBefore
+                ? new Set((await manager.getRepository(CsiPeriodRatee).find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
+                : undefined;
             // Only people are diffed here; TEAM ratees are managed by setTeamQuestions.
             await this.syncPeople(manager, id, ratees);
+            return { unmapped: !hasPairsBefore, beforeRatees: existingRatees };
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
         return this.get(scope, id);
@@ -432,6 +458,17 @@ export class CsiPeriodService {
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
             const repository = manager.getRepository(CsiPeriodRatee);
+            const picUserIds = snapshots.flatMap((snapshot) => (snapshot.userId ? [snapshot.userId] : []));
+            if (new Set(picUserIds).size !== picUserIds.length) {
+                throw new BadRequestException('Dua PIC aktif tidak boleh terhubung ke akun pengguna yang sama pada satu survei');
+            }
+            if (picUserIds.length) {
+                const personUsers = await repository.find({ where: { periodId: id, kind: CsiRateeKind.PERSON, picId: IsNull() }, select: { userId: true } });
+                const conflicts = new Set(personUsers.flatMap((row) => (row.userId ? [row.userId] : [])));
+                if (picUserIds.some((userId) => conflicts.has(userId))) {
+                    throw new BadRequestException('Akun pengguna milik PIC sudah terdaftar sebagai yang dinilai terpisah pada periode ini');
+                }
+            }
             const existing = await repository.find({ where: { periodId: id, picId: Not(IsNull()) } });
             const keep = new Map(existing.filter((row) => byId.has(row.picId!)).map((row) => [row.picId!, row]));
             const removed = existing.filter((row) => !byId.has(row.picId!)).map((row) => row.id);
@@ -470,17 +507,17 @@ export class CsiPeriodService {
         if (questions.size !== questionIds.length) throw new BadRequestException(QUESTION_NOT_FOUND_MESSAGE);
         const snapshots = questionIds.map((questionId) => questionSnapshot(questions.get(questionId)!));
         const team = snapshots.length ? await this.subjects.createTeam(scope, siteId) : null;
-        const unmapped = !(await this.assignments.hasPairs(id));
-        const beforeRatees = !unmapped
-            ? new Set((await this.ratees.find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
-            : undefined;
-        await rethrowTeamConflict(this.dataSource.transaction(async (manager) => {
+        const { unmapped, beforeRatees } = await rethrowTeamConflict(this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
+            const hasPairsBefore = await this.assignments.hasPairs(id, manager);
+            const existingRatees = hasPairsBefore
+                ? new Set((await manager.getRepository(CsiPeriodRatee).find({ where: { periodId: id }, select: { id: true } })).map((row) => row.id))
+                : undefined;
             const siteTeams = (await manager.getRepository(CsiPeriodRatee).find({ where: { periodId: id, kind: CsiRateeKind.TEAM, siteId }, relations: TEAM_RELATION }))
                 .filter(isSiteTeamRatee);
             if (!team) {
                 if (siteTeams.length) await manager.delete(CsiPeriodRatee, { id: In(siteTeams.map((row) => row.id)) });
-                return;
+                return { unmapped: !hasPairsBefore, beforeRatees: existingRatees };
             }
             // The loaded team is only for the kind check; saving it back could override the rebound teamId.
             const [existing] = siteTeams.map(({ team: _loaded, ...row }) => row);
@@ -491,6 +528,7 @@ export class CsiPeriodService {
             });
             await manager.save(CsiPeriodRateeDimension, snapshots.map((snapshot, index) => dimensionRow(saved.id, snapshot, index)));
             await enableSectionsWithRatees(manager, id, [CsiRateeKind.TEAM]);
+            return { unmapped: !hasPairsBefore, beforeRatees: existingRatees };
         }));
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
         return this.get(scope, id);
@@ -530,18 +568,19 @@ export class CsiPeriodService {
         const ids = [...new Set(userIds)];
         const active = await this.activeUsers(ids);
         if (active.size !== ids.length) throw new BadRequestException(INACTIVE_USER_MESSAGE);
-        const unmapped = !(await this.assignments.hasPairs(id));
-        const beforeRaters = !unmapped
-            ? new Set((await this.periodRaters.find({ where: { periodId: id }, select: { userId: true } })).map((row) => row.userId))
-            : undefined;
-        await this.dataSource.transaction(async (manager) => {
+        const { unmapped, beforeRaters } = await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, id);
+            const hasPairsBefore = await this.assignments.hasPairs(id, manager);
+            const existingRaterUsers = hasPairsBefore
+                ? new Set((await manager.getRepository(CsiPeriodRater).find({ where: { periodId: id }, select: { userId: true } })).map((row) => row.userId))
+                : undefined;
             // Diff by userId: rows (and their pairs) of raters who stay are kept.
             const existing = await manager.getRepository(CsiPeriodRater).find({ where: { periodId: id } });
             const removed = existing.filter((row) => !ids.includes(row.userId)).map((row) => row.id);
             if (removed.length) await manager.delete(CsiPeriodRater, { id: In(removed) });
             const kept = new Set(existing.map((row) => row.userId));
             await this.writeRaters(manager, id, ids.filter((userId) => !kept.has(userId)));
+            return { unmapped: !hasPairsBefore, beforeRaters: existingRaterUsers };
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { raterUserIds: beforeRaters });
         return this.get(scope, id);
@@ -756,7 +795,15 @@ export class CsiPeriodService {
      * job title, order and question snapshots are refreshed in place.
      */
     private async syncPeople(manager: EntityManager, periodId: string, ratees: RateeSnapshot[]) {
-        const existing = await manager.getRepository(CsiPeriodRatee).find({ where: { periodId, kind: CsiRateeKind.PERSON, picId: IsNull() } });
+        const repository = manager.getRepository(CsiPeriodRatee);
+        if (ratees.length) {
+            const picRows = await repository.find({ where: { periodId, picId: Not(IsNull()) }, select: { userId: true } });
+            const picUsers = new Set(picRows.flatMap((row) => (row.userId ? [row.userId] : [])));
+            if (ratees.some((ratee) => ratee.userId && picUsers.has(ratee.userId))) {
+                throw new BadRequestException('Pengguna sudah terdaftar sebagai PIC pada periode ini');
+            }
+        }
+        const existing = await repository.find({ where: { periodId, kind: CsiRateeKind.PERSON, picId: IsNull() } });
         const byUser = new Map(existing.map((row) => [row.userId, row]));
         const wanted = new Set(ratees.map((ratee) => ratee.userId));
         const removed = existing.filter((row) => !wanted.has(row.userId)).map((row) => row.id);

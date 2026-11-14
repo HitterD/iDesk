@@ -25,6 +25,7 @@ import { PriorityWeight } from '../workload/entities/priority-weight.entity';
 import { FALLBACK_SCHEDULE } from '../workload/install-day.util';
 import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { activeTicketWhere, computeLiveWorkloads } from '../workload/live-workload.util';
+import { CacheService } from '../../shared/core/cache/cache.service';
 
 const OPERATIONAL_AGENT_ROLES = [
     UserRole.AGENT,
@@ -60,6 +61,8 @@ export class UserCrudService implements OnModuleInit {
         private readonly priorityWeightRepo?: Repository<PriorityWeight>,
         @Optional()
         private readonly businessHours?: BusinessHoursService,
+        @Optional()
+        private readonly cacheService?: CacheService,
     ) { }
 
     async onModuleInit() {
@@ -682,6 +685,7 @@ export class UserCrudService implements OnModuleInit {
         }
 
         await this.userRepo.update(userId, { isActive });
+        await this.cacheService?.delAsync(`pageAccess:${userId}`).catch(() => undefined);
         const updatedUser = await this.userRepo.findOne({ where: { id: userId }, relations: ['department'] });
         if (!updatedUser) throw new Error('Failed to retrieve updated user');
 
@@ -753,6 +757,9 @@ export class UserCrudService implements OnModuleInit {
             { id: In(userIds) },
             { isActive }
         );
+        if (this.cacheService) {
+            await Promise.all(userIds.map((id) => this.cacheService!.delAsync(`pageAccess:${id}`).catch(() => undefined)));
+        }
 
         return {
             success: true,

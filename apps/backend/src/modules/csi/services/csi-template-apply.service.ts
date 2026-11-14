@@ -155,9 +155,10 @@ export class CsiTemplateApplyService {
         const view = await this.templates.get(scope, templateId);
         const questions = await this.hcQuestions(scope);
         return this.dataSource.transaction(async (manager) => {
+            await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-schedule:${scope}`]);
             const repos = this.repos(manager);
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
-            await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
+            await manager.query?.('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             const plan = await this.plan(scope, view, repos, await this.stateOf(repos, periodId), commit);
             const missing = await this.missingSite(manager, period, view.locationCode);
             const blockedReason = period.cancelledAt ? BLOCKED.cancelled : missing.blockedReason ?? await this.blockedReason(period, repos);
@@ -183,9 +184,10 @@ export class CsiTemplateApplyService {
         const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
         const questions = await this.hcQuestions(scope);
         return this.dataSource.transaction(async (manager) => {
+            await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-schedule:${scope}`]);
             const repos = this.repos(manager);
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
-            await manager.query('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
+            await manager.query?.('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             if (replaceNonPic && await manager.getRepository(CsiResponse).count({ where: { periodId } }) > 0) throw new BadRequestException(ANSWERED_MESSAGE);
             const before = await this.stateOf(repos, periodId);
             const nonPic = new Set(before.ratees.filter(isNonPicPerson).map((row) => row.id));
@@ -477,9 +479,21 @@ export class CsiTemplateApplyService {
 
     private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[], templateSiteId: string | null) {
         if (!subjects.length) return;
+        const rows = subjects.map((subject) => rateeFields(subject, templateSiteId));
+        const newUsers = rows.flatMap((row) => (row.userId ? [row.userId] : []));
+        if (newUsers.length) {
+            if (new Set(newUsers).size !== newUsers.length) {
+                throw new BadRequestException('Dua PIC pada template terhubung ke akun iDesk yang sama');
+            }
+            const existingRatees = await repos.ratees.find({ where: { periodId }, select: { userId: true } });
+            const existingUsers = new Set(existingRatees.flatMap((row) => (row.userId ? [row.userId] : [])));
+            if (newUsers.some((userId) => existingUsers.has(userId))) {
+                throw new BadRequestException('Akun iDesk milik PIC sudah terdaftar pada periode ini');
+            }
+        }
         const offset = await repos.ratees.count({ where: { periodId } });
-        const saved = await repos.ratees.save(subjects.map((subject, index) => ({
-            periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...rateeFields(subject, templateSiteId),
+        const saved = await repos.ratees.save(rows.map((fields, index) => ({
+            periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...fields,
         })));
         await repos.rateeDims.save(saved.flatMap((ratee) => questions.map((question, order) => ({
             periodRateeId: ratee.id, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,

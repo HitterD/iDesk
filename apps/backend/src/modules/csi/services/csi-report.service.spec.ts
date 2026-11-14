@@ -10,6 +10,7 @@ import { User } from '../../users/entities/user.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiReportService } from './csi-report.service';
 
 const ICT = ServiceScope.ICT;
@@ -197,8 +198,17 @@ describe('CsiReportService', () => {
         expect(loads).toHaveBeenCalledTimes(1);
         const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b', matrix: {} as any });
         expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
+        expect(siteB.overall).toMatchObject({ average: 3.5 });
         expect(siteB.hcRecap?.overall.respondents).toBe(1);
         expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
+        // Multi-site PIC via viewsFor.siteIds is still included when filtering by any of its template sites even with 0 responses there.
+        subjects.viewsFor.mockResolvedValueOnce(new Map([
+            ['h1', { siteId: 'site-a', siteIds: ['site-a', 'site-b'], siteCode: 'SMG', photoUrl: null, tagline: null, jobTitle: null }],
+            ['h2', { siteId: 'site-a', siteCode: 'SMG', photoUrl: null, tagline: null, jobTitle: null }],
+        ]));
+        responses.rows.splice(responses.rows.findIndex((row) => row.id === 'rb'), 1);
+        const multiSiteB = await service.getReport(HC, 'p-hc', 'site-b');
+        expect(multiSiteB.ratees.map((row) => row.periodRateeId)).toEqual(['h1']);
     });
 
     it('HC overall (report, site stats) uses the per-rating basis of the recap; ICT keeps the mean of response averages', async () => {
@@ -493,7 +503,10 @@ describe('CsiReportService', () => {
         await expect(service.resetResponse(ICT, 'p1', 'resp1', '  Salah isi departemen ', { id: 'admin' }, req))
             .resolves.toEqual({ reset: true });
         expect(manager.getRepository).toHaveBeenCalledWith(CsiPeriod);
-        expect(deleted).toEqual([{ target: CsiResponse, criteria: { id: 'resp1' } }]);
+        expect(deleted).toEqual([
+            { target: CsiResponse, criteria: { id: 'resp1' } },
+            { target: CsiResponseDraft, criteria: { periodId: 'p1', respondentId: 'x1' } },
+        ]);
         // Response row gone: the (period, respondent) unique slot is free, so the respondent can submit again.
         expect(await responses.count({ where: { periodId: 'p1', respondentId: 'x1' } })).toBe(0);
         expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({

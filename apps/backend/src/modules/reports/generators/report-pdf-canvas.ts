@@ -410,36 +410,50 @@ export class ReportCanvas {
      * continues on the next one.
      */
     scoreBars(groups: { title: string; max: number; target?: number; rows: { label: string; value: number | null; text: string; color: string }[] }[]): void {
+        if (!groups.length) return;
         const { doc } = this;
         const gap = 18;
         const w = (CONTENT_W - gap * (groups.length - 1)) / groups.length;
         const rowH = 22;
+        const headerH = 18;
+        const padBottom = 10;
         const tallest = Math.max(1, ...groups.map((g) => g.rows.length));
-        this.ensure(18 + Math.min(tallest, 6) * rowH + 10);
-        const top = this.y;
-        groups.forEach((group, gi) => {
-            const x = PAGE.margin + gi * (w + gap);
-            this.font(true, 9, INK.secondary);
-            this.line(group.title, x, top, w);
-            if (!group.rows.length) {
-                this.font(false, 9, INK.tertiary);
-                this.line('Tidak ada data', x, top + 18, w);
-            }
-            group.rows.forEach((row, ri) => {
-                const ry = top + 18 + ri * rowH;
-                this.font(false, 8.5, INK.text);
-                this.line(row.label, x, ry, w - 92);
-                this.font(true, 8.5, row.color);
-                this.line(row.text, x + w - 90, ry, 90, 'right');
-                doc.roundedRect(x, ry + 12, w, 4, 2).fill(INK.fill);
-                if (row.value !== null && row.value > 0) doc.roundedRect(x, ry + 12, Math.max(4, (w * Math.min(row.value, group.max)) / group.max), 4, 2).fill(row.color);
-                if (group.target !== undefined) {
-                    const tx = x + (w * group.target) / group.max;
-                    doc.moveTo(tx, ry + 9).lineTo(tx, ry + 19).lineWidth(1).strokeColor(INK.text).stroke();
+        this.ensure(headerH + Math.min(tallest, 3) * rowH + padBottom);
+        let start = 0;
+        while (start < tallest) {
+            const avail = CONTENT_BOTTOM - (this.y + headerH + padBottom);
+            const fitRows = Math.max(1, Math.floor(avail / rowH));
+            const end = Math.min(tallest, start + fitRows);
+            const top = this.y;
+            groups.forEach((group, gi) => {
+                const x = PAGE.margin + gi * (w + gap);
+                this.font(true, 9, INK.secondary);
+                this.line(start > 0 ? `${group.title} (lanjutan)` : group.title, x, top, w);
+                if (start === 0 && !group.rows.length) {
+                    this.font(false, 9, INK.tertiary);
+                    this.line('Tidak ada data', x, top + headerH, w);
                 }
+                group.rows.slice(start, end).forEach((row, offset) => {
+                    const ry = top + headerH + offset * rowH;
+                    this.font(false, 8.5, INK.text);
+                    this.line(row.label, x, ry, w - 92);
+                    this.font(true, 8.5, row.color);
+                    this.line(row.text, x + w - 90, ry, 90, 'right');
+                    doc.roundedRect(x, ry + 12, w, 4, 2).fill(INK.fill);
+                    if (row.value !== null && row.value > 0) doc.roundedRect(x, ry + 12, Math.max(4, (w * Math.min(row.value, group.max)) / group.max), 4, 2).fill(row.color);
+                    if (group.target !== undefined) {
+                        const tx = x + (w * group.target) / group.max;
+                        doc.moveTo(tx, ry + 9).lineTo(tx, ry + 19).lineWidth(1).strokeColor(INK.text).stroke();
+                    }
+                });
             });
-        });
-        this.y = top + 18 + tallest * rowH + 10;
+            this.y = top + headerH + (end - start) * rowH + padBottom;
+            start = end;
+            if (start < tallest) {
+                doc.addPage();
+                this.y = PAGE.margin;
+            }
+        }
     }
 
     /** One grey "cara membaca" sentence right above a table; kept on the same page as the table header. */

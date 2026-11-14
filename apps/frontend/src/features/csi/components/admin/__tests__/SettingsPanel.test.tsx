@@ -16,6 +16,9 @@ vi.mock('../../../hooks/useCsiHc', () => ({
 vi.mock('../hc/templates/TemplatesTab', () => ({
     TemplatesTab: ({ initialLocation, initialView }: { initialLocation?: string; initialView?: string }) => <p>{`template:${initialLocation}:${initialView}`}</p>,
 }));
+vi.mock('../hc/ReportOwnersTab', () => ({
+    ReportOwnersTab: () => <p>report-owners</p>,
+}));
 afterEach(cleanup);
 
 const template = (locationCode: string, status: 'ok' | 'ambiguous'): CsiTemplate => ({
@@ -49,4 +52,9 @@ it('ICT checklist keeps its registered-rater logic', () => {
     fx.templates = [template('SMG', 'ok')];
     const { result } = renderHook(() => useSettingsStatus('ict'));
     expect(result.current.find((row) => row.key === 'raters')).toMatchObject({ done: false, hint: 'belum ada' });
+});
+
+it('falls back safely when initial section does not belong to current scope', () => {
+    render(<SettingsPanel scope="ict" initial="pics" />);
+    expect(screen.getByRole('heading', { name: 'Penanggung jawab report' })).toBeInTheDocument();
 });

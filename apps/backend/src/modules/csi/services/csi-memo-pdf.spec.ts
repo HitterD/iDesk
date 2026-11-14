@@ -215,6 +215,22 @@ describe('renderMemoPdf', () => {
         expect(await pagesOf(buffer)).toHaveLength(3);
     });
 
+    it('splits an oversized single-survey block (>40 people) across summary pages without losing names', async () => {
+        const survey = memoSurvey(1);
+        survey.report.ratees = Array.from({ length: 45 }, (_, i) => ({
+            ...survey.report.ratees[0],
+            periodRateeId: `r-${i}`,
+            kind: 'PERSON' as any,
+            displayName: `Karyawan Uji ${String(i).padStart(2, '0')}`,
+        }));
+        const pages = await pagesOf(await renderMemoPdf(memoHeader(), [survey]));
+        const summaryPages = pages.filter((p) => p.includes('Karyawan Uji'));
+        expect(summaryPages.length).toBeGreaterThanOrEqual(2);
+        const all = pages.join(' ');
+        expect(all).toContain('Karyawan Uji 00');
+        expect(all).toContain('Karyawan Uji 44');
+    });
+
     (process.env.CSI_MEMO_SAMPLE ? it : it.skip)('writes a sample pdf', async () => {
         fs.writeFileSync(process.env.CSI_MEMO_SAMPLE as string, await renderMemoPdf(memoHeader(), [memoSurvey(1), memoSurvey(2)]));
     });

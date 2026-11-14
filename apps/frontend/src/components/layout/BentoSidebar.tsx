@@ -461,7 +461,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         if (hasActiveSurvey) {
             // No pageKey: eligibility is decided by the backend's active-survey list.
             nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei CSI', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
-        } else if (hasOwnerReport) {
+        }
+        if (hasOwnerReport) {
             nav.push({ key: 'csi_report', icon: BarChart3, tone: 'teal', label: 'Report CSI', path: `${isManager ? CSI_PATHS.manager : CSI_PATHS.staff}/report` });
         }
 

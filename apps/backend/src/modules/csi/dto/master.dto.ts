@@ -145,14 +145,20 @@ export class UpdateDimensionDto {
     isActive?: boolean;
 }
 
+const REORDER_MAX_IDS = 200;
+const RATERS_MAX_IDS = 5000;
+const SEARCH_MAX_LENGTH = 100;
+
 export class ReorderDto {
     @IsArray({ message: 'Urutan harus berupa array' })
+    @ArrayMaxSize(REORDER_MAX_IDS, { message: `Maksimal ${REORDER_MAX_IDS} item urutan` })
     @IsUUID('all', { each: true, message: 'ID harus berupa UUID' })
     ids: string[];
 }
 
 export class AddRatersDto {
     @IsArray({ message: 'Daftar pengguna harus berupa array' })
+    @ArrayMaxSize(RATERS_MAX_IDS, { message: `Maksimal ${RATERS_MAX_IDS} penilai` })
     @IsUUID('all', { each: true, message: 'ID pengguna harus berupa UUID' })
     userIds: string[];
 }
@@ -167,6 +173,7 @@ export class MasterListQueryDto {
 export class UserSearchQueryDto {
     @ValidateIf(isProvided)
     @IsString({ message: 'Pencarian harus berupa teks' })
+    @MaxLength(SEARCH_MAX_LENGTH, { message: `Pencarian maksimal ${SEARCH_MAX_LENGTH} karakter` })
     search?: string;
 
     @ValidateIf(isProvided)
@@ -200,6 +207,7 @@ export class RaterImportDto {
 
 export class RaterIdsDto {
     @IsArray({ message: 'Daftar penilai harus berupa array' })
+    @ArrayMaxSize(RATERS_MAX_IDS, { message: `Maksimal ${RATERS_MAX_IDS} penilai` })
     @IsUUID('all', { each: true, message: 'ID penilai harus berupa UUID' })
     ids: string[];
 }

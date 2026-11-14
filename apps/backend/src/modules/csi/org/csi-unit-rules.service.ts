@@ -11,6 +11,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { lockUnlockedPeriod } from '../services/csi-period-lock.util';
 import { assertPeriodInScope } from '../services/csi-scope.util';
+import { normalizeNik } from './csi-org.constants';
 import { CsiUnitRule, expandRules } from './csi-unit-rules';
 
 const RULES_MAX = 200;
@@ -38,7 +39,10 @@ export class CsiUnitRulesService {
         const rows: Array<{ division: string; department: string | null; bagian: string | null; count: string }> = await this.dataSource.query(`
             SELECT person."division" AS "division", person."department" AS "department", person."bagian" AS "bagian", COUNT(*) AS "count"
             FROM "csi_org_people" person
-            JOIN "users" account ON account."employeeId" = person."nik" AND account."isActive" = true
+            JOIN "users" account ON (CASE
+                WHEN btrim(account."employeeId") ~ '^[0-9]+$' AND char_length(btrim(account."employeeId")) < 8 THEN lpad(btrim(account."employeeId"), 8, '0')
+                ELSE btrim(account."employeeId")
+            END) = person."nik" AND account."isActive" = true
             WHERE person."division" IS NOT NULL
             GROUP BY person."division", person."department", person."bagian"`);
         return rows.map((row) => ({ division: row.division, department: row.department, bagian: row.bagian, accounts: Number(row.count) }));
@@ -78,10 +82,11 @@ export class CsiUnitRulesService {
         const period = await this.find(scope, periodId);
         const raters = await this.dataSource.getRepository(CsiPeriodRater).find({ where: { periodId: period.id }, relations: { user: { site: true } } });
         const pairs = await this.dataSource.getRepository(CsiPeriodRaterRatee).find({ where: { periodId: period.id } });
-        const niks = raters.map((rater) => rater.user?.employeeId).filter((nik): nik is string => !!nik);
+        const niks = raters.map((rater) => normalizeNik(rater.user?.employeeId)).filter((nik): nik is string => !!nik);
         const org = new Map((niks.length ? await this.people.find({ where: { nik: In(niks) } }) : []).map((person) => [person.nik, person]));
         return raters.map((rater) => {
-            const person = org.get(rater.user?.employeeId ?? '');
+            const nik = normalizeNik(rater.user?.employeeId);
+            const person = nik ? org.get(nik) : undefined;
             return {
                 userId: rater.userId, nik: rater.user?.employeeId ?? null, fullName: rater.user?.fullName ?? '', siteCode: rater.user?.site?.code ?? null,
                 division: person?.division ?? null, department: person?.department ?? null, bagian: person?.bagian ?? null,
@@ -122,15 +127,22 @@ export class CsiUnitRulesService {
         const people = divisions.length ? await this.people.find({ where: { division: In(divisions) } }) : [];
         const byNik = expandRules(rules, people, pics);
         const accounts = byNik.size ? await this.users.find({
-            where: { employeeId: In([...byNik.keys()]), isActive: true }, select: { id: true, employeeId: true },
+            where: { isActive: true, employeeId: Not(IsNull()) }, select: { id: true, employeeId: true },
         }) : [];
         const picUser = new Map(pics.map((pic) => [pic.periodRateeId, pic.userId]));
-        const pairs = accounts.flatMap((user) => [...(byNik.get(user.employeeId) ?? [])]
-            // A PIC never rates themself.
-            .filter((rateeId) => picUser.get(rateeId) !== user.id)
-            .map((periodRateeId) => ({ userId: user.id, periodRateeId })));
+        const matchedNiks = new Set<string>();
+        const pairs = accounts.flatMap((user) => {
+            const nik = normalizeNik(user.employeeId);
+            const targetRatees = nik ? byNik.get(nik) : undefined;
+            if (!nik || !targetRatees) return [];
+            matchedNiks.add(nik);
+            return [...targetRatees]
+                // A PIC never rates themself.
+                .filter((rateeId) => picUser.get(rateeId) !== user.id)
+                .map((periodRateeId) => ({ userId: user.id, periodRateeId }));
+        });
         const raters = [...new Set(pairs.map((pair) => pair.userId))];
-        return { raters, pairs, unmatched: byNik.size - accounts.length };
+        return { raters, pairs, unmatched: Math.max(0, byNik.size - matchedNiks.size) };
     }
 
     private async find(scope: ServiceScope, periodId: string) {

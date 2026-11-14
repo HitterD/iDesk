@@ -196,37 +196,41 @@ export class CsiOrgService {
     }
 
     /** Updates active flag, service function, and/or linked iDesk account (syncing draft surveys on account change). */
-    async updatePic(scope: ServiceScope, id: string, input: { isActive?: boolean; serviceFunction?: string | null; userId?: string | null }): Promise<CsiPicView> {
-        const pic = await this.pics.findOne({ where: { id, scope }, relations: { user: true } });
-        if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
-        let nextUser = pic.user;
-        if (input.userId !== undefined) {
-            if (input.userId === null) {
-                nextUser = null;
-            } else {
-                const account = await this.users.findOne({ where: { id: input.userId } });
-                if (!account || !account.isActive) throw new BadRequestException('Akun iDesk tidak ditemukan atau tidak aktif');
-                const clash = await this.pics.findOne({ where: { scope, userId: input.userId } });
-                if (clash && clash.id !== pic.id) throw new BadRequestException(`Akun iDesk sudah tertaut ke PIC lain (${clash.fullName})`);
-                nextUser = account;
+    async updatePic(scope: ServiceScope, id: string, input: { isActive?: boolean; serviceFunction?: string | null; userId?: string | null }, externalManager?: EntityManager): Promise<CsiPicView> {
+        const apply = async (picRepo: Repository<CsiPic>, userRepo: Repository<User>, manager?: EntityManager) => {
+            const pic = await picRepo.findOne({ where: { id, scope }, relations: { user: true } });
+            if (!pic) throw new NotFoundException(PIC_NOT_FOUND_MESSAGE);
+            let nextUser = pic.user;
+            if (input.userId !== undefined) {
+                if (input.userId === null) {
+                    nextUser = null;
+                } else {
+                    const account = await userRepo.findOne({ where: { id: input.userId } });
+                    if (!account || !account.isActive) throw new BadRequestException('Akun iDesk tidak ditemukan atau tidak aktif');
+                    const clash = await picRepo.findOne({ where: { scope, userId: input.userId } });
+                    if (clash && clash.id !== pic.id) throw new BadRequestException(`Akun iDesk sudah tertaut ke PIC lain (${clash.fullName})`);
+                    nextUser = account;
+                }
             }
-        }
-        const patch = {
-            ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
-            ...(input.serviceFunction === undefined ? {} : { serviceFunction: normalizeServiceFunction(input.serviceFunction) }),
-            ...(input.userId === undefined ? {} : { userId: input.userId, user: nextUser }),
-        };
-        const userChanged = input.userId !== undefined && input.userId !== pic.userId;
-        if (userChanged && this.dataSource) {
-            const saved = await this.dataSource.transaction(async (manager) => {
-                const updated = await manager.getRepository(CsiPic).save({ ...pic, ...patch });
-                await this.syncDraftRateeUser(manager, pic.id, input.userId ?? null);
-                return updated;
-            });
+            const patch = {
+                ...(input.isActive === undefined ? {} : { isActive: input.isActive }),
+                ...(input.serviceFunction === undefined ? {} : { serviceFunction: normalizeServiceFunction(input.serviceFunction) }),
+                ...(input.userId === undefined ? {} : { userId: input.userId, user: nextUser }),
+            };
+            const userChanged = input.userId !== undefined && input.userId !== pic.userId;
+            const saved = await picRepo.save({ ...pic, ...patch });
+            if (userChanged && manager) await this.syncDraftRateeUser(manager, pic.id, input.userId ?? null);
             return picView({ ...saved, user: nextUser });
+        };
+
+        if (externalManager) {
+            return apply(externalManager.getRepository(CsiPic), externalManager.getRepository(User), externalManager);
         }
-        const saved = await this.pics.save({ ...pic, ...patch });
-        return picView({ ...saved, user: nextUser });
+        if (input.userId !== undefined && this.dataSource) {
+            return this.dataSource.transaction((manager) =>
+                apply(manager.getRepository(CsiPic), manager.getRepository(User), manager));
+        }
+        return apply(this.pics, this.users);
     }
 
     /** Keeps draft survey ratee snapshots aligned when a PIC is manually linked or unlinked from an iDesk account. */
@@ -242,7 +246,16 @@ export class CsiOrgService {
             .find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true } })).map((row) => row.periodId));
         const now = new Date();
         const drafts = new Set(periods.filter((period) => surveyStage(period, answered.has(period.id), now) === 'draft').map((period) => period.id));
-        const ids = ratees.filter((ratee) => drafts.has(ratee.periodId)).map((ratee) => ratee.id);
+        const targetRatees = ratees.filter((ratee) => drafts.has(ratee.periodId));
+        const ids = targetRatees.map((ratee) => ratee.id);
+        if (userId && ids.length) {
+            const draftPeriodIds = [...new Set(targetRatees.map((ratee) => ratee.periodId))];
+            const clashes = await repo.find({ where: { periodId: In(draftPeriodIds), userId }, select: { id: true } });
+            const idSet = new Set(ids);
+            if (clashes.some((row) => !idSet.has(row.id))) {
+                throw new BadRequestException('Akun pengguna sudah terdaftar sebagai yang dinilai di salah satu survei draft');
+            }
+        }
         if (ids.length) await repo.update({ id: In(ids) }, { userId });
     }
 

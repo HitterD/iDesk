@@ -6,6 +6,7 @@ const trimString = ({ value }: { value: unknown }) => typeof value === 'string' 
 const isProvided = (_object: object, value: unknown) => value !== undefined;
 const SCORE_MESSAGE = `Nilai harus berupa bilangan bulat ${CSI_SCORE_MIN}–${CSI_SCORE_MAX}`;
 const NAME_MESSAGE = `Nama harus ${CSI_RESPONDENT_NAME_MIN}–${CSI_RESPONDENT_NAME_MAX} karakter`;
+const COMMENTS_MAX = 500;
 
 /**
  * One answer. Which of score/optionIndex/text applies depends on the question type, which is only known
@@ -61,6 +62,7 @@ export class SubmitResponseDto {
 
     @ValidateIf(isProvided)
     @IsArray({ message: 'Daftar komentar harus berupa array' })
+    @ArrayMaxSize(COMMENTS_MAX, { message: `Daftar komentar maksimal ${COMMENTS_MAX}` })
     @ValidateNested({ each: true })
     @Type(() => SubmitCommentDto)
     comments?: SubmitCommentDto[];

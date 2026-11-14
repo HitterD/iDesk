@@ -100,6 +100,8 @@ function SiteTeam({ scope, period, entry, allSites, questions, sets, onDirtyChan
                 await save.mutateAsync({ siteId: target.id, questionIds: draft });
             }
             toast.success(TEAM_COPY.appliedAllTeams(allSites.length));
+        } catch {
+            // Error toast handled by interceptor; stop remaining sites cleanly.
         } finally {
             setApplyingAll(false);
         }

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { User } from '../../users/entities/user.entity';
-import { CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -29,7 +29,7 @@ function matches(row: Record<string, any>, where: Record<string, any> = {}): boo
         if (value && typeof value === 'object' && '_type' in value) {
             if (value._type === 'in') return value._value.includes(row[key]);
             if (value._type === 'isNull') return row[key] === null || row[key] === undefined;
-            if (value._type === 'not') return row[key] !== value._value;
+            if (value._type === 'not') return !matches(row, { [key]: value._value });
             if (value._type === 'lessThanOrEqual') return row[key] <= value._value;
             if (value._type === 'moreThanOrEqual') return row[key] >= value._value;
             throw new Error(`Unsupported operator ${value._type}`);
@@ -232,6 +232,30 @@ describe('CsiAssignmentService', () => {
         await expect(service.ratersWithPairs('p2')).resolves.toBeNull();
     });
 
+    it('treats pairMode CUSTOM with 0 pairs as strict empty Set (no silent fallback to ALL)', async () => {
+        db.table(CsiPeriod)[0] = { ...db.table(CsiPeriod)[0], pairMode: CsiPairMode.CUSTOM };
+        await expect(service.pairsFor('p1', 'u-spj1')).resolves.toEqual(new Set());
+        await expect(service.ratersWithPairs('p1')).resolves.toEqual(new Set());
+        await expect(service.rateesWithPairs('p1')).resolves.toEqual(new Set());
+    });
+
+    it('treats pairMode ALL as null (no filtering)', async () => {
+        db.table(CsiPeriod)[0] = { ...db.table(CsiPeriod)[0], pairMode: CsiPairMode.ALL };
+        await expect(service.pairsFor('p1', 'u-spj1')).resolves.toBeNull();
+        await expect(service.ratersWithPairs('p1')).resolves.toBeNull();
+        await expect(service.rateesWithPairs('p1')).resolves.toBeNull();
+    });
+
+    it('setPairs and autoSameSite sync pairMode to CUSTOM when pairs are saved', async () => {
+        db.table(CsiPeriod)[0] = { ...db.table(CsiPeriod)[0], pairMode: CsiPairMode.ALL };
+        await service.setPairs(ICT, 'p1', [{ periodRaterId: 'pr-spj1', periodRateeId: 're-team-spj' }]);
+        expect(db.table(CsiPeriod)[0].pairMode).toBe(CsiPairMode.CUSTOM);
+
+        db.table(CsiPeriod)[0] = { ...db.table(CsiPeriod)[0], pairMode: null };
+        await service.autoSameSite(ICT, 'p1');
+        expect(db.table(CsiPeriod)[0].pairMode).toBe(CsiPairMode.CUSTOM);
+    });
+
     it('saveTemplate rewrites the scope template from the period pairs', async () => {
         db.table(CsiRaterAssignment).push({ id: 'old', scope: ICT, raterUserId: 'u-gone', subjectKey: 'user:u-gone2' });
         await service.setPairs(ICT, 'p1', [
@@ -349,8 +373,8 @@ describe('CsiAssignmentService', () => {
         it('editing ratees keeps the pairs of ratees that stay and drops pairs of removed ratees', async () => {
             db.table(CsiPeriodRatee).forEach((row, index, rows) => { if (row.id === 're-spj2') rows[index] = { ...row, tagline: 'Override' }; });
             await periods.setRatees(ICT, 'p1', [{ userId: 'u-spj2', dimensionIds: ['d2'] }, { userId: 'u-new', dimensionIds: ['d1'] }]);
-            // re-spj1 (u-spj1) was removed → its pair is gone; re-spj2 kept its id, pair and override; team pairs untouched.
-            expect(keys()).toEqual(['pr-krw>re-team-krw', 'pr-spj1>re-spj2', 'pr-spj1>re-team-spj']);
+            // re-spj1 (u-spj1) was removed → its pair is gone; re-spj2 kept its id, pair and override; team pairs untouched; new SPJ ratee (u-new) gets same-site pairs.
+            expect(keys()).toEqual(['pr-krw>re-team-krw', 'pr-spj1>gen-5', 'pr-spj1>re-spj2', 'pr-spj1>re-team-spj', 'pr-spj2>gen-5']);
             const kept = db.table(CsiPeriodRatee).find((row) => row.id === 're-spj2')!;
             expect(kept).toMatchObject({ userId: 'u-spj2', sortOrder: 0, tagline: 'Override' });
             expect(db.table(CsiPeriodRateeDimension).filter((row) => row.periodRateeId === 're-spj2').map((row) => row.dimensionId)).toEqual(['d2']);

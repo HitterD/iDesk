@@ -105,7 +105,8 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
     const [templateFocus, setTemplateFocus] = useState<string>();
     const openTemplate = (locationCode: string) => { setTemplateFocus(locationCode); setSection('templates'); };
     const status = useSettingsStatus(scope);
-    const current = status.find((row) => row.key === section)!;
+    const current = status.find((row) => row.key === section) ?? status[0];
+    const activeSection = current?.key ?? section;
     return (
         <div className="grid items-start gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
             <nav aria-label="Bagian pengaturan" className={cn(ADMIN_PANEL, 'grid gap-1 p-2 lg:sticky lg:top-4')}>
@@ -128,14 +129,16 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
                 })}
             </nav>
             <div className="grid min-w-0 gap-4">
-                <header className="flex items-start gap-2">
-                    {!current.done && <CircleAlert className={cn('mt-0.5 h-4 w-4 shrink-0', toneClasses('amber').ink)} aria-hidden="true" />}
-                    <div>
-                        <h2 className="text-[16px] font-semibold">{current.label}</h2>
-                        <p className="text-[13px] text-[hsl(var(--idesk-text-secondary))]">{current.description}</p>
-                    </div>
-                </header>
-                <Body scope={scope} section={section} onSection={setSection} templateFocus={templateFocus} onFix={openTemplate} />
+                {current && (
+                    <header className="flex items-start gap-2">
+                        {!current.done && <CircleAlert className={cn('mt-0.5 h-4 w-4 shrink-0', toneClasses('amber').ink)} aria-hidden="true" />}
+                        <div>
+                            <h2 className="text-[16px] font-semibold">{current.label}</h2>
+                            <p className="text-[13px] text-[hsl(var(--idesk-text-secondary))]">{current.description}</p>
+                        </div>
+                    </header>
+                )}
+                <Body scope={scope} section={activeSection} onSection={setSection} templateFocus={templateFocus} onFix={openTemplate} />
             </div>
         </div>
     );

@@ -210,4 +210,16 @@ describe('PeriodDetail · tab Siapa menilai siapa', () => {
         await actor.click(screen.getByRole('button', { name: 'Syarat terbit' }));
         expect(screen.queryByText('Perubahan belum disimpan. Tinggalkan?')).not.toBeInTheDocument();
     });
+
+    it('confirms before leaving via "Semua survei" when matrix has unsaved pairs', async () => {
+        const actor = userEvent.setup();
+        fx.period = period({ respondentMode: 'LISTED', pairMode: 'CUSTOM' });
+        renderDetail('raters');
+        await actor.click(screen.getByRole('checkbox', { name: 'Andi menilai Tim SPJ' }));
+        await actor.click(screen.getByRole('button', { name: /Semua survei/ }));
+        expect(onBack).not.toHaveBeenCalled();
+        expect(screen.getByText('Perubahan belum disimpan. Tinggalkan?')).toBeInTheDocument();
+        await actor.click(screen.getByRole('button', { name: 'Tinggalkan' }));
+        expect(onBack).toHaveBeenCalledTimes(1);
+    });
 });

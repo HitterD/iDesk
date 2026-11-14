@@ -99,5 +99,7 @@ describe('CSI master DTO validation', () => {
         expect(await parse(UpdateDimensionDto, { shortLabel: null })).toMatchObject({ shortLabel: null });
         await expect(parse(CreateDimensionDto, { name: 'Baik', type: CsiQuestionType.STAR, shortLabel: 'x'.repeat(41) })).rejects.toThrow();
         await expect(parse(UpdateDimensionDto, { shortLabel: 5 })).rejects.toThrow();
+        await expect(parse(UserSearchQueryDto, { search: 'x'.repeat(101) })).rejects.toThrow();
+        await expect(parse(ReorderDto, { ids: Array(201).fill('7f1c6a2e-7a35-4c55-9a43-5d3c2a1b0e9f') })).rejects.toThrow();
     });
 });

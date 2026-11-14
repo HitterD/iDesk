@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -74,7 +74,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
     const status = errorStatus(submit.error);
     useClearDraftWhen(submit.isSuccess || status === CSI_HTTP_GONE, userId, form.id);
 
-    const handleSaveDraft = (payload: SaveCsiDraft) =>
+    const handleSaveDraft = useCallback((payload: SaveCsiDraft) =>
         CsiApi.saveDraft?.(form.id, payload)?.then((result) => {
             if (!result) return result;
             queryClient.setQueryData<CsiForm>(queryKeys.csi.form(form.id), (previous) =>
@@ -84,7 +84,7 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
                 previous?.map((item) => (item.id === form.id ? { ...item, hasDraft: result.draft !== null } : item)),
             );
             return result;
-        });
+        }), [form.id, queryClient]);
 
     if (submit.isSuccess) {
         return (
