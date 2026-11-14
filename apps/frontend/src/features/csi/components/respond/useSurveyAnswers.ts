@@ -2,10 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { CsiOpenForm, SaveCsiDraft } from '../../types';
 import { isAnswered, isCommentFilled, missingRequired, type CsiAnswer, type CsiAnswers, type CsiComments } from '../../lib/csiForm';
 import { draftKey, fromServerDraft, loadDraft, saveDraft, toServerDraft, type SurveyDraft } from '../../lib/surveyDraft';
+import type { DraftSyncStatus } from './respondCopy';
 
 const SAVE_DEBOUNCE_MS = 300;
 const SERVER_SAVE_DEBOUNCE_MS = 600;
 export type SaveDraftHandler = (payload: SaveCsiDraft) => Promise<unknown> | void;
+export type SaveDraftKeepaliveHandler = (payload: SaveCsiDraft) => void;
+export interface UseSurveyAnswersOptions {
+    /** Full un-narrowed form (e.g. HC all PICs) so unpicked PIC answers stay intact when switching picks. */
+    storageForm?: CsiOpenForm;
+    onSaveDraftKeepalive?: SaveDraftKeepaliveHandler;
+}
 
 type Ratee = CsiOpenForm['ratees'][number];
 
@@ -36,27 +43,50 @@ const emptyDraft = (respondentName: string, departmentId: string): SurveyDraft =
     ({ respondentName, departmentId, answers: {}, comments: {}, position: 0 });
 
 /** The identity always follows the account; a locked department wins over whatever a draft remembered. */
-function initialState(form: CsiOpenForm, key: string | null, live: boolean, lockedDepartment: string | null): {
+function initialState(
+    navForm: CsiOpenForm,
+    persistForm: CsiOpenForm,
+    key: string | null,
+    live: boolean,
+    lockedDepartment: string | null,
+): {
     draft: SurveyDraft;
     resumed: boolean;
     fromServer: boolean;
 } {
-    const local = key ? loadDraft(key, form) : null;
-    const server = live && form.draft ? fromServerDraft(form.draft, form) : null;
+    const local = key ? loadDraft(key, persistForm) : null;
+    const server = live && persistForm.draft ? fromServerDraft(persistForm.draft, persistForm) : null;
     const localTime = Date.parse(local?.updatedAt ?? '') || 0;
     const serverTime = Date.parse(server?.updatedAt ?? '') || 0;
     const pickServer = Boolean(server && (!local || serverTime > localTime));
     const stored = pickServer ? server : local;
-    if (!stored) return { draft: emptyDraft(form.respondent.fullName, lockedDepartment ?? ''), resumed: false, fromServer: false };
-    const draft = { ...stored, respondentName: form.respondent.fullName, departmentId: lockedDepartment ?? stored.departmentId };
-    return { draft: { ...draft, position: resumePosition(form, draft) }, resumed: true, fromServer: pickServer };
+    if (!stored) return { draft: emptyDraft(navForm.respondent.fullName, lockedDepartment ?? ''), resumed: false, fromServer: false };
+    const draft = { ...stored, respondentName: navForm.respondent.fullName, departmentId: lockedDepartment ?? stored.departmentId };
+    return { draft: { ...draft, position: resumePosition(navForm, draft) }, resumed: true, fromServer: pickServer };
 }
 
 /** Debounced autosave (localStorage + server); flushed on visibility hide, `beforeunload`, `pagehide`, and unmount. */
-function useDraftAutosave(key: string | null, form: CsiOpenForm, draft: SurveyDraft, onSaveDraft?: SaveDraftHandler) {
-    const latest = useRef({ key, form, draft, onSaveDraft });
+function useDraftAutosave(
+    key: string | null,
+    navForm: CsiOpenForm,
+    persistForm: CsiOpenForm,
+    draft: SurveyDraft,
+    onSaveDraft?: SaveDraftHandler,
+    onSaveDraftKeepalive?: SaveDraftKeepaliveHandler,
+    initialStatus: DraftSyncStatus = 'idle',
+) {
+    const [syncStatus, setSyncStatus] = useState<DraftSyncStatus>(initialStatus);
+    const latest = useRef({ key, navForm, persistForm, draft, onSaveDraft, onSaveDraftKeepalive });
+    const mounted = useRef(true);
     const localPending = useRef(false);
     const serverPending = useRef(false);
+
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
     const flushLocal = useRef(() => {
         const { key: target, draft: current } = latest.current;
@@ -65,33 +95,55 @@ function useDraftAutosave(key: string | null, form: CsiOpenForm, draft: SurveyDr
         saveDraft(target, current);
     });
 
-    const flushServer = useRef(() => {
-        const { key: target, form: currentForm, draft: current, onSaveDraft: persist } = latest.current;
-        if (!target || !persist || !serverPending.current) return;
+    const buildPayload = () => {
+        const { navForm: activeNav, persistForm: activePersist, draft: current } = latest.current;
+        const picks = activeNav.respondentPicks ? activeNav.ratees.map((ratee) => ratee.periodRateeId) : undefined;
+        return toServerDraft(current, activePersist, picks);
+    };
+
+    const flushServer = useRef((preferKeepalive = false) => {
+        const { key: target, onSaveDraft: persist, onSaveDraftKeepalive: persistKeepalive } = latest.current;
+        if (!target || !serverPending.current) return;
+        if (preferKeepalive && persistKeepalive) {
+            serverPending.current = false;
+            persistKeepalive(buildPayload());
+            return;
+        }
+        if (!persist) return;
         serverPending.current = false;
-        const picks = currentForm.respondentPicks ? currentForm.ratees.map((ratee) => ratee.periodRateeId) : undefined;
-        void Promise.resolve(persist(toServerDraft(current, currentForm, picks))).catch(() => undefined);
+        if (mounted.current) setSyncStatus('saving');
+        void Promise.resolve(persist(buildPayload()))
+            .then(() => {
+                if (mounted.current && !serverPending.current) setSyncStatus('saved');
+            })
+            .catch(() => {
+                if (mounted.current && !serverPending.current) setSyncStatus('local');
+            });
     });
 
     useEffect(() => {
-        latest.current = { key, form, draft, onSaveDraft };
-    }, [key, form, draft, onSaveDraft]);
+        latest.current = { key, navForm, persistForm, draft, onSaveDraft, onSaveDraftKeepalive };
+    }, [key, navForm, persistForm, draft, onSaveDraft, onSaveDraftKeepalive]);
 
     useEffect(() => {
         const saveAll = () => {
             flushLocal.current();
-            flushServer.current();
+            flushServer.current(false);
+        };
+        const saveUnload = () => {
+            flushLocal.current();
+            flushServer.current(true);
         };
         const onVisibility = () => {
             if (document.visibilityState === 'hidden') saveAll();
         };
-        window.addEventListener('pagehide', saveAll);
-        window.addEventListener('beforeunload', saveAll);
+        window.addEventListener('pagehide', saveUnload);
+        window.addEventListener('beforeunload', saveUnload);
         document.addEventListener('visibilitychange', onVisibility);
         // In-app navigation (back link, route change) inside the debounce window keeps the last answer.
         return () => {
-            window.removeEventListener('pagehide', saveAll);
-            window.removeEventListener('beforeunload', saveAll);
+            window.removeEventListener('pagehide', saveUnload);
+            window.removeEventListener('beforeunload', saveUnload);
             document.removeEventListener('visibilitychange', onVisibility);
             saveAll();
         };
@@ -99,7 +151,10 @@ function useDraftAutosave(key: string | null, form: CsiOpenForm, draft: SurveyDr
 
     const schedule = () => {
         localPending.current = true;
-        serverPending.current = Boolean(latest.current.onSaveDraft);
+        if (latest.current.onSaveDraft || latest.current.onSaveDraftKeepalive) {
+            serverPending.current = true;
+            if (mounted.current) setSyncStatus('saving');
+        }
     };
 
     useEffect(() => {
@@ -110,11 +165,12 @@ function useDraftAutosave(key: string | null, form: CsiOpenForm, draft: SurveyDr
 
     useEffect(() => {
         if (!serverPending.current || !onSaveDraft) return undefined;
-        const timer = window.setTimeout(flushServer.current, SERVER_SAVE_DEBOUNCE_MS);
+        const timer = window.setTimeout(() => flushServer.current(false), SERVER_SAVE_DEBOUNCE_MS);
         return () => window.clearTimeout(timer);
     }, [draft, onSaveDraft]);
 
     return {
+        syncStatus,
         schedule,
         /** Cancel pending server upsert right before submit (submit endpoint deletes the draft atomically). */
         settle: () => {
@@ -134,11 +190,21 @@ export function useSurveyAnswers(
     live: boolean,
     lockedDepartment: string | null = null,
     onSaveDraft?: SaveDraftHandler,
+    options?: UseSurveyAnswersOptions,
 ) {
+    const persistForm = options?.storageForm ?? form;
     const key = live && userId ? draftKey(userId, form.id) : null;
-    const [{ draft: initial, resumed, fromServer }] = useState(() => initialState(form, key, live, lockedDepartment));
+    const [{ draft: initial, resumed, fromServer }] = useState(() => initialState(form, persistForm, key, live, lockedDepartment));
     const [draft, setDraft] = useState<SurveyDraft>(initial);
-    const autosave = useDraftAutosave(key, form, draft, onSaveDraft);
+    const autosave = useDraftAutosave(
+        key,
+        form,
+        persistForm,
+        draft,
+        onSaveDraft,
+        options?.onSaveDraftKeepalive,
+        fromServer && (onSaveDraft || options?.onSaveDraftKeepalive) ? 'saved' : 'idle',
+    );
 
     useEffect(() => {
         if (fromServer && key) saveDraft(key, initial);
@@ -151,6 +217,7 @@ export function useSurveyAnswers(
     return {
         draft,
         resumed,
+        syncStatus: autosave.syncStatus,
         /** Writes any pending local change now (before submit) so nothing is left to save after the page clears the draft. */
         settle: autosave.settle,
         setDepartment: (departmentId: string) => update((previous) => ({ ...previous, departmentId })),

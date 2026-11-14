@@ -14,7 +14,7 @@ export class SaveDraftDto {
     @IsOptional()
     @IsInt({ message: 'Posisi langkah tidak valid' })
     @Min(0, { message: 'Posisi langkah tidak valid' })
-    @Max(CSI_ITEMS_MAX, { message: 'Posisi langkah tidak valid' })
+    @Max(CSI_ITEMS_MAX + 1, { message: 'Posisi langkah tidak valid' })
     position?: number;
 
     @IsOptional()

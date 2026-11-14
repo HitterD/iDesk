@@ -129,7 +129,7 @@ function sanitizeDraft(dto: SaveDraftDto, ctx: DraftValidationContext) {
         ? dto.departmentId
         : null;
     const rawPos = typeof dto.position === 'number' && Number.isInteger(dto.position) ? dto.position : 0;
-    const position = Math.min(Math.max(rawPos, 0), ctx.ratees.length);
+    const position = Math.min(Math.max(rawPos, 0), ctx.ratees.length + 1);
 
     const answers = sanitizeAnswers(dto.answers, rateeIds, dimensionsById);
     const comments = sanitizeComments(dto.comments, rateeIds);
@@ -172,7 +172,7 @@ function sanitizeAnswerValue(dim: CsiPeriodRateeDimension, value: unknown): Draf
         return trimmed ? trimmed.slice(0, CSI_ANSWER_TEXT_MAX) : null;
     }
     if (typeof value !== 'number' || !Number.isInteger(value)) return null;
-    if (dim.type === CsiQuestionType.CHOICE) {
+    if (dim.type === CsiQuestionType.CHOICE || dim.type === CsiQuestionType.SCALE) {
         const maxIdx = Math.max(0, (dim.options?.length ?? CSI_OPTIONS_MAX) - 1);
         return value >= 0 && value <= maxIdx ? value : null;
     }
