@@ -90,8 +90,8 @@ export function NameList({ title, names }: { title: string; names: string[] }) {
     );
 }
 
-/** PICs / teams added without any rater yet: still rated (0 pairs), so a warning and never part of "Dilewati". */
-export const WITHOUT_RATERS_TITLE = 'PIC/tim belum punya penilai (tetap dicantumkan)';
+/** PICs / teams without any applied rater yet: listed as skipped from the survey until raters are added. */
+export const WITHOUT_RATERS_TITLE = 'PIC/tim belum punya penilai (tidak dimasukkan)';
 export function WithoutRatersNote({ names }: { names: string[] }) {
     if (!names.length) return null;
     return (

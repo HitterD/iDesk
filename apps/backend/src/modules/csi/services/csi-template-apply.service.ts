@@ -32,7 +32,7 @@ export type CsiTemplateApplyReport = {
     picsAdded: number; teamsAdded: number; ratersAdded: number; pairsAdded: number;
     /** Distinct applied rater accounts matched by name only (status ok), i.e. not yet confirmed by HC. */
     ratersUnconfirmed: number;
-    /** PICs / teams that become ratees without any applied rater ("dinilai tanpa penilai"): listed, never left out. */
+    /** PICs / teams without any applied rater ("belum punya penilai"): listed and not added as ratees until they have raters. */
     picsWithoutRaters: string[];
     /** Rows left out, each as "NAME (reason)": inactive or ambiguous PIC master, ambiguous directory name, inactive team. */
     picsUnmatched: string[]; ratersNoAccount: string[]; ratersAmbiguous: string[];
@@ -328,7 +328,11 @@ export class CsiTemplateApplyService {
             return !raterId || !rateeId || !existingPairs.has(`${raterId}|${rateeId}`);
         });
         // Two template rows may name the same PIC or team: it becomes one ratee (pairs of both rows still apply).
-        const newSubjects = [...new Map(subjects.filter((subject) => !existingRatee.has(subject.key)).map((subject) => [subject.key, subject])).values()];
+        // PICs / teams with zero applied raters are skipped rather than added as 0-rater ratees in the survey.
+        const ratedKeys = new Set(applied.map((pair) => pair.key));
+        const newSubjects = [...new Map(
+            subjects.filter((subject) => !existingRatee.has(subject.key) && ratedKeys.has(subject.key)).map((subject) => [subject.key, subject]),
+        ).values()];
         const tally = this.tallyOf(view, subjects, newSubjects, reasons);
         fresh.forEach((pair) => {
             tally.pairs.add(`${pair.userId}|${pair.key}`);
