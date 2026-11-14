@@ -5,7 +5,7 @@ import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'type
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, isSimulation, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, isSimulation, CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -446,12 +446,22 @@ export class CsiReportService {
     }
 
     private async loadPeriodData(scope: ServiceScope, period: CsiPeriod): Promise<PeriodData> {
-        const ratees = (await this.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
+        const allRatees = (await this.ratees.find({ where: { periodId: period.id }, order: { sortOrder: 'ASC' } })).filter(inEnabledSection(period));
+        const pairedRatees = period.pairMode === CsiPairMode.ALL || period.respondentPicks
+            ? null
+            : (await this.assignments.rateesWithPairs?.(period.id)) ?? null;
+        const rawIds = allRatees.map((ratee) => ratee.id);
+        const rawItems = rawIds.length ? await this.items.find({ where: { periodRateeId: In(rawIds) } }) : [];
+        const answeredRatees = new Set(rawItems.map((item) => item.periodRateeId));
+        const ratees = pairedRatees
+            ? allRatees.filter((ratee) => pairedRatees.has(ratee.id) || answeredRatees.has(ratee.id))
+            : allRatees;
         const rateeIds = ratees.map((ratee) => ratee.id);
-        const [views, dimensions, items, responses] = await Promise.all([
+        const rateeIdSet = new Set(rateeIds);
+        const items = rawItems.filter((item) => rateeIdSet.has(item.periodRateeId));
+        const [views, dimensions, responses] = await Promise.all([
             rateeIds.length ? this.subjects.viewsFor(scope, ratees) : new Map<string, CsiRateeView>(),
             rateeIds.length ? this.rateeDimensions.find({ where: { periodRateeId: In(rateeIds) }, relations: { dimension: true }, order: { sortOrder: 'ASC' } }) : [],
-            rateeIds.length ? this.items.find({ where: { periodRateeId: In(rateeIds) } }) : [],
             this.responses.find({ where: { periodId: period.id }, relations: { respondent: true } }),
         ]);
         return { ratees, views, dimensions, items, responses };

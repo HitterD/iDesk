@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { ShieldAlert, Star } from 'lucide-react';
 import { ResHead } from '@/components/resources/ResourceParts';
@@ -9,9 +9,11 @@ import { SettingsPanel, useSettingsStatus } from '../components/admin/SettingsPa
 import { PeriodDetail } from '../components/admin/PeriodDetail';
 import { PeriodsTab } from '../components/admin/PeriodsTab';
 import { ADMIN_PANEL, MUTED_TEXT } from '../components/admin/AdminParts';
+import { ScrollToTopButton } from '../components/common/ScrollToTopButton';
 import { WizardRoute } from '../components/wizard/WizardRoute';
 import { HcSurveyWizard } from '../components/admin/hc/templates/HcSurveyWizard';
 import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam } from '../lib/csiAdmin';
+import { scrollContainerOf } from '../lib/scrollWithin';
 import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
@@ -67,11 +69,20 @@ function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopePara
     }
 }
 
+const DEFAULT_STICKY_TOP = 47;
+
 function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
     const route = useAdminRoute();
     const [area, setArea] = useState<AdminArea>('dashboard');
+    const navRef = useRef<HTMLDivElement>(null);
+    const [stickyTop, setStickyTop] = useState(DEFAULT_STICKY_TOP);
     const inSurvey = route.wizard !== undefined || !!route.periodId;
-    const selectArea = (value: AdminArea) => { setArea(value); if (inSurvey) route.closeAll(); };
+    const selectArea = (value: AdminArea) => {
+        setArea(value);
+        if (inSurvey) route.closeAll();
+        const scroller = navRef.current ? scrollContainerOf(navRef.current) : null;
+        if (scroller && scroller.scrollTop > 0) scroller.scrollTo({ top: 0, behavior: 'auto' });
+    };
     const pending = useSettingsStatus(scope).filter((row) => !row.done).length;
     const areas = [
         { value: 'dashboard', label: 'Dashboard' },
@@ -79,13 +90,30 @@ function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
         { value: 'settings', label: pending ? `Pengaturan · ${pending} perlu dilengkapi` : 'Pengaturan' },
     ] as const;
 
+    useLayoutEffect(() => {
+        const node = navRef.current;
+        if (!node || typeof ResizeObserver === 'undefined') return undefined;
+        const sync = () => {
+            const height = Math.round(node.getBoundingClientRect().height);
+            if (height > 0) setStickyTop(height);
+        };
+        sync();
+        const observer = new ResizeObserver(sync);
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
+
     return (
-        <div className="res-page">
+        <div className="res-page" style={{ '--csi-admin-sticky-top': `${stickyTop}px` } as CSSProperties}>
             <ResHead icon={Star} tone="orange" title={`Survei Kepuasan — ${CSI_SCOPE_OF[scope]}`}
                 description="Atur sekali di Pengaturan, buat survei langkah demi langkah, lalu pantau hasilnya di Dashboard." />
-            <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs" options={areas}
-                value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
+            <div ref={navRef}
+                className="sticky top-0 z-20 -mx-3 mb-4 border-b border-[hsl(var(--idesk-border)/.45)] bg-[hsl(var(--shell-sheet)/.92)] px-3 py-2 backdrop-blur-md lg:-mx-3.5 lg:px-3.5">
+                <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs !mb-0" options={areas}
+                    value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
+            </div>
             <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
+            <ScrollToTopButton />
         </div>
     );
 }

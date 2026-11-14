@@ -221,6 +221,15 @@ export class CsiAssignmentService {
         return rows.length ? new Set(rows.map((row) => row.periodRaterId)) : null;
     }
 
+    /**
+     * Period ratee ids (csi_period_ratees.id) that have at least one assigned pair; `null` when the period has no
+     * pairs at all (unmapped: every ratee is visible, so callers must not filter).
+     */
+    async rateesWithPairs(periodId: string): Promise<Set<string> | null> {
+        const rows = await this.pairs.find({ where: { periodId }, select: { periodRateeId: true } });
+        return rows.length ? new Set(rows.map((row) => row.periodRateeId)) : null;
+    }
+
     /** `null` when the period has no pairs at all (legacy: rate every visible subject); otherwise the rater's ratee ids. */
     async pairsFor(periodId: string, raterUserId: string): Promise<Set<string> | null> {
         const total = await this.pairs.count({ where: { periodId } });

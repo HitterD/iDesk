@@ -73,8 +73,9 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
 
     return (
         <div className="grid gap-5">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="sticky top-[var(--csi-admin-sticky-top,47px)] z-10 -mx-3 flex flex-wrap items-center gap-3 border-b border-[hsl(var(--idesk-border)/.45)] bg-[hsl(var(--shell-sheet)/.92)] px-3 py-2 backdrop-blur-md lg:-mx-3.5 lg:px-3.5">
                 <button type="button" onClick={onBack} className="idesk-text-link"><ArrowLeft aria-hidden="true" />Semua survei</button>
+                <SegmentedControl aria-label="Bagian survei" className="dash-seg ml-auto" options={DETAIL_TABS} value={tab} onValueChange={changeTab} />
             </div>
             <header className="flex flex-wrap items-end gap-4">
                 <div className="min-w-0 flex-1">
@@ -86,7 +87,6 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
                         {[formatSites(period.sites), formatDateRange(period.startDate, period.endDate), CSI_MODE_LABELS[period.respondentMode]].filter(Boolean).join(' · ')}
                     </p>
                 </div>
-                <SegmentedControl aria-label="Bagian survei" className="dash-seg" options={DETAIL_TABS} value={tab} onValueChange={changeTab} />
             </header>
             {tab === 'settings' && <PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} />}
             {tab === 'raters' && (isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
