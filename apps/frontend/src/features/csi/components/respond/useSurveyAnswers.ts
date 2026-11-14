@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CsiOpenForm } from '../../types';
+import type { CsiOpenForm, SaveCsiDraft } from '../../types';
 import { isAnswered, isCommentFilled, missingRequired, type CsiAnswer, type CsiAnswers, type CsiComments } from '../../lib/csiForm';
-import { draftKey, loadDraft, saveDraft, type SurveyDraft } from '../../lib/surveyDraft';
+import { draftKey, fromServerDraft, loadDraft, saveDraft, toServerDraft, type SurveyDraft } from '../../lib/surveyDraft';
 
 const SAVE_DEBOUNCE_MS = 300;
+const SERVER_SAVE_DEBOUNCE_MS = 600;
+export type SaveDraftHandler = (payload: SaveCsiDraft) => Promise<unknown> | void;
 
 type Ratee = CsiOpenForm['ratees'][number];
 
@@ -34,66 +36,123 @@ const emptyDraft = (respondentName: string, departmentId: string): SurveyDraft =
     ({ respondentName, departmentId, answers: {}, comments: {}, position: 0 });
 
 /** The identity always follows the account; a locked department wins over whatever a draft remembered. */
-function initialState(form: CsiOpenForm, key: string | null, lockedDepartment: string | null): { draft: SurveyDraft; resumed: boolean } {
-    const stored = key ? loadDraft(key, form) : null;
-    if (!stored) return { draft: emptyDraft(form.respondent.fullName, lockedDepartment ?? ''), resumed: false };
+function initialState(form: CsiOpenForm, key: string | null, live: boolean, lockedDepartment: string | null): {
+    draft: SurveyDraft;
+    resumed: boolean;
+    fromServer: boolean;
+} {
+    const local = key ? loadDraft(key, form) : null;
+    const server = live && form.draft ? fromServerDraft(form.draft, form) : null;
+    const localTime = Date.parse(local?.updatedAt ?? '') || 0;
+    const serverTime = Date.parse(server?.updatedAt ?? '') || 0;
+    const pickServer = Boolean(server && (!local || serverTime > localTime));
+    const stored = pickServer ? server : local;
+    if (!stored) return { draft: emptyDraft(form.respondent.fullName, lockedDepartment ?? ''), resumed: false, fromServer: false };
     const draft = { ...stored, respondentName: form.respondent.fullName, departmentId: lockedDepartment ?? stored.departmentId };
-    return { draft: { ...draft, position: resumePosition(form, draft) }, resumed: true };
+    return { draft: { ...draft, position: resumePosition(form, draft) }, resumed: true, fromServer: pickServer };
 }
 
-/** Debounced autosave; also flushed on `pagehide`, on unmount, and right before submit. */
-function useDraftAutosave(key: string | null, draft: SurveyDraft) {
-    const latest = useRef({ key, draft });
-    const pending = useRef(false);
-    const flush = useRef(() => {
-        const { key: target, draft: answers } = latest.current;
-        if (!target || !pending.current) return;
-        pending.current = false;
-        saveDraft(target, answers);
+/** Debounced autosave (localStorage + server); flushed on visibility hide, `beforeunload`, `pagehide`, and unmount. */
+function useDraftAutosave(key: string | null, form: CsiOpenForm, draft: SurveyDraft, onSaveDraft?: SaveDraftHandler) {
+    const latest = useRef({ key, form, draft, onSaveDraft });
+    const localPending = useRef(false);
+    const serverPending = useRef(false);
+
+    const flushLocal = useRef(() => {
+        const { key: target, draft: current } = latest.current;
+        if (!target || !localPending.current) return;
+        localPending.current = false;
+        saveDraft(target, current);
+    });
+
+    const flushServer = useRef(() => {
+        const { key: target, form: currentForm, draft: current, onSaveDraft: persist } = latest.current;
+        if (!target || !persist || !serverPending.current) return;
+        serverPending.current = false;
+        const picks = currentForm.respondentPicks ? currentForm.ratees.map((ratee) => ratee.periodRateeId) : undefined;
+        void Promise.resolve(persist(toServerDraft(current, currentForm, picks))).catch(() => undefined);
     });
 
     useEffect(() => {
-        latest.current = { key, draft };
-    }, [key, draft]);
+        latest.current = { key, form, draft, onSaveDraft };
+    }, [key, form, draft, onSaveDraft]);
+
     useEffect(() => {
-        const save = flush.current;
-        window.addEventListener('pagehide', save);
+        const saveAll = () => {
+            flushLocal.current();
+            flushServer.current();
+        };
+        const onVisibility = () => {
+            if (document.visibilityState === 'hidden') saveAll();
+        };
+        window.addEventListener('pagehide', saveAll);
+        window.addEventListener('beforeunload', saveAll);
+        document.addEventListener('visibilitychange', onVisibility);
         // In-app navigation (back link, route change) inside the debounce window keeps the last answer.
         return () => {
-            window.removeEventListener('pagehide', save);
-            save();
+            window.removeEventListener('pagehide', saveAll);
+            window.removeEventListener('beforeunload', saveAll);
+            document.removeEventListener('visibilitychange', onVisibility);
+            saveAll();
         };
     }, []);
+
     const schedule = () => {
-        pending.current = true;
+        localPending.current = true;
+        serverPending.current = Boolean(latest.current.onSaveDraft);
     };
+
     useEffect(() => {
-        if (!pending.current) return undefined;
-        const timer = window.setTimeout(flush.current, SAVE_DEBOUNCE_MS);
+        if (!localPending.current) return undefined;
+        const timer = window.setTimeout(flushLocal.current, SAVE_DEBOUNCE_MS);
         return () => window.clearTimeout(timer);
     }, [draft]);
-    return { schedule, flush: () => flush.current() };
+
+    useEffect(() => {
+        if (!serverPending.current || !onSaveDraft) return undefined;
+        const timer = window.setTimeout(flushServer.current, SERVER_SAVE_DEBOUNCE_MS);
+        return () => window.clearTimeout(timer);
+    }, [draft, onSaveDraft]);
+
+    return {
+        schedule,
+        /** Cancel pending server upsert right before submit (submit endpoint deletes the draft atomically). */
+        settle: () => {
+            serverPending.current = false;
+            flushLocal.current();
+        },
+    };
 }
 
 /**
  * Respondent answers + current screen. In live mode every change is autosaved (debounced) to
- * `localStorage`; preview mode never reads or writes storage.
+ * `localStorage` and synced to the server when `onSaveDraft` is provided; preview mode never persists.
  */
-export function useSurveyAnswers(form: CsiOpenForm, userId: string, live: boolean, lockedDepartment: string | null = null) {
+export function useSurveyAnswers(
+    form: CsiOpenForm,
+    userId: string,
+    live: boolean,
+    lockedDepartment: string | null = null,
+    onSaveDraft?: SaveDraftHandler,
+) {
     const key = live && userId ? draftKey(userId, form.id) : null;
-    const [{ draft: initial, resumed }] = useState(() => initialState(form, key, lockedDepartment));
+    const [{ draft: initial, resumed, fromServer }] = useState(() => initialState(form, key, live, lockedDepartment));
     const [draft, setDraft] = useState<SurveyDraft>(initial);
-    const autosave = useDraftAutosave(key, draft);
+    const autosave = useDraftAutosave(key, form, draft, onSaveDraft);
+
+    useEffect(() => {
+        if (fromServer && key) saveDraft(key, initial);
+    }, [fromServer, key, initial]);
 
     const update = (patch: (previous: SurveyDraft) => SurveyDraft) => {
         autosave.schedule();
-        setDraft(patch);
+        setDraft((previous) => ({ ...patch(previous), updatedAt: new Date().toISOString() }));
     };
     return {
         draft,
         resumed,
-        /** Writes any pending change now (before submit) so nothing is left to save after the page clears the draft. */
-        settle: autosave.flush,
+        /** Writes any pending local change now (before submit) so nothing is left to save after the page clears the draft. */
+        settle: autosave.settle,
         setDepartment: (departmentId: string) => update((previous) => ({ ...previous, departmentId })),
         setAnswer: (dimensionId: string, answer: CsiAnswer) =>
             update((previous) => ({ ...previous, answers: { ...previous.answers, [dimensionId]: answer } })),

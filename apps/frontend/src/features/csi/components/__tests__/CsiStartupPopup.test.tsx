@@ -94,4 +94,10 @@ describe('CsiStartupPopup', () => {
         renderPopup('/client/csi/p1');
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+
+    it('shows Lanjutkan CTA when survey.hasDraft is true from the server', async () => {
+        activeState.data = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false, hasDraft: true }];
+        renderPopup();
+        expect(await screen.findByRole('button', { name: 'Lanjutkan' })).toBeInTheDocument();
+    });
 });

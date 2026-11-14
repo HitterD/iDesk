@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearDraft, draftKey, hasDraft, loadDraft, saveDraft, type SurveyDraft } from '../surveyDraft';
+import { clearDraft, draftKey, fromServerDraft, hasDraft, loadDraft, pickKey, saveDraft, toServerDraft, type SurveyDraft } from '../surveyDraft';
 import { CSI_ANSWER_TEXT_MAX, CSI_COMMENT_MAX } from '../csiForm';
 
 const warn = vi.hoisted(() => vi.fn());
@@ -114,5 +114,41 @@ describe('surveyDraft', () => {
         expect(() => saveDraft(KEY, DRAFT)).not.toThrow();
         // Autosave hits storage on every change: one warning per session is enough.
         expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats non-empty PIC picks as an active draft even before questions are answered', () => {
+        localStorage.setItem(pickKey('u1', 'p1'), JSON.stringify([]));
+        expect(hasDraft('u1', 'p1')).toBe(false);
+        localStorage.setItem(pickKey('u1', 'p1'), JSON.stringify(['r1']));
+        expect(hasDraft('u1', 'p1')).toBe(true);
+    });
+
+    it('round-trips client drafts through toServerDraft and fromServerDraft', () => {
+        const withText: SurveyDraft = {
+            ...DRAFT,
+            answers: { ...DRAFT.answers, x3: { text: 'Bagus sekali' } },
+            updatedAt: '2026-11-14T12:00:00.000Z',
+        };
+        const payload = toServerDraft(withText, FORM, ['r1', 'r2']);
+        expect(payload).toEqual({
+            departmentId: 'd1',
+            position: 2,
+            answers: {
+                r1: { x1: 5, x2: 1, x3: 'Bagus sekali' },
+                r2: { y1: 3 },
+            },
+            comments: { r1: 'Mantap' },
+            picks: ['r1', 'r2'],
+        });
+
+        const restored = fromServerDraft({
+            departmentId: payload.departmentId ?? null,
+            position: payload.position ?? 0,
+            answers: payload.answers ?? {},
+            comments: payload.comments ?? {},
+            picks: payload.picks ?? null,
+            updatedAt: '2026-11-14T12:00:00.000Z',
+        }, FORM);
+        expect(restored).toEqual(withText);
     });
 });

@@ -140,4 +140,10 @@ describe('CsiPendingCard', () => {
         expect(await screen.findByText('Survei ICT Q4')).toBeInTheDocument();
         expect(screen.getByText('Survei HC Khusus')).toBeInTheDocument();
     });
+
+    it('shows Lanjutkan when the server reports hasDraft even if localStorage is empty (cross-device resume)', async () => {
+        vi.mocked(CsiApi.active).mockResolvedValue([{ ...SURVEYS[0], hasDraft: true }, SURVEYS[1]]);
+        renderAt('/client/csi', <CsiSurveyListPage />);
+        expect(await screen.findByRole('link', { name: /Survei ICT Q4.*Lanjutkan/ })).toBeInTheDocument();
+    });
 });

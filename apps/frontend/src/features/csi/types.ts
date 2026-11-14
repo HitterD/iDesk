@@ -160,6 +160,8 @@ export interface CsiActivePeriod {
     submitted: boolean;
     /** When this account answered (ISO), or null. */
     submittedAt?: string | null;
+    /** Whether this account has an unsent draft saved on the server. */
+    hasDraft?: boolean;
 }
 
 export interface CsiFormDimension {
@@ -210,6 +212,25 @@ export interface CsiForm {
     submittedNames: string[];
     departments: Array<{ id: string; name: string }>;
     ratees: CsiFormRatee[];
+    /** In-progress draft saved on the server for this account, or null. */
+    draft?: CsiServerDraft | null;
+}
+
+export interface CsiServerDraft {
+    departmentId: string | null;
+    position: number;
+    answers: Record<string, Record<string, number | string>>;
+    comments: Record<string, string>;
+    picks: string[] | null;
+    updatedAt: string;
+}
+
+export interface SaveCsiDraft {
+    departmentId?: string | null;
+    position?: number;
+    answers?: Record<string, Record<string, number | string>>;
+    comments?: Record<string, string>;
+    picks?: string[] | null;
 }
 export type CsiOpenForm = CsiForm;
 export interface CsiSubmitResult { submitted: true; thankYou: string }

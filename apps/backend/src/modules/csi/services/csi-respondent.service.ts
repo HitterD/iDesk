@@ -190,6 +190,24 @@ export class CsiRespondentService {
         return { submitted: true as const, thankYou: period.thankYou };
     }
 
+    /** Audience, active departments, and submission state for draft load/save (keeps submit's eligibility rules). */
+    async draftContext(user: CsiRespondentRef, periodId: string, now: Date = new Date()) {
+        const { period, audience } = await this.resolveEligible(user, periodId);
+        assertSubmittable(period, now);
+        const [departments, submittedAt] = await Promise.all([
+            this.departments.find({ where: { scope: period.scope, isActive: true }, select: { id: true } }),
+            this.submittedAt(period.id, audience.respondent.id),
+        ]);
+        return {
+            period,
+            respondentId: audience.respondent.id,
+            ratees: audience.ratees,
+            dimensions: audience.dimensions,
+            departmentIds: new Set(departments.map((row) => row.id)),
+            submittedAt,
+        };
+    }
+
     /** 404 unless the period exists and the user is in its audience (status is checked by the caller). */
     private async resolveEligible(user: CsiRespondentRef, periodId: string): Promise<{ period: CsiPeriod; audience: Audience }> {
         const respondent = await this.loadRespondent(user.id);
