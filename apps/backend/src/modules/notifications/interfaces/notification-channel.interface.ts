@@ -17,6 +17,14 @@ export interface NotificationPayload {
     data?: Record<string, unknown>;
     channels?: DeliveryChannel[];
     priority?: NotificationPriority;
+    /** Collapses / throttles Web Push alerts using this tag (e.g. `ticket-note:<noteId>`). */
+    pushTag?: string;
+    /** Updates an existing unread (userId, type, referenceId) notification row in-place. */
+    groupUnread?: boolean;
+    /** Transient ticket ID checked against active ticket viewers without storing notification.ticketId. */
+    viewingTicketId?: string;
+    /** Bypasses per-target alert cooldown (still suppresses if user is viewing or already read). */
+    bypassPushCooldown?: boolean;
 }
 
 export enum NotificationPriority {

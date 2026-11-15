@@ -21,6 +21,8 @@ export interface TvBoardCard {
     siteCode?: string | null;
     /** Team it was last forwarded from; absent from older servers. */
     forwardedFromTeam?: string | null;
+    /** Origin site code when forwarded across IT Support sites; absent from older servers. */
+    forwardedFromSiteCode?: string | null;
 }
 
 export interface TvBoardRingtones {

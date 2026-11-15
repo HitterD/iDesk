@@ -215,5 +215,30 @@ Diperpanjang oleh: System Administrator`;
         expect(screen.queryByText(/🏷️/)).toBeNull();
         expect(screen.queryByText(/📝/)).toBeNull();
     });
+
+    it('renders cross-site IT Support forwarding labels for both staff and requester views', () => {
+        const crossSiteContent = [
+            'Ticket forwarded from OPS_SUPPORT to OPS_SUPPORT by BENY SAPUTRA. Reason: Penanganan cabang',
+            'Site forwarded: SPJ -> KRW',
+            'SLA reset. Target: 2026-08-28T09:00:00.000Z (480 minutes for HIGH)',
+        ].join('\n');
+
+        const { rerender } = render(
+            <SystemMessageEvent content={crossSiteContent} createdAt="2026-08-28T07:42:59.000Z" />
+        );
+
+        expect(screen.getByText('IT Support (SPJ)')).toBeInTheDocument();
+        expect(screen.getByText('IT Support (KRW)')).toBeInTheDocument();
+
+        rerender(
+            <SystemMessageEvent
+                audience="requester"
+                content={crossSiteContent}
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+
+        expect(screen.getByText('Tiket Anda diteruskan ke tim IT Support (KRW)')).toBeInTheDocument();
+    });
 });
 

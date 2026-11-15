@@ -689,7 +689,7 @@ export class TicketsController {
 
     @Post(':id/forward')
     @Roles(...TICKET_AGENT_ROLES)
-    @ApiOperation({ summary: 'Forward a ticket to the other handling team (ops <-> oracle)' })
+    @ApiOperation({ summary: 'Forward a ticket to another handling team or IT Support site' })
     @ApiResponse({ status: 201, description: 'Ticket forwarded' })
     async forwardTicket(
         @Param('id', ParseUUIDPipe) id: string,
@@ -699,6 +699,8 @@ export class TicketsController {
         return this.ticketForwardService.forwardTicket(id, dto, {
             userId: req.user.userId,
             fullName: req.user.fullName || req.user.username,
+            role: req.user.role,
+            siteId: req.user.siteId ?? null,
         });
     }
 

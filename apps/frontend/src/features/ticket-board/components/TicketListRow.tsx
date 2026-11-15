@@ -94,6 +94,12 @@ export interface TicketRowData {
     handlingTeam?: string | null;
     /** Team it was last forwarded from; null if never forwarded. */
     forwardedFromTeam?: string | null;
+    /** Origin site when forwarded across IT Support sites; null otherwise. */
+    forwardedFromSite?: {
+        id?: string;
+        code: string;
+        name: string;
+    } | null;
 }
 
 export interface Agent {
@@ -241,9 +247,14 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
 
     const devTeam = ticket.handlingTeam && ticket.handlingTeam !== 'OPS_SUPPORT' ? ticket.handlingTeam : null;
     const fromTeam = ticket.forwardedFromTeam;
-    const forwardedTag = fromTeam && (
-        <span className="queue-src queue-forwarded" title={`Diteruskan dari ${REPORT_TEAM_LABELS[fromTeam as keyof typeof REPORT_TEAM_LABELS] ?? fromTeam}`}>
-            <Share2 aria-hidden="true" />dari {REPORT_TEAM_LABELS[fromTeam as keyof typeof REPORT_TEAM_LABELS] ?? fromTeam}
+    const fromTeamLabel = fromTeam ? (REPORT_TEAM_LABELS[fromTeam as keyof typeof REPORT_TEAM_LABELS] ?? fromTeam) : null;
+    const fromSiteCode = ticket.forwardedFromSite?.code;
+    const fromLabel = fromTeamLabel
+        ? (fromSiteCode ? `${fromTeamLabel} (${fromSiteCode})` : fromTeamLabel)
+        : (fromSiteCode ? `Site ${fromSiteCode}` : null);
+    const forwardedTag = fromLabel && (
+        <span className="queue-src queue-forwarded" title={`Diteruskan dari ${fromLabel}`}>
+            <Share2 aria-hidden="true" />dari {fromLabel}
         </span>
     );
     const teamTag = (devTeam || forwardedTag) && (

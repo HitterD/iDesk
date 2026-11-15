@@ -237,6 +237,7 @@ export class TicketQueryService {
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
             .leftJoinAndSelect('ticket.site', 'site')
+            .leftJoinAndSelect('ticket.forwardedFromSite', 'forwardedFromSite')
             .orderBy('ticket.createdAt', 'DESC')
             .take(500); // Safety limit to prevent full table dumps
 
@@ -363,7 +364,8 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site');
+            .leftJoinAndSelect('ticket.site', 'site')
+            .leftJoinAndSelect('ticket.forwardedFromSite', 'forwardedFromSite');
 
         // "Tiket yang saya buat": requester-side access follows the ticket to any
         // team or site, so the team/site scoping below does not apply.
@@ -590,7 +592,8 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site');
+            .leftJoinAndSelect('ticket.site', 'site')
+            .leftJoinAndSelect('ticket.forwardedFromSite', 'forwardedFromSite');
 
         applyStatusFilter(qb, status);
         if (overdue) {
@@ -745,6 +748,8 @@ export class TicketQueryService {
                 'user.department',
                 'assignedTo',
                 'createdBy',
+                'site',
+                'forwardedFromSite',
                 'messages',
                 'messages.sender',
                 'messages.pinnedBy',
@@ -1068,7 +1073,8 @@ export class TicketQueryService {
             .leftJoinAndSelect('ticket.user', 'user')
             .leftJoinAndSelect('user.department', 'department')
             .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
-            .leftJoinAndSelect('ticket.site', 'site');
+            .leftJoinAndSelect('ticket.site', 'site')
+            .leftJoinAndSelect('ticket.forwardedFromSite', 'forwardedFromSite');
 
         // Apply module criteria
         if (module.handlingTeams && module.handlingTeams.length > 0) {

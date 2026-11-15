@@ -68,4 +68,27 @@ describe('TicketNoteDiscussionService', () => {
         await service.solution('n', 'a', null);
         expect(note.selectedSolutionMessageId).toBeNull();
     });
+
+    it('guards grouped notifications from being marked read on partial watermark and emits notifications:read when cleared', async () => {
+        note.eventSequence = 3;
+        const queries: string[] = [];
+        const emit = jest.fn();
+        const localManager: any = {
+            query: async (sql: string) => { queries.push(sql); return [[{ id: 'notif-1' }], 1]; },
+            save: async (_: any, data: any) => data,
+        };
+        const gateway: any = { server: { to: jest.fn(() => ({ emit })) } };
+        const disc = new TicketNoteDiscussionService(
+            { manager: localManager, transaction: async (fn: any) => fn(localManager) } as any,
+            { assertMember: async () => ({ note, member, ticket: { id: 't' } }) } as any,
+            undefined,
+            gateway,
+        );
+
+        await disc.markRead('n', 'a', 3);
+
+        expect(queries[0]).toContain('NOT EXISTS');
+        expect(queries[0]).toContain('d.sequence > $3');
+        expect(emit).toHaveBeenCalledWith('notifications:read', { userId: 'a' });
+    });
 });

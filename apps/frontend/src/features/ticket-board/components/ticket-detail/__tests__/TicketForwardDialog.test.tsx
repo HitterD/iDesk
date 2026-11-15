@@ -38,4 +38,77 @@ describe('approved forward form', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Jaringan terputus');
         expect(screen.getByRole('textbox')).toHaveValue('Akses khusus');
     });
+
+    it('lets OPS_SUPPORT forward to another active self-handled site and excludes current and delegated sites', async () => {
+        const confirm = vi.fn().mockResolvedValue(undefined);
+        const sites = [
+            { id: 'spj', code: 'SPJ', name: 'Head Office SPJ', isActive: true, handledBySiteId: null },
+            { id: 'krw', code: 'KRW', name: 'Karawang', isActive: true, handledBySiteId: null },
+            { id: 'jtb', code: 'JTB', name: 'Jatibarang', isActive: true, handledBySiteId: null },
+            { id: 'smg', code: 'SMG', name: 'Semarang', isActive: true, handledBySiteId: null },
+            { id: 'skd', code: 'SKD', name: 'Sukadana', isActive: true, handledBySiteId: 'spj' },
+        ];
+        render(
+            <TicketForwardDialog
+                isOpen
+                ticket={{ ...ticket, siteId: 'spj', site: { id: 'spj', code: 'SPJ', name: 'Head Office SPJ' } }}
+                sites={sites}
+                onClose={vi.fn()}
+                onConfirm={confirm}
+            />
+        );
+
+        const opsRadio = screen.getByRole('radio', { name: /IT Support/ });
+        expect(opsRadio).not.toBeDisabled();
+        fireEvent.click(opsRadio);
+
+        const siteCombo = screen.getByRole('combobox', { name: /Site tujuan/ });
+        await userEvent.click(siteCombo);
+        expect(screen.getByRole('option', { name: /KRW/ })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: /JTB/ })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: /SMG/ })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: /SKD/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: /SPJ/ })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('option', { name: /KRW/ }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Teruskan tiket' }));
+        await waitFor(() => expect(confirm).toHaveBeenCalledWith(
+            'OPS_SUPPORT',
+            'Salah routing awal',
+            'krw',
+        ));
+    });
+
+    it('defaults Site tujuan to current ticket site when Dev team forwards back to IT Support and allows picking another site', async () => {
+        const confirm = vi.fn().mockResolvedValue(undefined);
+        const sites = [
+            { id: 'spj', code: 'SPJ', name: 'Head Office SPJ', isActive: true, handledBySiteId: null },
+            { id: 'smg', code: 'SMG', name: 'Semarang', isActive: true, handledBySiteId: null },
+            { id: 'skd', code: 'SKD', name: 'Sukadana', isActive: true, handledBySiteId: 'spj' },
+        ];
+        render(
+            <TicketForwardDialog
+                isOpen
+                ticket={{ ...ticket, handlingTeam: 'ORACLE_DEV', siteId: 'spj', site: { id: 'spj', code: 'SPJ', name: 'Head Office SPJ' } }}
+                sites={sites}
+                onClose={vi.fn()}
+                onConfirm={confirm}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('radio', { name: /IT Support/ }));
+        const siteCombo = screen.getByRole('combobox', { name: /Site tujuan/ });
+        expect(siteCombo).toHaveTextContent('SPJ — Head Office SPJ (Site saat ini)');
+
+        await userEvent.click(siteCombo);
+        expect(screen.queryByRole('option', { name: /SKD/ })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('option', { name: /SMG/ }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Teruskan tiket' }));
+        await waitFor(() => expect(confirm).toHaveBeenCalledWith(
+            'OPS_SUPPORT',
+            'Masalah infrastruktur / perangkat / IT Support',
+            'smg',
+        ));
+    });
 });

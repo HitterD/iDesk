@@ -11,9 +11,9 @@ import { SjaAdapterService } from '../sja-adapter/sja-adapter.service';
 import { NotificationPushService } from './notification-push.service';
 import { NotificationPreferenceGate } from './notification-preference-gate.service';
 import { PRIORITY_LABEL, TicketPeople, describeTicketChanges, picOf, withWho } from './utils/notification-copy.util';
+import { NOTIFICATIONS_READ_EVENT } from './notification-events';
 
-/** Socket event telling a user's clients that some of their notifications became read. */
-export const NOTIFICATIONS_READ_EVENT = 'notifications:read';
+export { NOTIFICATIONS_READ_EVENT };
 
 export interface NotificationReadTarget {
     ticketId?: string;

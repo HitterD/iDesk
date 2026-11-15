@@ -6,7 +6,10 @@ export interface Site {
     code: string;
     name: string;
     isActive: boolean;
+    handledBySiteId?: string | null;
 }
+
+export const isSelfHandledSite = (site: Site): boolean => Boolean(site.isActive && !site.handledBySiteId);
 
 const HTTP_FORBIDDEN = 403;
 const HTTP_NOT_FOUND = 404;

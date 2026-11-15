@@ -38,4 +38,80 @@ describe('TicketNoteNotificationService', () => {
         expect(delivery.state).toBe('CANCELLED');
         expect(center.send).not.toHaveBeenCalled();
     });
+
+    it('skips creating a notification when recipient is currently viewing the note', async () => {
+        const deliveries: any[] = [];
+        const manager: any = { save: async (_: any, row: any) => { deliveries.push(row); return row; } };
+        const center: any = { send: jest.fn() };
+        const emit = jest.fn();
+        const gateway: any = { isViewingNote: jest.fn(async () => true), server: { to: jest.fn(() => ({ emit })) } };
+        const service = new TicketNoteNotificationService(
+            { manager } as any,
+            { assertMember: async () => ({ note: { id: 'n1', ticketId: 't1', eventSequence: 2 }, member: { lastReadSequence: 0 } }) } as any,
+            center,
+            gateway,
+        );
+
+        await service.deliver({ id: 'd1', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'MESSAGE', attemptCount: 0 } as any);
+
+        expect(center.send).not.toHaveBeenCalled();
+        expect(deliveries.at(-1)).toMatchObject({ state: 'SENT', notificationId: null });
+        expect(emit).toHaveBeenCalledWith('ticket-note:changed', { ticketId: 't1', noteId: 'n1' });
+    });
+
+    it('suppresses MESSAGE/MENTION already read, keeps INVITE at initial sequence, and guards SOLUTION by strictly greater sequence', async () => {
+        const saved: any[] = [];
+        const manager: any = { save: async (_: any, row: any) => { saved.push(row); return row; } };
+        const center: any = { send: jest.fn(async (p: any) => ({ id: p.id })) };
+        const member = { lastReadSequence: 2 };
+        const note = { id: 'n1', ticketId: 't1', eventSequence: 2 };
+        const gateway: any = { isViewingNote: async () => false, server: { to: () => ({ emit: jest.fn() }) } };
+        const service = new TicketNoteNotificationService(
+            { manager } as any,
+            { assertMember: async () => ({ note, member }) } as any,
+            center,
+            gateway,
+        );
+
+        await service.deliver({ id: 'd-msg', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'MESSAGE', attemptCount: 0 } as any);
+        await service.deliver({ id: 'd-men', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'MENTION', attemptCount: 0 } as any);
+        expect(center.send).not.toHaveBeenCalled();
+
+        await service.deliver({ id: 'd-inv', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'INVITE', attemptCount: 0 } as any);
+        await service.deliver({ id: 'd-sol', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'SOLUTION', attemptCount: 0 } as any);
+        expect(center.send).toHaveBeenCalledTimes(2);
+        expect(center.send.mock.calls[0][0]).toMatchObject({
+            id: 'd-inv', groupUnread: true, viewingTicketId: 't1', bypassPushCooldown: true, pushTag: 'ticket-note:n1',
+        });
+        expect(center.send.mock.calls[1][0]).toMatchObject({
+            id: 'd-sol', groupUnread: true, viewingTicketId: 't1', bypassPushCooldown: false, pushTag: 'ticket-note:n1',
+        });
+
+        member.lastReadSequence = 3;
+        await service.deliver({ id: 'd-sol-old', noteId: 'n1', recipientId: 'u2', sequence: 2, kind: 'SOLUTION', attemptCount: 0 } as any);
+        expect(center.send).toHaveBeenCalledTimes(2);
+    });
+
+    it('formats generic grouped unread count for unread MESSAGE and MENTION deliveries', async () => {
+        const manager: any = { save: async (_: any, row: any) => row };
+        const center: any = { send: jest.fn(async (p: any) => ({ id: p.id })) };
+        const service = new TicketNoteNotificationService(
+            { manager } as any,
+            { assertMember: async () => ({ note: { id: 'n1', ticketId: 't1', eventSequence: 5 }, member: { lastReadSequence: 2 } }) } as any,
+            center,
+            { isViewingNote: async () => false, server: { to: () => ({ emit: jest.fn() }) } } as any,
+        );
+
+        await service.deliver({ id: 'd-m1', noteId: 'n1', recipientId: 'u2', sequence: 4, kind: 'MESSAGE', attemptCount: 0 } as any);
+        await service.deliver({ id: 'd-m2', noteId: 'n1', recipientId: 'u2', sequence: 5, kind: 'MENTION', attemptCount: 0 } as any);
+
+        expect(center.send.mock.calls[0][0]).toMatchObject({
+            message: 'Ada 3 pembaruan catatan internal untuk Anda.',
+            bypassPushCooldown: false,
+        });
+        expect(center.send.mock.calls[1][0]).toMatchObject({
+            message: 'Anda disebut dalam catatan internal (3 pembaruan).',
+            bypassPushCooldown: true,
+        });
+    });
 });

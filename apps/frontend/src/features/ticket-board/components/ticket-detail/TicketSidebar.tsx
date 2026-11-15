@@ -58,7 +58,7 @@ interface TicketSidebarProps {
     onPriorityChange: (value: string) => Promise<void>;
     onCategoryChange: (value: string) => Promise<void>;
     onDeviceChange: (value: string) => Promise<void>;
-    onForward?: (targetTeam: ForwardTargetTeam, reason: string) => Promise<void> | void;
+    onForward?: (targetTeam: ForwardTargetTeam, reason: string, targetSiteId?: string) => Promise<void> | void;
     onExtendSla?: () => void;
     onSetReminder?: () => void;
     /** Moves the vendor appointment of a WAITING_VENDOR ticket. */
@@ -560,9 +560,11 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     ticketNumber: ticket.ticketNumber,
                     title: ticket.title,
                     handlingTeam: ticket.handlingTeam,
+                    siteId: ticket.siteId ?? ticket.site?.id ?? null,
+                    site: ticket.site ?? null,
                 }}
-                onConfirm={async (targetTeam, reason) => {
-                    if (onForward) await onForward(targetTeam, reason);
+                onConfirm={async (targetTeam, reason, targetSiteId) => {
+                    if (onForward) await onForward(targetTeam, reason, targetSiteId);
                     setForwardOpen(false);
                 }}
             />

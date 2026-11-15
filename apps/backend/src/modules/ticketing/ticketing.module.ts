@@ -47,6 +47,7 @@ import { SlaConfig } from './entities/sla-config.entity';
 import { SlaConfigService } from './sla-config.service';
 import { SlaConfigController } from './presentation/sla-config.controller';
 import { AuthModule } from '../auth/auth.module';
+import { Site } from '../sites/entities/site.entity';
 import { SiteHandlingModule } from '../sites/handling-site.module';
 import { NotificationModule } from '../notifications/notification.module';
 import { SlaConfigModule } from '../sla-config/sla-config.module';
@@ -111,6 +112,7 @@ import { AgentRatingsController } from './presentation/agent-ratings.controller'
         TypeOrmModule.forFeature([
             TicketNote, TicketNoteMember, TicketNoteMessage, TicketNoteEditSession,
             TicketNoteRevision, TicketNoteAttachment, TicketNoteDelivery,
+            Site,
             Ticket,
             TicketMessage,
             TicketMessageEdit,

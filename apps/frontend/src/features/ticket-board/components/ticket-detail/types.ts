@@ -32,6 +32,11 @@ export interface TicketDetail {
     category: string;
     ticketType?: string;
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
+    siteId?: string | null;
+    site?: { id?: string; code: string; name: string } | null;
+    forwardedFromTeam?: string | null;
+    forwardedFromSiteId?: string | null;
+    forwardedFromSite?: { id?: string; code: string; name: string } | null;
     device?: string;
     /** WEB, EMAIL or IPOP (filed through the iPop integration). */
     source?: string;

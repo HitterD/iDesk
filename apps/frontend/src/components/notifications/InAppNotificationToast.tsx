@@ -25,6 +25,15 @@ import { NotificationCategory, type Notification } from './types/notification.ty
 
 /** Only toasts backed by a stored notification carry a uuid id; synthetic ones cannot be marked read. */
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TICKET_LINK_PATH_RE = /^(\/tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+
+function isViewingNoteTicketPath(data: any): boolean {
+    if (data?.type !== 'TICKET_NOTE' || typeof window === 'undefined') return false;
+    const path = window.location.pathname;
+    if (data.ticketId && path.startsWith(`/tickets/${data.ticketId}`)) return true;
+    const targetPath = typeof data?.link === 'string' ? TICKET_LINK_PATH_RE.exec(data.link)?.[1] : null;
+    return Boolean(targetPath && path.startsWith(targetPath));
+}
 
 interface InAppNotification {
     id: string;
@@ -240,7 +249,9 @@ export const InAppNotificationToast: React.FC = () => {
         });
 
         // Automatically trigger Windows SJA Desktop Notifier (Toast/Popup based on user preference)
-        forwardToDesktopNotifier(data, user);
+        if (!isViewingNoteTicketPath(data)) {
+            forwardToDesktopNotifier(data, user);
+        }
     }, [user, playSound]);
 
     // Remove notification

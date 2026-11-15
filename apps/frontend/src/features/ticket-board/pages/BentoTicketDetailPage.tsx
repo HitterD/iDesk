@@ -266,10 +266,10 @@ export const BentoTicketDetailPage: React.FC = () => {
         }
     }, [id, queryClient]);
 
-    const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string) => {
+    const handleForwardTicket = useCallback(async (targetTeam: ForwardTargetTeam, reason: string, targetSiteId?: string) => {
         try {
-            await api.post(`/tickets/${id}/forward`, { targetTeam, reason });
-            toast.success('Ticket berhasil diteruskan ke tim lain');
+            await api.post(`/tickets/${id}/forward`, targetSiteId ? { targetTeam, reason, targetSiteId } : { targetTeam, reason });
+            toast.success(targetSiteId ? 'Tiket berhasil diteruskan ke site tujuan' : 'Ticket berhasil diteruskan ke tim lain');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
@@ -569,9 +569,11 @@ export const BentoTicketDetailPage: React.FC = () => {
                     ticketNumber: ticket.ticketNumber,
                     title: ticket.title,
                     handlingTeam: ticket.handlingTeam,
+                    siteId: ticket.siteId ?? ticket.site?.id ?? null,
+                    site: ticket.site ?? null,
                 }}
-                onConfirm={async (targetTeam, reason) => {
-                    await handleForwardTicket(targetTeam, reason);
+                onConfirm={async (targetTeam, reason, targetSiteId) => {
+                    await handleForwardTicket(targetTeam, reason, targetSiteId);
                     setForwardOpen(false);
                 }}
             />

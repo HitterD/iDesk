@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import TextareaAutosize from 'react-textarea-autosize';
 import { ArrowUp, CheckCircle2, ImagePlus, Lock, MessageSquareText, Send, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ const IMAGE_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp';
 interface Props { note: TicketNote; userId: string; readonly: boolean; refresh: () => unknown }
 
 export function NoteDiscussion({ note, userId, readonly, refresh }: Props) {
+    const queryClient = useQueryClient();
     const base = notePath(note.ticketId, note.id);
     const [error, setError] = useState('');
     const [sharing, setSharing] = useState<NoteMessage | null>(null);
@@ -28,10 +29,22 @@ export function NoteDiscussion({ note, userId, readonly, refresh }: Props) {
     const refreshRef = useRef(refresh);
     useEffect(() => { refreshRef.current = refresh; }, [refresh]);
     useEffect(() => {
-        if (!query.data?.throughSequence || document.visibilityState !== 'visible') return;
-        void api.post(`${base}/read`, { throughSequence: query.data.throughSequence }).then(() => refreshRef.current())
-            .catch(() => setError('Status baca belum diperbarui.'));
-    }, [base, query.data?.throughSequence]);
+        const through = query.data?.throughSequence;
+        if (typeof through !== 'number') return;
+        if (through <= 0 && !note.hasUnread) return;
+        const mark = () => {
+            if (document.visibilityState !== 'visible') return;
+            void api.post(`${base}/read`, { throughSequence: through })
+                .then(() => {
+                    refreshRef.current();
+                    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+                })
+                .catch(() => setError('Status baca belum diperbarui.'));
+        };
+        mark();
+        document.addEventListener('visibilitychange', mark);
+        return () => document.removeEventListener('visibilitychange', mark);
+    }, [base, query.data?.throughSequence, note.hasUnread, queryClient]);
     useLayoutEffect(() => {
         const list = listRef.current;
         if (list) list.scrollTop = list.scrollHeight;

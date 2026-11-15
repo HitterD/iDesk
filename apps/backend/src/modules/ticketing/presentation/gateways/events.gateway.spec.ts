@@ -287,4 +287,33 @@ describe('EventsGateway presence', () => {
         const clients = Array.from({ length: 40 }, (_, i) => connectBehindProxy(gateway, i));
         expect(clients.filter((c) => c.disconnect.mock.calls.length > 0)).toEqual([]);
     });
+
+    it('authorizes join:ticket-note via TicketNoteAccessService and reports isViewingNote', async () => {
+        const NOTE_UUID = '4a2504e0-4f89-41d3-9a0c-0305e82c3302';
+        const noteAccess = { assertMember: jest.fn() };
+        const noteGw = new EventsGateway(jwt, config, tickets, noteAccess as any);
+        const client = socket('socket-note-1');
+        client.data = { userId: 'user-1', role: UserRole.AGENT };
+        client.join = jest.fn((room: string) => { client.rooms.add(room); });
+        client.leave = jest.fn((room: string) => { client.rooms.delete(room); });
+        noteGw.server = {
+            emit: jest.fn(),
+            to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+            in: jest.fn().mockReturnValue({ fetchSockets: jest.fn(async () => [client]) }),
+        } as any;
+
+        await expect(noteGw.handleJoinTicketNote(client, 'not-a-uuid')).resolves.toEqual({ status: 'error', message: 'Invalid note ID format' });
+
+        noteAccess.assertMember.mockRejectedValueOnce(new Error('not member'));
+        await expect(noteGw.handleJoinTicketNote(client, NOTE_UUID)).resolves.toEqual({ status: 'error', message: 'Forbidden' });
+        expect(await noteGw.isViewingNote('user-1', NOTE_UUID)).toBe(false);
+
+        noteAccess.assertMember.mockResolvedValueOnce({ note: { id: NOTE_UUID } });
+        await expect(noteGw.handleJoinTicketNote(client, NOTE_UUID)).resolves.toEqual({ status: 'ok', room: `ticket-note:${NOTE_UUID}` });
+        expect(await noteGw.isViewingNote('user-1', NOTE_UUID)).toBe(true);
+
+        noteGw.handleLeaveTicketNote(client, NOTE_UUID);
+        expect(client.leave).toHaveBeenCalledWith(`ticket-note:${NOTE_UUID}`);
+        expect(await noteGw.isViewingNote('user-1', NOTE_UUID)).toBe(false);
+    });
 });
