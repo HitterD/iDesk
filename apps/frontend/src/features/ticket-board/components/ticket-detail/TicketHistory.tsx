@@ -13,18 +13,20 @@ import {
     X,
     User,
     Shield,
-    Calendar,
     Sparkles,
     CheckCircle2,
-    SlidersHorizontal,
+    Share2,
 } from 'lucide-react';
 import { TicketDetail } from './types';
 import { STATUS_CONFIG, PRIORITY_CONFIG } from './constants';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { cn } from '@/lib/utils';
+import { parseForwardEvent } from './ForwardEventCard';
+import { REPORT_TEAM_LABELS } from '@/features/reports/reportTeams';
 
 interface TicketHistoryProps {
     ticket: TicketDetail;
+    audience?: 'staff' | 'requester';
 }
 
 type EventCategory = 'all' | 'status_sla' | 'assignment' | 'properties';
@@ -32,7 +34,7 @@ type EventCategory = 'all' | 'status_sla' | 'assignment' | 'properties';
 interface ParsedActivity {
     id: string;
     rawContent: string;
-    type: 'STATUS' | 'ASSIGNMENT' | 'PRIORITY' | 'CATEGORY' | 'SLA' | 'MERGE' | 'CANCEL' | 'OTHER';
+    type: 'STATUS' | 'ASSIGNMENT' | 'PRIORITY' | 'CATEGORY' | 'SLA' | 'MERGE' | 'CANCEL' | 'FORWARD' | 'OTHER';
     categoryGroup: EventCategory;
     title: string;
     actor?: string;
@@ -80,7 +82,37 @@ const formatIsoStringsInText = (text: string): string => {
 /**
  * Parse raw system messages into structured, beautiful event data
  */
-const parseSystemMessage = (messageId: string, rawContent: string, createdAt: string): ParsedActivity => {
+const parseSystemMessage = (
+    messageId: string,
+    rawContent: string,
+    createdAt: string,
+    audience: 'staff' | 'requester' = 'staff',
+): ParsedActivity => {
+    const isRequester = audience === 'requester';
+
+    // 0. Check for Team/Site Forward events before general regexes
+    const forward = parseForwardEvent(rawContent);
+    if (forward) {
+        const toTeam = REPORT_TEAM_LABELS[forward.to as keyof typeof REPORT_TEAM_LABELS] || forward.to;
+        const fromTeam = forward.from ? (REPORT_TEAM_LABELS[forward.from as keyof typeof REPORT_TEAM_LABELS] || forward.from) : undefined;
+        const toLabel = forward.toSite ? `${toTeam} (${forward.toSite})` : toTeam;
+        const fromLabel = fromTeam ? (forward.fromSite ? `${fromTeam} (${forward.fromSite})` : fromTeam) : undefined;
+        return {
+            id: messageId,
+            rawContent,
+            type: 'FORWARD',
+            categoryGroup: 'assignment',
+            title: isRequester
+                ? `Diteruskan ke tim ${toLabel}`
+                : fromLabel ? `Diteruskan: ${fromLabel} → ${toLabel}` : `Diteruskan ke ${toLabel}`,
+            actor: isRequester ? undefined : forward.actor,
+            createdAt,
+            descriptionText: isRequester
+                ? undefined
+                : [forward.preset, forward.reason, forward.sla].filter(Boolean).join(' · ') || undefined,
+        };
+    }
+
     // Strip "System: " prefix
     const cleanContent = rawContent.replace(/^System:\s*/i, '').trim();
 
@@ -88,9 +120,9 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
     let contentWithoutActor = cleanContent;
     let actor: string | undefined;
 
-    const byMatch = cleanContent.match(/\s+by\s+([^,\.]+)(.*)$/i);
+    const byMatch = cleanContent.match(/\s+by\s+([^,.]+)(.*)$/i);
     if (byMatch) {
-        actor = byMatch[1].trim();
+        actor = isRequester ? undefined : byMatch[1].trim();
         contentWithoutActor = cleanContent.slice(0, byMatch.index).trim();
     }
 
@@ -128,12 +160,12 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
             createdAt,
             statusChange: { from, to },
             slaTarget,
-            slaNote,
+            slaNote: isRequester ? undefined : slaNote,
         };
     }
 
     // 2. Check for Assignment changes
-    const assignMatch = contentWithoutActor.match(/Ticket assigned to (.+?)(?:\s*\(was\s*(.+?)\))?$/i) ||
+    const assignMatch = contentWithoutActor.match(/Ticket (?:re)?assigned to (.+?)(?:\s*\(was\s*(.+?)\))?(?:\.?\s*\(?Alasan:.*)?$/i) ||
         contentWithoutActor.match(/Assigned to:\s*(.+)$/i);
 
     if (assignMatch) {
@@ -151,7 +183,7 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
             createdAt,
             assignmentChange: {
                 to,
-                from: isUnassigned ? undefined : from,
+                from: isRequester || isUnassigned ? undefined : from,
             },
         };
     }
@@ -264,11 +296,14 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
             actor,
             createdAt,
             slaTarget: targetMatch ? targetMatch[1] : undefined,
-            descriptionText: formatIsoStringsInText(contentWithoutActor),
+            descriptionText: isRequester ? undefined : formatIsoStringsInText(contentWithoutActor),
         };
     }
 
     // 8. Fallback for any other event
+    const fallbackText = isRequester
+        ? cleanContent.replace(/\s+\b(?:by|oleh)\s+[^\n.(]+/gi, '').trim()
+        : cleanContent;
     return {
         id: messageId,
         rawContent,
@@ -277,21 +312,22 @@ const parseSystemMessage = (messageId: string, rawContent: string, createdAt: st
         title: 'Aktivitas Sistem',
         actor,
         createdAt,
-        descriptionText: formatIsoStringsInText(cleanContent),
+        descriptionText: formatIsoStringsInText(fallbackText),
     };
 };
 
-export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
+export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket, audience = 'staff' }) => {
     const [activeFilter, setActiveFilter] = useState<EventCategory>('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const isRequester = audience === 'requester';
 
     // Parse all system messages into structured events
     const allActivities: ParsedActivity[] = useMemo(() => {
         const systemMessages = ticket.messages?.filter(m => m.isSystemMessage) || [];
         return systemMessages
-            .map(m => parseSystemMessage(m.id, m.content, m.createdAt))
+            .map(m => parseSystemMessage(m.id, m.content, m.createdAt, audience))
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [ticket.messages]);
+    }, [ticket.messages, audience]);
 
     // Filter by group and search query
     const filteredActivities = useMemo(() => {
@@ -305,8 +341,8 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
             if (searchQuery.trim()) {
                 const q = searchQuery.toLowerCase();
                 const matchTitle = item.title.toLowerCase().includes(q);
-                const matchActor = item.actor?.toLowerCase().includes(q);
-                const matchRaw = item.rawContent.toLowerCase().includes(q);
+                const matchActor = isRequester ? false : item.actor?.toLowerCase().includes(q);
+                const matchRaw = isRequester ? false : item.rawContent.toLowerCase().includes(q);
                 const matchDesc = item.descriptionText?.toLowerCase().includes(q);
                 if (!matchTitle && !matchActor && !matchRaw && !matchDesc) {
                     return false;
@@ -315,7 +351,7 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
 
             return true;
         });
-    }, [allActivities, activeFilter, searchQuery]);
+    }, [allActivities, activeFilter, searchQuery, isRequester]);
 
     const getEventBadge = (type: ParsedActivity['type']) => {
         switch (type) {
@@ -368,6 +404,13 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
                     dot: 'bg-blue-500',
                     label: 'Merge',
                 };
+            case 'FORWARD':
+                return {
+                    icon: Share2,
+                    bg: 'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400 border-indigo-500/20',
+                    dot: 'bg-indigo-500',
+                    label: 'Handover',
+                };
             default:
                 return {
                     icon: Sparkles,
@@ -407,7 +450,7 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Cari log / aksi / user..."
+                            placeholder={isRequester ? 'Cari log / aksi...' : 'Cari log / aksi / user...'}
                             className="w-full pl-8.5 pr-8 py-1.5 text-xs rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                         />
                         {searchQuery && (
@@ -632,14 +675,16 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticket }) => {
                                                 </p>
                                             )}
 
-                                            {/* Card Footer: Actor Information */}
-                                            <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
-                                                <div className="flex items-center gap-1.5 font-medium">
-                                                    <Shield className="w-3 h-3 text-muted-foreground/70" />
-                                                    <span>Dilakukan oleh:</span>
-                                                    <strong className="text-foreground">{activity.actor || 'Sistem iDesk'}</strong>
+                                            {/* Card Footer: Actor Information (hidden on requester view) */}
+                                            {!isRequester && (
+                                                <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
+                                                    <div className="flex items-center gap-1.5 font-medium">
+                                                        <Shield className="w-3 h-3 text-muted-foreground/70" />
+                                                        <span>Dilakukan oleh:</span>
+                                                        <strong className="text-foreground">{activity.actor || 'Sistem iDesk'}</strong>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
                                         </div>
                                     </div>
                                 );

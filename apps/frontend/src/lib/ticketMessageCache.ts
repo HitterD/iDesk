@@ -31,15 +31,20 @@ export interface PinnedMessageSummary {
     snippet: string;
     pinnedAt: string;
     isInternal: boolean;
+    canUnpin?: boolean;
 }
 
-type PinState = { id: string; isPinned?: boolean; pinnedAt?: string | null };
+type PinState = { id: string; isPinned?: boolean; pinnedAt?: string | null; canUnpin?: boolean };
 
 const withPins = <T extends PinState>(list: T[], pins: PinnedMessageSummary[]): T[] => {
-    const pinnedAt = new Map(pins.map((p) => [p.id, p.pinnedAt]));
+    const pinById = new Map(pins.map((p) => [p.id, p]));
     return list.map((m) => {
-        const at = pinnedAt.get(m.id) ?? null;
-        return Boolean(m.isPinned) === Boolean(at) && (m.pinnedAt ?? null) === at ? m : { ...m, isPinned: Boolean(at), pinnedAt: at };
+        const entry = pinById.get(m.id);
+        const at = entry?.pinnedAt ?? null;
+        const nextCanUnpin = entry ? (typeof entry.canUnpin === 'boolean' ? entry.canUnpin : m.canUnpin) : undefined;
+        return Boolean(m.isPinned) === Boolean(at) && (m.pinnedAt ?? null) === at && m.canUnpin === nextCanUnpin
+            ? m
+            : { ...m, isPinned: Boolean(at), pinnedAt: at, canUnpin: nextCanUnpin };
     });
 };
 
@@ -66,4 +71,39 @@ export function applyReactionsToCaches(queryClient: QueryClient, ticketId: strin
     queryClient.setQueryData(['ticket', ticketId], (old: { messages?: { id: string }[] } | undefined) =>
         old?.messages ? { ...old, messages: patch(old.messages) } : old);
     queryClient.setQueryData(['ticket-messages', ticketId], (old: { id: string }[] | undefined) => (old ? patch(old) : old));
+}
+
+/** Append an optimistic reply into the ticket detail cache before the HTTP request settles. */
+export function appendOptimisticMessage<T extends CachedMessage>(queryClient: QueryClient, ticketId: string, message: T): void {
+    queryClient.setQueryData(['ticket', ticketId], (old: WithMessages | undefined) =>
+        old ? { ...old, messages: [...(old.messages ?? []), message] } : old);
+}
+
+/** Swap an optimistic message with the server's saved copy, or drop it if WS delivered it first. */
+export function reconcileOptimisticMessage(
+    queryClient: QueryClient,
+    ticketId: string,
+    tempId: string,
+    saved?: CachedMessage | null,
+): void {
+    if (!saved?.id) return;
+    queryClient.setQueryData(['ticket', ticketId], (old: WithMessages | undefined) => {
+        if (!old?.messages) return old;
+        const alreadyHasReal = old.messages.some((m) => m.id === saved.id);
+        return {
+            ...old,
+            messages: alreadyHasReal
+                ? old.messages.filter((m) => m.id !== tempId)
+                : old.messages.map((m) => (m.id === tempId ? merge(m, saved) : m)),
+        };
+    });
+}
+
+/** Remove an optimistic message after a failed send so it does not stay stuck in the stream. */
+export function removeOptimisticMessage(queryClient: QueryClient, ticketId: string, tempId: string): void {
+    queryClient.setQueryData(['ticket', ticketId], (old: WithMessages | undefined) => {
+        if (!old?.messages) return old;
+        const filtered = old.messages.filter((m) => m.id !== tempId);
+        return filtered.length === old.messages.length ? old : { ...old, messages: filtered };
+    });
 }

@@ -5,7 +5,7 @@ import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
-import { presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
+import { presentMessage, presentThread, PresentedThreadMessage } from '../utils/message-presenter.util';
 import { loadMentionNames } from '../utils/mention-names.util';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketNote } from '../notes/entities/ticket-note.entity';
@@ -63,7 +63,7 @@ export class TicketMergeService {
         // that's 4+ writes). A crash left messages orphaned on a cancelled
         // ticket, or the cancel-status without the merge message. Now atomic
         // via dataSource.transaction.
-        const secondaryTicketNumbers = await this.dataSource.transaction(async (manager) => {
+        const { ticketNumbers: secondaryTicketNumbers, actorUser, primarySystemMessages, secondaryCancelMessages, cancelledSecondaries } = await this.dataSource.transaction(async (manager) => {
             if (manager.queryRunner?.isTransactionActive) {
                 await manager.findOne(User, { where: { id: userId }, lock: { mode: 'pessimistic_read' } });
                 for (const id of [...new Set([primaryTicketId, ...secondaryTicketIds])].sort()) {
@@ -110,6 +110,9 @@ export class TicketMergeService {
             }
 
             const ticketNumbers: string[] = [];
+            const primarySystemMessages: TicketMessage[] = [];
+            const secondaryCancelMessages: TicketMessage[] = [];
+            const cancelledSecondaries: Ticket[] = [];
             for (const secondaryTicket of secondaryTickets) {
                 ticketNumbers.push(secondaryTicket.ticketNumber);
 
@@ -196,12 +199,12 @@ export class TicketMergeService {
                     content: `System: Ticket #${secondaryTicket.ticketNumber} was merged into this ticket by ${user.fullName}${reason ? `. Reason: ${reason}` : ''}`,
                     isSystemMessage: true,
                 });
-                await manager.save(TicketMessage, systemMessage);
+                primarySystemMessages.push(await manager.save(TicketMessage, systemMessage));
 
                 // Mark secondary as cancelled (with a final system message)
                 secondaryTicket.status = TicketStatus.CANCELLED;
                 secondaryTicket.description = `[MERGED INTO #${primaryTicket.ticketNumber}] ${secondaryTicket.description}`;
-                await manager.save(Ticket, secondaryTicket);
+                cancelledSecondaries.push(await manager.save(Ticket, secondaryTicket));
 
                 const cancelMessage = manager.create(TicketMessage, {
                     ticketId: secondaryTicket.id,
@@ -209,10 +212,10 @@ export class TicketMergeService {
                     content: `System: This ticket was merged into #${primaryTicket.ticketNumber} by ${user.fullName}`,
                     isSystemMessage: true,
                 });
-                await manager.save(TicketMessage, cancelMessage);
+                secondaryCancelMessages.push(await manager.save(TicketMessage, cancelMessage));
             }
 
-            return ticketNumbers;
+            return { ticketNumbers, actorUser: user, primarySystemMessages, secondaryCancelMessages, cancelledSecondaries };
         });
 
         // Post-commit side effects (audit + WS push) — these should fire only
@@ -232,6 +235,17 @@ export class TicketMergeService {
             relations: ['user', 'assignedTo', 'messages', 'messages.sender'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
+        const actorSender = { id: actorUser.id, fullName: actorUser.fullName, role: actorUser.role };
+        for (const msg of primarySystemMessages) {
+            this.eventsGateway?.notifyNewMessage?.(primaryTicketId, { ...presentMessage(msg), sender: actorSender });
+        }
+        for (const msg of secondaryCancelMessages) {
+            this.eventsGateway?.notifyNewMessage?.(msg.ticketId, { ...presentMessage(msg), sender: actorSender });
+            this.eventsGateway?.server?.to?.(`ticket:${msg.ticketId}`)?.emit('ticket:updated', { ticketId: msg.ticketId });
+        }
+        for (const sec of cancelledSecondaries) {
+            void this.eventsGateway?.pruneTicketRooms?.(sec);
+        }
         this.eventsGateway.server.to(`ticket:${primaryTicketId}`).emit('ticket:updated', { ticketId: primaryTicketId });
         this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId: primaryTicketId });
         this.eventsGateway.notifyTicketListUpdate((ticket as any).siteId ?? null);

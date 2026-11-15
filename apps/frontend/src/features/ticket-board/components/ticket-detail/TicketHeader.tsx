@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ExternalSourceBadge } from '@/components/ui/ExternalSourceBadge';
 import { cn } from '@/lib/utils';
 import {
@@ -6,7 +6,6 @@ import {
     CheckCircle2,
     XCircle,
     Clock,
-    AlertTriangle,
     AlertCircle,
     Pause,
     MessageSquare,
@@ -53,6 +52,9 @@ interface TicketHeaderProps {
     /** Percakapan / Aktivitas switch, rendered as the header's last row (mockup .convo-head .seg). */
     tabs?: React.ReactNode;
     notesAction?: React.ReactNode;
+    /** Optional controlled open state for ResolveTicketModal (e.g. opened via keyboard shortcut). */
+    resolveOpen?: boolean;
+    onResolveOpenChange?: (open: boolean) => void;
 }
 
 type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
@@ -71,13 +73,23 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     isSidebarOpen = true,
     tabs,
     notesAction,
+    resolveOpen,
+    onResolveOpenChange,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
     const hold = useTicketHold(ticket);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-    const [showResolveConfirm, setShowResolveConfirm] = useState(false);
+    const [internalResolveOpen, setInternalResolveOpen] = useState(false);
+    const isResolveControlled = resolveOpen !== undefined;
+    const showResolveConfirm = isResolveControlled ? resolveOpen : internalResolveOpen;
+    const setShowResolveConfirm = useCallback((next: boolean) => {
+        if (!isResolveControlled) {
+            setInternalResolveOpen(next);
+        }
+        onResolveOpenChange?.(next);
+    }, [isResolveControlled, onResolveOpenChange]);
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
     // Update current time every minute for live SLA updates
@@ -89,7 +101,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     // Determine target back navigation from history state, query params, or queue fallback
     const targetInfo = useMemo(() => {
         // 1. Prioritize location.state?.from (user navigated from list/kanban)
-        const stateFrom = (location.state as any)?.from;
+        const stateFrom = (location.state as { from?: unknown } | null)?.from;
         if (typeof stateFrom === 'string' && stateFrom.startsWith('/')) {
             const rawPath = stateFrom.split('?')[0];
             let label = 'Kembali ke Daftar Tiket';

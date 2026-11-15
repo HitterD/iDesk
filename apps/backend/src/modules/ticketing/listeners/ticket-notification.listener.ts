@@ -343,6 +343,7 @@ export class TicketNotificationListener {
 
                 const mentionedUser = await this.userRepo.findOne({ where: { id: mentionedUserId } });
                 if (mentionedUser) {
+                    if (event.message?.isInternal && mentionedUser.role === UserRole.USER) continue;
                     // In-app notification
                     try {
                         await this.notificationService.notifyMention(
@@ -403,7 +404,7 @@ export class TicketNotificationListener {
                     event.ticketAssignedToId, 'TICKET', event.ticketId
                 );
             }
-            if (event.ticketOwnerId) {
+            if (event.ticketOwnerId && !event.message?.isInternal) {
                 this.notificationCenterService.emitActionItemsRefresh(
                     event.ticketOwnerId, 'TICKET', event.ticketId
                 );

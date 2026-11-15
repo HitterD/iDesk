@@ -233,5 +233,25 @@ describe('TicketParticipantService', () => {
                 ),
             ).rejects.toThrow(BadRequestException);
         });
+
+        it('evicts removed participant from ticket WS rooms and blocks CANCELLED/CLOSED tickets', async () => {
+            eventsGateway.evictUserFromTicket = jest.fn().mockResolvedValue(undefined);
+            ticketRepo.findOne.mockResolvedValue({ ...mockTicket });
+            participantRepo.findOne.mockResolvedValue({
+                id: 'part-1',
+                ticketId: 'ticket-1',
+                userId: 'colleague-id',
+                user: { fullName: 'Siti Rekan' },
+            });
+            userRepo.findOne.mockResolvedValue({ id: 'agent-id', fullName: 'Agent Utama' });
+
+            await service.removeParticipant('ticket-1', 'colleague-id', 'agent-id', UserRole.AGENT);
+            expect(eventsGateway.evictUserFromTicket).toHaveBeenCalledWith('ticket-1', 'colleague-id');
+
+            ticketRepo.findOne.mockResolvedValue({ ...mockTicket, status: 'CANCELLED' });
+            await expect(
+                service.addParticipants('ticket-1', ['colleague-id'], 'agent-id', UserRole.AGENT),
+            ).rejects.toThrow(BadRequestException);
+        });
     });
 });

@@ -79,6 +79,7 @@ describe('TicketMessageEditService', () => {
 
     it.each([
         ['a closed ticket', message(), ticket({ status: TicketStatus.CLOSED })],
+        ['a cancelled ticket', message(), ticket({ status: TicketStatus.CANCELLED })],
         ['a system message', message({ isSystemMessage: true }), ticket()],
         ['an email message', message({ source: 'EMAIL' }), ticket()],
         ['an archived internal note', message({ isInternal: true, senderId: 'agent-1' }), ticket()],
@@ -94,7 +95,12 @@ describe('TicketMessageEditService', () => {
         const own = build(old);
         expect(await own.service.deleteMessage('t-1', 'm-1', SENDER))
             .toMatchObject({ isDeleted: true, deletedByAdmin: false, content: '' });
-        expect(own.updates[0].values).toEqual({ deletedAt: new Date(NOW), deletedById: 'u-1' });
+        expect(own.updates[0].values).toEqual({
+            deletedAt: new Date(NOW),
+            deletedById: 'u-1',
+            pinnedAt: null,
+            pinnedById: null,
+        });
 
         const byAdmin = build(old);
         expect(await byAdmin.service.deleteMessage('t-1', 'm-1', ADMIN)).toMatchObject({ isDeleted: true, deletedByAdmin: true });
@@ -130,7 +136,7 @@ describe('TicketMessageEditService', () => {
         expect(saved).toHaveLength(0);
         expect(updates).toHaveLength(0);
         expect(gateway.notifyMessageUpdated).not.toHaveBeenCalled();
-        expect(out.sender).toEqual({ id: 'u-1', fullName: 'Budi', role: UserRole.USER });
+        expect(out.sender).toEqual({ id: 'u-1', fullName: 'Budi', role: UserRole.USER, avatarUrl: null });
     });
 
     it('refuses an edit that is only whitespace', async () => {

@@ -7,7 +7,8 @@ import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
 import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
-import { applySiteFilter, siteScopeKey } from '../utils/site-access.util';
+import { canAccessTicketObject, isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
+import { applySiteFilter, canAccessTicketSite, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
 import { TICKET_ACTIVE_STATUSES_SQL, TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
 import { addSlaMinutes, isBusinessHoursOnly, SlaClockService, SlaSnapshot } from './sla-clock.service';
@@ -304,7 +305,7 @@ export class TicketQueryService {
         return rawTickets.map((ticket) => ({
             ...ticket,
             slaTarget: ensureSlaTarget(ticket, sla),
-            hasUnreadChat: computeHasUnreadChat(ticket, role),
+            hasUnreadChat: computeHasUnreadChat(ticket, role, { id: userId, siteId: userSiteId }),
             isParticipant: role === UserRole.USER && ticket.userId !== userId,
         })) as Ticket[];
     }
@@ -520,7 +521,7 @@ export class TicketQueryService {
           slaTarget: ensureSlaTarget(ticket, sla),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
           // In "created by me" the caller reads as the requester side.
-          hasUnreadChat: computeHasUnreadChat(ticket, createdByMe ? UserRole.USER : role),
+          hasUnreadChat: computeHasUnreadChat(ticket, createdByMe ? UserRole.USER : role, { id: userId, siteId: userSiteId }),
           isParticipant: role === UserRole.USER && ticket.userId !== userId,
           isFiledByMe: ticket.createdById === userId,
         }));
@@ -638,7 +639,7 @@ export class TicketQueryService {
         const enrichedTickets = data.map((ticket) => ({
             ...ticket,
             slaTarget: ensureSlaTarget(ticket, sla),
-            hasUnreadChat: computeHasUnreadChat(ticket, role),
+            hasUnreadChat: computeHasUnreadChat(ticket, role, { id: userId, siteId: userSiteId }),
         }));
 
         return {
@@ -763,6 +764,10 @@ export class TicketQueryService {
                 'slaAdjustments.actor',
             ],
             order: {
+                messages: {
+                    createdAt: 'ASC',
+                    id: 'ASC',
+                },
                 slaAdjustments: {
                     createdAt: 'DESC',
                 },
@@ -801,7 +806,10 @@ export class TicketQueryService {
         const createdBy = ticket.createdBy ? { id: ticket.createdBy.id, fullName: ticket.createdBy.fullName } : null;
         const messages = ticket.messages ?? [];
         const people = await loadMentionNames(this.ticketRepo.manager, messages);
-        return { ...ticket, messages: presentThread(messages, people), createdBy, slaTarget, viewerAccess };
+        const pinViewer = user?.id
+            ? { id: user.id, role: user.role, assignedToId: ticket.assignedToId }
+            : undefined;
+        return { ...ticket, messages: presentThread(messages, people, pinViewer), createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(
@@ -1163,7 +1171,7 @@ export class TicketQueryService {
         return {
             data: tickets.map(t => ({
                 ...t,
-                hasUnreadChat: computeHasUnreadChat(t, role),
+                hasUnreadChat: computeHasUnreadChat(t, role, { id: userId, siteId: userSiteId }),
             })),
             meta: {
                 total,
@@ -1191,11 +1199,21 @@ export class TicketQueryService {
     }
 }
 
-export function computeHasUnreadChat(ticket: Ticket, userRole: UserRole): boolean {
+export function computeHasUnreadChat(
+    ticket: Ticket,
+    userRole: UserRole,
+    viewer?: { id?: string | null; siteId?: string | null },
+): boolean {
     if (!ticket.lastMessageAt || !ticket.lastMessageSenderRole) {
         return false;
     }
-    const isAgentSide = userRole !== UserRole.USER;
+    const isRequesterStaff = Boolean(
+        viewer?.id &&
+        userRole !== UserRole.USER &&
+        isTicketRequesterSide(viewer.id, ticket) &&
+        !(canAccessTicketObject({ role: userRole }, ticket) && canAccessTicketSite(userRole, viewer.siteId ?? null, ticket.siteId)),
+    );
+    const isAgentSide = userRole !== UserRole.USER && !isRequesterStaff;
     if (isAgentSide) {
         if (ticket.lastMessageSenderRole !== 'USER') return false;
         if (!ticket.agentLastReadAt) return true;

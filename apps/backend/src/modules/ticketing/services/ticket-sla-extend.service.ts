@@ -7,6 +7,7 @@ import { SlaConfig } from '../entities/sla-config.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { SlaClockService } from './sla-clock.service';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
+import { presentMessage } from '../utils/message-presenter.util';
 
 /** Tickets with a started resolution clock, including a vendor hold, may be extended. */
 const EXTENDABLE_STATUSES: TicketStatus[] = [TicketStatus.IN_PROGRESS, TicketStatus.TODO, TicketStatus.WAITING_VENDOR];
@@ -180,7 +181,15 @@ export class TicketSlaExtendService {
                 senderId: actor.userId,
                 isSystemMessage: true,
             });
-            await this.messageRepo.save(message);
+            const savedMessage = await this.messageRepo.save(message);
+            this.eventsGateway?.notifyNewMessage?.(ticket.id, {
+                ...presentMessage(savedMessage),
+                sender: {
+                    id: actor.userId,
+                    fullName: actor.fullName || 'Teknisi',
+                    role: actor.role,
+                },
+            });
         } catch (msgErr) {
             this.logger.warn(`Failed to post SLA extension system message: ${msgErr}`);
         }
@@ -205,7 +214,11 @@ export class TicketSlaExtendService {
         try {
             this.eventsGateway.server.to(`ticket:${ticket.id}`).emit('ticket:updated', { ticketId: ticket.id });
             if (ticket.siteId) {
-                this.eventsGateway.server.to(`site:${ticket.siteId}`).emit('ticket:updated', { ticketId: ticket.id });
+                if (typeof this.eventsGateway.emitToTicketAudience === 'function') {
+                    this.eventsGateway.emitToTicketAudience(ticket.siteId, 'ticket:updated', { ticketId: ticket.id });
+                } else {
+                    this.eventsGateway.server.to(`site:${ticket.siteId}`).emit('ticket:updated', { ticketId: ticket.id });
+                }
             }
         } catch (wsErr) {
             this.logger.warn(`Failed to emit websocket event: ${wsErr}`);

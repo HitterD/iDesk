@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { RateLimiter } from '../../../../shared/core/utils/rate-limiter';
 import { UserRole } from '../../../users/enums/user-role.enum';
 import { isUUID } from 'class-validator';
+import { Ticket } from '../../entities/ticket.entity';
 import { TicketRepository } from '../../repositories/ticket.repository';
 import { resolveTicketViewerAccess, TicketViewerAccess } from '../../services/ticket-oracle-access';
 import { isTicketRequesterSide } from '../../utils/oracle-ticket-access.util';
@@ -123,18 +124,26 @@ export class EventsGateway
                 || client.handshake.headers?.authorization?.split(' ')[1]
                 || client.handshake.query?.token;
             if (!token) throw new Error('Missing token');
-            const payload = this.jwtService.verify<{ sub: string; role: UserRole; fullName?: string }>(token, {
+            const payload = this.jwtService.verify<{
+                sub: string;
+                role: UserRole;
+                fullName?: string;
+                type?: string;
+                siteId?: string | null;
+            }>(token, {
                 secret: this.configService.get('JWT_SECRET'),
             });
             if (!payload.sub || !payload.role) throw new Error('Invalid claims');
+            if (payload.type && payload.type !== 'access') throw new Error('Invalid token type');
             client.data.userId = payload.sub;
             client.data.role = payload.role;
             client.data.fullName = payload.fullName;
             client.data.clientIp = resolveClientIp(client.handshake);
-            // Multi-site: carry caller's site and join a per-site room so broadcasts can be scoped.
-            client.data.siteId = (payload as any).siteId ?? null;
-            if ((payload as any).siteId) {
-                client.join(`site:${(payload as any).siteId}`);
+            // Multi-site: carry caller's site and join a per-site room for staff only,
+            // so site-wide requester events never cross to other end-users at that site.
+            client.data.siteId = payload.siteId ?? null;
+            if (payload.siteId && payload.role !== UserRole.USER) {
+                client.join(`site:${payload.siteId}`);
             }
             const wasOnline = this.isUserOnline(payload.sub);
             this.connectedUsers.set(client.id, payload.sub);
@@ -282,6 +291,42 @@ export class EventsGateway
         if (!client.data.userId || !noteId) return { status: 'error', message: 'Unauthorized' };
         client.leave(ticketNoteRoom(noteId));
         return { status: 'ok', room: ticketNoteRoom(noteId) };
+    }
+
+    /** Remove all sockets of a specific user from a ticket's chat & staff rooms (e.g. participant removed). */
+    async evictUserFromTicket(ticketId: string, userId: string): Promise<void> {
+        if (!this.server?.in) return;
+        const sockets = await this.server.in(`user:${userId}`).fetchSockets();
+        for (const s of sockets) {
+            s.leave(`ticket:${ticketId}`);
+            s.leave(ticketStaffRoom(ticketId));
+        }
+    }
+
+    /** Re-evaluate connected ticket-room sockets after a forward so former handlers lose access immediately. */
+    async pruneTicketRooms(ticket: Pick<Ticket, 'id' | 'category' | 'ticketType' | 'handlingTeam' | 'siteId' | 'userId' | 'createdById' | 'participants'>): Promise<void> {
+        if (!this.server?.in) return;
+        const sockets = await this.server.in(`ticket:${ticket.id}`).fetchSockets();
+        for (const s of sockets) {
+            const userId = s.data?.userId as string | undefined;
+            const role = s.data?.role as UserRole | undefined;
+            const siteId = (s.data?.siteId as string | null) ?? null;
+            if (!userId || !role) continue;
+            if (role === UserRole.USER && !isTicketRequesterSide(userId, ticket)) {
+                s.leave(`ticket:${ticket.id}`);
+                s.leave(ticketStaffRoom(ticket.id));
+                continue;
+            }
+            try {
+                const access = resolveTicketViewerAccess(ticket, { id: userId, role, siteId });
+                if (access !== 'handler') {
+                    s.leave(ticketStaffRoom(ticket.id));
+                }
+            } catch {
+                s.leave(`ticket:${ticket.id}`);
+                s.leave(ticketStaffRoom(ticket.id));
+            }
+        }
     }
 
     // Leave a ticket room

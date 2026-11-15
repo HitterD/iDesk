@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
-import { Ticket, TicketType } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType } from '../entities/ticket.entity';
 import { TicketParticipant } from '../entities/ticket-participant.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
@@ -15,7 +15,10 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { isOracleK2Category } from '../utils/oracle-ticket-access.util';
+import { isOracleK2Category, isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
+import { resolveTicketViewerAccess } from './ticket-oracle-access';
+import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { presentMessage } from '../utils/message-presenter.util';
 
 /** Ticket detail path in the recipient's own portal; `/client` only admits USER. */
 export const ticketLinkFor = (role: UserRole | undefined, ticketId: string): string =>
@@ -42,12 +45,34 @@ export class TicketParticipantService {
     /**
      * Get all participants for a specific ticket
      */
-    async getParticipants(ticketId: string): Promise<TicketParticipant[]> {
-        return this.participantRepo.find({
+    async getParticipants(
+        ticketId: string,
+        viewer?: { id?: string | null; role: UserRole | string; siteId?: string | null },
+    ): Promise<TicketParticipant[]> {
+        if (viewer) {
+            const ticket = await this.ticketRepo.findOne({
+                where: { id: ticketId },
+                relations: ['participants'],
+                select: ['id', 'userId', 'createdById', 'category', 'ticketType', 'handlingTeam', 'siteId'],
+            });
+            if (!ticket) {
+                throw new NotFoundException('Tiket tidak ditemukan');
+            }
+            if (viewer.role === UserRole.USER && !isTicketRequesterSide(viewer.id, ticket)) {
+                throw new ForbiddenException('Anda tidak memiliki izin melihat partisipan tiket ini');
+            }
+            resolveTicketViewerAccess(ticket, viewer);
+        }
+
+        const rows = await this.participantRepo.find({
             where: { ticketId },
             relations: ['user', 'user.department', 'invitedBy'],
             order: { joinedAt: 'ASC' },
         });
+        return rows.map((p) => ({
+            ...p,
+            invitedBy: p.invitedBy ? { id: p.invitedBy.id, fullName: p.invitedBy.fullName } : null,
+        })) as TicketParticipant[];
     }
 
     /**
@@ -58,6 +83,7 @@ export class TicketParticipantService {
         userIds: string[],
         actorUserId: string,
         actorRole: UserRole,
+        actorSiteId?: string | null,
     ): Promise<TicketParticipant[]> {
         if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
             throw new BadRequestException('Daftar userId tidak boleh kosong');
@@ -65,35 +91,45 @@ export class TicketParticipantService {
 
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            relations: ['user', 'assignedTo'],
+            relations: ['user', 'assignedTo', 'participants'],
         });
 
         if (!ticket) {
             throw new NotFoundException('Tiket tidak ditemukan');
         }
 
+        if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
+
         const isOracle = isOracleK2Category(ticket.category, ticket.ticketType);
-        const isStaff =
-            actorRole === UserRole.ADMIN ||
-            actorRole === UserRole.MANAGER ||
-            actorRole === UserRole.AGENT ||
-            actorRole === UserRole.AGENT_ADMIN ||
-            actorRole === UserRole.AGENT_OPERATIONAL_SUPPORT ||
-            actorRole === UserRole.AGENT_ORACLE ||
-            actorRole === UserRole.AGENT_WEB_DEV ||
-            actorRole === UserRole.AGENT_MOBILE_DEV ||
-            ticket.assignedTo?.id === actorUserId ||
-            (ticket as any).assignedToId === actorUserId;
-        const isCreator = ticket.userId === actorUserId;
+        const existingActorParticipant = ticket.participants?.some((p) => p.userId === actorUserId)
+            || Boolean(await this.participantRepo.findOne({ where: { ticketId, userId: actorUserId } }));
 
-        // Check if actor is an existing participant
-        const existingActorParticipant = await this.participantRepo.findOne({
-            where: { ticketId, userId: actorUserId },
-        });
+        const isRequesterOrParticipant =
+            ticket.userId === actorUserId || ticket.createdById === actorUserId || existingActorParticipant;
+        const isAssignedPic = ticket.assignedTo?.id === actorUserId || (ticket as any).assignedToId === actorUserId;
 
-        // Any of: Staff (IT Support / Agent / Admin), Creator, or existing participant can add
-        if (!isStaff && !isCreator && !existingActorParticipant) {
-            throw new ForbiddenException('Anda tidak memiliki izin untuk menambahkan user ke tiket ini');
+        if (!isRequesterOrParticipant && !isAssignedPic) {
+            if (actorRole === UserRole.USER) {
+                throw new ForbiddenException('Anda tidak memiliki izin untuk menambahkan user ke tiket ini');
+            }
+            // Enforce both team scope and site isolation whenever site context exists.
+            const effectiveSiteId = actorSiteId !== undefined || ticket.siteId ? (actorSiteId ?? null) : (ticket.siteId ?? null);
+            if (actorSiteId !== undefined || ticket.siteId) {
+                resolveTicketViewerAccess(ticket, { id: actorUserId, role: actorRole, siteId: effectiveSiteId });
+            } else if (
+                actorRole !== UserRole.ADMIN &&
+                actorRole !== UserRole.MANAGER &&
+                actorRole !== UserRole.AGENT &&
+                actorRole !== UserRole.AGENT_ADMIN &&
+                actorRole !== UserRole.AGENT_OPERATIONAL_SUPPORT &&
+                actorRole !== UserRole.AGENT_ORACLE &&
+                actorRole !== UserRole.AGENT_WEB_DEV &&
+                actorRole !== UserRole.AGENT_MOBILE_DEV
+            ) {
+                throw new ForbiddenException('Anda tidak memiliki izin untuk menambahkan user ke tiket ini');
+            }
         }
 
         const actor = await this.userRepo.findOne({ where: { id: actorUserId } });
@@ -119,6 +155,7 @@ export class TicketParticipantService {
 
         const newlyAddedUsers: User[] = [];
         const addedParticipants: TicketParticipant[] = [];
+        const committedMessages: any[] = [];
 
         await this.dataSource.transaction(async (manager) => {
             for (const targetUser of targetUsers) {
@@ -149,21 +186,27 @@ export class TicketParticipantService {
                     source: 'WEB',
                 });
                 const savedMsg = await manager.save(TicketMessage, systemMessage);
-
-                // Notify WebSocket
-                const msgWithSender = {
-                    ...savedMsg,
+                committedMessages.push({
+                    ...presentMessage(savedMsg),
                     sender: {
                         id: actor?.id || actorUserId,
                         fullName: actorName,
                         role: actorRole,
+                        avatarUrl: (actor as any)?.avatarUrl ?? null,
                     },
-                };
-                this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-                // Site room includes other requesters: send only the id, never the message body.
-                this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
+                });
             }
         });
+
+        // Broadcast system messages + participant events only AFTER transaction commits.
+        for (const msgWithSender of committedMessages) {
+            try {
+                this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
+                this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
+            } catch (err) {
+                this.logger.error(`Error broadcasting participant message: ${err}`);
+            }
+        }
 
         // Broadcast participant added event and in-app notifications
         for (const addedUser of newlyAddedUsers) {
@@ -173,7 +216,6 @@ export class TicketParticipantService {
                     user: {
                         id: addedUser.id,
                         fullName: addedUser.fullName,
-                        email: addedUser.email,
                         department: addedUser.department ? { name: addedUser.department.name } : undefined,
                     },
                     addedBy: {
@@ -201,10 +243,10 @@ export class TicketParticipantService {
             }
         }
 
-        // Emit list refresh for connected clients
+        // Emit list refresh for connected clients (never emit raw ticket entity relations).
         try {
-            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ticket });
-            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId, ticket });
+            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId });
             this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'tickets:listUpdated', { ticketId });
         } catch (err) {
             this.logger.error(`Error emitting ticket list update: ${err}`);
@@ -215,24 +257,30 @@ export class TicketParticipantService {
 
     /**
      * Remove a participant from a ticket.
-     * Restriction: IT Support Staff (Agent/Admin/Manager) can remove participants.
+     * Restriction: Handling IT Support/Dev Staff (or Admin) can remove participants.
      */
     async removeParticipant(
         ticketId: string,
         targetUserId: string,
         actorUserId: string,
         actorRole: UserRole,
+        actorSiteId?: string | null,
     ): Promise<{ success: boolean; message: string }> {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
-            relations: ['assignedTo'],
+            relations: ['assignedTo', 'participants'],
         });
 
         if (!ticket) {
             throw new NotFoundException('Tiket tidak ditemukan');
         }
 
-        const isStaff =
+        if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
+
+        const isAssignedPic = ticket.assignedTo?.id === actorUserId || (ticket as any).assignedToId === actorUserId;
+        const isStaffRole =
             actorRole === UserRole.ADMIN ||
             actorRole === UserRole.MANAGER ||
             actorRole === UserRole.AGENT ||
@@ -240,12 +288,21 @@ export class TicketParticipantService {
             actorRole === UserRole.AGENT_OPERATIONAL_SUPPORT ||
             actorRole === UserRole.AGENT_ORACLE ||
             actorRole === UserRole.AGENT_WEB_DEV ||
-            actorRole === UserRole.AGENT_MOBILE_DEV ||
-            ticket.assignedTo?.id === actorUserId ||
-            (ticket as any).assignedToId === actorUserId;
+            actorRole === UserRole.AGENT_MOBILE_DEV;
 
-        if (!isStaff) {
+        if (!isStaffRole && !isAssignedPic) {
             throw new ForbiddenException('Khusus Tim IT Support dan Admin yang dapat menghapus partisipan dari tiket');
+        }
+
+        if (!isAssignedPic && (actorSiteId !== undefined || ticket.siteId)) {
+            const access = resolveTicketViewerAccess(ticket, {
+                id: actorUserId,
+                role: actorRole,
+                siteId: actorSiteId ?? null,
+            });
+            if (access !== 'handler') {
+                throw new ForbiddenException('Khusus Tim IT Support dan Admin yang dapat menghapus partisipan dari tiket');
+            }
         }
 
         if (ticket.userId === targetUserId) {
@@ -265,7 +322,7 @@ export class TicketParticipantService {
         const actorName = actor?.fullName || 'Agent';
         const targetName = participant.user?.fullName || 'User';
 
-        await this.dataSource.transaction(async (manager) => {
+        const committedMessage = await this.dataSource.transaction(async (manager) => {
             await manager.delete(TicketParticipant, { id: participant.id });
 
             // Create System Message
@@ -279,21 +336,28 @@ export class TicketParticipantService {
             });
             const savedMsg = await manager.save(TicketMessage, systemMessage);
 
-            const msgWithSender = {
-                ...savedMsg,
+            return {
+                ...presentMessage(savedMsg),
                 sender: {
                     id: actor?.id || actorUserId,
                     fullName: actorName,
                     role: actorRole,
+                    avatarUrl: (actor as any)?.avatarUrl ?? null,
                 },
             };
-            this.eventsGateway.notifyNewMessage(ticketId, msgWithSender);
-            // Site room includes other requesters: send only the id, never the message body.
-            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
         });
 
-        // Broadcast removal event
+        // Evict removed user from active ticket sockets unless they remain handler/creator.
         try {
+            await this.eventsGateway.evictUserFromTicket?.(ticketId, targetUserId);
+        } catch (err) {
+            this.logger.warn(`Failed to evict removed user ${targetUserId} from ticket room: ${err}`);
+        }
+
+        // Broadcast removal & system message AFTER commit.
+        try {
+            this.eventsGateway.notifyNewMessage(ticketId, committedMessage);
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
             this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:participant_removed', {
                 ticketId,
                 userId: targetUserId,
@@ -302,8 +366,8 @@ export class TicketParticipantService {
                     fullName: actorName,
                 },
             });
-            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId, ticket });
-            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId, ticket });
+            this.eventsGateway.server.to(`ticket:${ticketId}`).emit('ticket:updated', { ticketId });
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'ticket:updated', { ticketId });
             this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'tickets:listUpdated', { ticketId });
         } catch (err) {
             this.logger.error(`Error emitting participant removed event: ${err}`);

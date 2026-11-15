@@ -414,4 +414,44 @@ describe('TicketQueryService queue stats', () => {
         expect(qb.andWhere).toHaveBeenCalledWith('ticket.status IN (:...statuses)', { statuses: ['RESOLVED', 'CLOSED'] });
         expect(qb.andWhere).toHaveBeenCalledWith(OVERDUE_SQL);
     });
+
+    it('computes canUnpin for each message in findOne without exposing pinnedById', async () => {
+        const ticket = {
+            id: 't-1',
+            priority: 'HIGH',
+            createdAt: new Date(),
+            slaTarget: new Date(),
+            userId: 'req-1',
+            assignedToId: 'ag-1',
+            siteId: 's-1',
+            handlingTeam: 'OPS_SUPPORT',
+            participants: [],
+            user: { id: 'req-1' },
+            messages: [
+                {
+                    id: 'm-1',
+                    content: 'pinned by requester',
+                    senderId: 'req-1',
+                    isInternal: false,
+                    pinnedAt: new Date(),
+                    pinnedById: 'req-1',
+                },
+                {
+                    id: 'm-2',
+                    content: 'pinned by agent',
+                    senderId: 'ag-1',
+                    isInternal: false,
+                    pinnedAt: new Date(),
+                    pinnedById: 'ag-1',
+                },
+            ],
+        };
+        const repo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { find: jest.fn() } };
+        const q = new TicketQueryService(repo as any, { findOne: jest.fn() } as any, {} as any);
+
+        const reqView = await q.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+        expect(reqView.messages[0].canUnpin).toBe(true);
+        expect(reqView.messages[1].canUnpin).toBe(false);
+        expect(reqView.messages[0]).not.toHaveProperty('pinnedById');
+    });
 });

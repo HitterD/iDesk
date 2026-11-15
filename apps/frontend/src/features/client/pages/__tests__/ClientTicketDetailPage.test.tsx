@@ -262,4 +262,44 @@ describe('ClientTicketDetailPage', () => {
         expect(within(inspector).getByText('Dijeda sejak')).toBeInTheDocument();
         expect(within(inspector).queryByText('Target SLA')).not.toBeInTheDocument();
     });
+
+    it('locks chat composer and unpinning on a CANCELLED ticket', async () => {
+        currentStatus = 'CANCELLED';
+        extraFields = {
+            messages: [
+                {
+                    id: 'm-pin',
+                    content: 'Info awal',
+                    createdAt: '2026-08-19T08:00:00.000Z',
+                    isSystemMessage: false,
+                    isPinned: true,
+                    pinnedAt: '2026-08-19T08:30:00.000Z',
+                    canUnpin: true,
+                    sender: { id: 'user-1', fullName: 'User SPJ' },
+                },
+            ],
+        };
+        renderPage();
+        await screen.findAllByRole('heading', { name: 'Password terkunci' });
+        expect(screen.queryByRole('textbox', { name: 'Balas ke IT Support…' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Lepas sematan' })).not.toBeInTheDocument();
+    });
+
+    it('navigates merged ticket notice to /client/my-tickets?search=... instead of agent browse', async () => {
+        const user = userEvent.setup();
+        extraFields = { description: '[MERGED INTO #190826-GEN-9999] Duplikat' };
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/client/tickets/ticket-123']}>
+                    <Routes>
+                        <Route path="/client/tickets/:id" element={<ClientTicketDetailPage />} />
+                        <Route path="/client/my-tickets" element={<div>MY TICKETS PAGE</div>} />
+                    </Routes>
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+        const btn = await screen.findByRole('button', { name: 'Buka Tiket Utama' });
+        await user.click(btn);
+        expect(await screen.findByText('MY TICKETS PAGE')).toBeInTheDocument();
+    });
 });

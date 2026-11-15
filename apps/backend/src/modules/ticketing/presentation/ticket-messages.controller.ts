@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Param, ParseUUIDPipe, Patch, Post, Put, Request, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { TicketMessageEditService } from '../services/ticket-message-edit.service';
 import { TicketMessagePinService } from '../services/ticket-message-pin.service';
@@ -7,10 +8,14 @@ import { TicketMessageReactionService } from '../services/ticket-message-reactio
 import { ReactMessageDto } from '../dto/react-message.dto';
 import { EditMessageDto } from '../dto/edit-message.dto';
 
+const MESSAGE_ACTION_LIMIT = 60;
+const MESSAGE_ACTION_WINDOW_MS = 60_000;
+
 /** Edit (sender, 15 min), delete (sender, or admin), pin and react (any participant) on a ticket chat message. */
 @ApiTags('Tickets')
 @Controller('tickets/:id/messages/:messageId')
 @UseGuards(JwtAuthGuard)
+@Throttle({ default: { limit: MESSAGE_ACTION_LIMIT, ttl: MESSAGE_ACTION_WINDOW_MS } })
 export class TicketMessagesController {
     constructor(
         private readonly editService: TicketMessageEditService,

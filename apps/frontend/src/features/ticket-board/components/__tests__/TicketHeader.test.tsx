@@ -192,4 +192,35 @@ describe('TicketHeader compact metadata bubbles', () => {
             expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
         }
     });
+
+    it('opens ResolveTicketModal when resolveOpen is controlled and notifies onResolveOpenChange', () => {
+        const onResolveOpenChange = vi.fn();
+        const { rerender } = render(
+            <MemoryRouter initialEntries={['/tickets/t-1']}>
+                <TicketHeader
+                    ticket={createMockTicket({ status: 'IN_PROGRESS' }) as any}
+                    onResolve={vi.fn()}
+                    resolveOpen={false}
+                    onResolveOpenChange={onResolveOpenChange}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.queryByRole('dialog', { name: 'Selesaikan tiket' })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Selesaikan' }));
+        expect(onResolveOpenChange).toHaveBeenCalledWith(true);
+
+        rerender(
+            <MemoryRouter initialEntries={['/tickets/t-1']}>
+                <TicketHeader
+                    ticket={createMockTicket({ status: 'IN_PROGRESS' }) as any}
+                    onResolve={vi.fn()}
+                    resolveOpen={true}
+                    onResolveOpenChange={onResolveOpenChange}
+                />
+            </MemoryRouter>
+        );
+        expect(screen.getByRole('dialog', { name: 'Selesaikan tiket' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Selesaikan tiket' })).toBeInTheDocument();
+    });
 });

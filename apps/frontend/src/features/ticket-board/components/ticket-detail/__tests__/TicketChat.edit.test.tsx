@@ -218,4 +218,34 @@ describe('TicketChat edit and delete', () => {
         renderChat(baseTicket([msg('m-1', USER_SENDER, 'Halo', minutesAgo(2), { editedAt: minutesAgo(1) })]));
         expect(within(row('m-1')).getByText('diedit')).toBeInTheDocument();
     });
+
+    it('stashes and restores unsent draft text when entering and cancelling edit mode', async () => {
+        const user = userEvent.setup();
+        renderChat(baseTicket([msg('m-1', AGENT_SENDER, 'Baik, saya cek', minutesAgo(2))]));
+        const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+        await user.type(input, 'Draft balasan belum terkirim');
+
+        await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+        expect(input.value).toBe('Baik, saya cek');
+
+        await user.keyboard('{Escape}');
+        expect(screen.queryByText('Mengedit pesan')).not.toBeInTheDocument();
+        expect(input.value).toBe('Draft balasan belum terkirim');
+    });
+
+    it('leaves edit mode cleanly when Balas is clicked on another message', async () => {
+        const user = userEvent.setup();
+        renderChat(baseTicket([
+            msg('m-1', USER_SENDER, 'Tolong cek printer', minutesAgo(5)),
+            msg('m-2', AGENT_SENDER, 'Baik, saya cek', minutesAgo(2)),
+        ]));
+        await user.click(within(row('m-2')).getByRole('button', { name: 'Aksi lainnya' }));
+        await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+        expect(screen.getByText('Mengedit pesan')).toBeInTheDocument();
+
+        await user.click(within(row('m-1')).getByRole('button', { name: 'Balas' }));
+        expect(screen.queryByText('Mengedit pesan')).not.toBeInTheDocument();
+        expect(screen.getByText(/Membalas/i)).toBeInTheDocument();
+    });
 });

@@ -1,5 +1,6 @@
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Sanitize } from '../../../shared/core/validators/input-sanitizer';
 
 /** New text of an edited chat message (same limit as the chat composer). */
 export class EditMessageDto {
@@ -7,5 +8,6 @@ export class EditMessageDto {
     @IsString()
     @IsNotEmpty()
     @MaxLength(5000)
+    @Sanitize()
     content: string;
 }

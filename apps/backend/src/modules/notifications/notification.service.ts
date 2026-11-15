@@ -1,5 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
+import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 
 const logger = new Logger('NotificationService');
 import { InjectRepository } from '@nestjs/typeorm';
@@ -70,7 +72,15 @@ export class NotificationService {
         @Optional() private readonly webPush?: NotificationPushService,
         @Optional() private readonly noteVisibility?: TicketNoteVisibilityService,
         @Optional() private readonly gate?: NotificationPreferenceGate,
+        @Optional() @InjectRepository(User) private readonly userRepo?: Repository<User>,
     ) { }
+
+    /** Resolve portal-specific ticket route when a helper defaults to `/tickets/:id`. */
+    private async resolvePortalLink(userId: string, ticketId?: string, link?: string): Promise<string | undefined> {
+        if (!ticketId || link !== `/tickets/${ticketId}` || !this.userRepo) return link;
+        const recipient = await this.userRepo.findOne({ where: { id: userId }, select: ['id', 'role'] });
+        return recipient?.role === UserRole.USER ? `/client/tickets/${ticketId}` : link;
+    }
 
     /** The user's settings for this notification: in-app (bell, toast, SJA) and push. Critical ones always go. */
     private async channelsFor(userId: string, type: string, critical = false): Promise<{ inApp: boolean; push: boolean }> {
@@ -132,8 +142,10 @@ export class NotificationService {
 
         // Auto-determine category from type if not provided
         const category = data.category || getCategoryFromType(data.type);
+        const resolvedLink = await this.resolvePortalLink(data.userId, data.ticketId, data.link);
         const notification = this.notificationRepo.create({
             ...stored,
+            link: resolvedLink,
             category,
             requiresAcknowledge: data.requiresAcknowledge || false,
         });

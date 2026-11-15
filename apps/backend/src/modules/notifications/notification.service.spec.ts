@@ -352,4 +352,41 @@ describe('NotificationService - lists and counts stay in the database', () => {
         expect(result.data.map((r: any) => r.id)).toEqual(['a']);
         expect(result.total).toBe(39);
     });
+
+    it('rewrites /tickets/:id links to /client/tickets/:id when the recipient is a USER', async () => {
+        const repo: any = {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((x: any) => ({ id: 'n-1', ...x })),
+            save: jest.fn((x: any) => Promise.resolve({ id: 'n-1', ...x })),
+        };
+        const gateway: any = { server: { to: jest.fn().mockReturnValue({ emit: jest.fn() }) } };
+        const sja: any = { dispatchNotification: jest.fn() };
+        const userRepo: any = {
+            findOne: jest.fn(async ({ where: { id } }: any) => ({
+                id,
+                role: id === 'user-1' ? 'USER' : 'AGENT',
+            })),
+        };
+        const service = new NotificationService(repo, gateway, sja, undefined, undefined, undefined, userRepo);
+
+        await service.create({
+            userId: 'user-1',
+            type: NotificationType.TICKET_UPDATED,
+            title: 'Update',
+            message: 'Updated',
+            ticketId: 't-1',
+            link: '/tickets/t-1',
+        });
+        expect(repo.create).toHaveBeenLastCalledWith(expect.objectContaining({ link: '/client/tickets/t-1' }));
+
+        await service.create({
+            userId: 'agent-1',
+            type: NotificationType.TICKET_UPDATED,
+            title: 'Update',
+            message: 'Updated',
+            ticketId: 't-1',
+            link: '/tickets/t-1',
+        });
+        expect(repo.create).toHaveBeenLastCalledWith(expect.objectContaining({ link: '/tickets/t-1' }));
+    });
 });

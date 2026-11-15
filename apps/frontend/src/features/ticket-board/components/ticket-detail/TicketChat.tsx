@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
+import { isToastHandledByApi } from '@/features/client/components/resolution/resolutionApi';
 import { ProposeHardwareDialog, TicketHardwareMessage, canProposeHardware } from '../ticket-hardware';
 import { ProposeEFormDialog, TicketEFormMessage, canProposeEForm } from '../ticket-eform';
 
@@ -65,12 +66,22 @@ const NEAR_BOTTOM_PX = 120;
 /** The opening report message is written in the same transaction as the ticket, so within seconds of it. */
 const GENESIS_WINDOW_MS = 60_000;
 
-const isResolutionStatement = (content?: string) =>
-    Boolean(content?.includes('Tiket Dinyatakan Selesai') || content?.includes('Tiket Diselesaikan (Resolved)'));
+const isResolutionStatement = (m: ChatMessage | undefined) => {
+    const content = m?.content?.trimStart();
+    if (!content) return false;
+    return (
+        content.startsWith('✅ Tiket Dinyatakan Selesai') ||
+        Boolean(m?.isSystemMessage && (content.includes('Tiket Dinyatakan Selesai') || content.includes('Tiket Diselesaikan (Resolved)')))
+    );
+};
 
 /** A chat bubble, as opposed to a system card or the resolution statement. */
 const isChatBubble = (m: ChatMessage | undefined) =>
-    Boolean(m && !m.isSystemMessage && !isResolutionStatement(m.content));
+    Boolean(m && !m.isSystemMessage && !isResolutionStatement(m));
+
+const showFallbackErrorToast = (err: unknown, fallback: string) => {
+    if (!isToastHandledByApi(err)) toast.error(fallback);
+};
 
 /** Whether a message is drawn in the stream: the opening report is hidden, internal notes only for the handling team. */
 const isShownInStream = (m: ChatMessage, genesisMessageId: string | null, canSeeInternal: boolean) =>
@@ -99,6 +110,7 @@ const useNewMessageAnnouncement = (latest: ChatMessage | undefined, isOwn: (m: C
 /** What the page can ask of the chat: the pin bar lives in the page header, the messages here. */
 export interface TicketChatHandle {
     jumpToMessage: (messageId: string) => void;
+    focusInput: () => void;
 }
 
 export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(function TicketChat({
@@ -126,7 +138,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     const [proposingEForm, setProposingEForm] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
-    const isTicketClosed = ticket.status === 'CLOSED';
+    const isTicketClosed = ticket.status === 'CLOSED' || ticket.status === 'CANCELLED';
     const messageActions = useMessageActions(ticket.id);
     const pinActions = usePinActions(ticket.id);
     const reactionActions = useReactionActions(ticket.id);
@@ -148,11 +160,11 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     };
     // Deleted elsewhere (an admin, another tab) while it is open in the composer: leave edit mode.
     const editedMessageGone = Boolean(editing && ticket.messages?.find((m) => m.id === editing.id)?.isDeleted);
-    if (editedMessageGone) {
-        // Adjusting state while rendering: React re-renders at once with edit mode off, no effect needed.
+    useEffect(() => {
+        if (!editedMessageGone) return;
         setEditing(null);
         toast.info('Pesan yang Anda edit sudah dihapus');
-    }
+    }, [editedMessageGone]);
 
     const confirmDelete = async () => {
         if (!deletingId) return;
@@ -169,7 +181,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     };
 
     const ticketVariables = useMemo(() => ({
-        user_name: (ticket as any).requester?.fullName || (ticket as any).customerSession?.fullName || ticket.user?.fullName || 'Customer',
+        user_name: ticket.requester?.fullName || ticket.customerSession?.fullName || ticket.user?.fullName || 'Customer',
         agent_name: user?.fullName || 'Agent',
         ticket_id: ticket.ticketNumber || ticket.id?.slice(0, 8) || '',
         category: ticket.category || '',
@@ -239,10 +251,10 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     /** Staff handling the ticket: staff messages sit right (mockup). Requester views: own messages sit right. */
     const isAgentView = isStaff && ticket.viewerAccess !== 'requester';
     const rootIsOutgoing = !isAgentView && isOwnTicket;
+    const userId = user?.id;
     const isOwn = useCallback((message: ChatMessage) => Boolean(
-        (message.sender?.id && user?.id && message.sender.id === user.id) ||
-        (user?.fullName && message.sender?.fullName === user.fullName)
-    ), [user?.id, user?.fullName]);
+        message.sender?.id && userId && message.sender.id === userId
+    ), [userId]);
 
     const isStaffSender = (message: ChatMessage) => {
         const role = message.sender?.role;
@@ -279,6 +291,9 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     React.useImperativeHandle(handleRef, () => ({
         jumpToMessage: (messageId: string) => {
             if (!jumpToMessage(messageId)) toast.info('Pesan belum dimuat, gulir ke atas untuk melihatnya');
+        },
+        focusInput: () => {
+            messageInputRef.current?.focus();
         },
     }));
 
@@ -394,7 +409,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                 attachmentInfo={initialMessage?.attachmentInfo}
                                 onImageClick={onImageClick}
                                 onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
-                                isRequester={false}
+                                isRequester
                             />
                         </div>
                     )}
@@ -497,6 +512,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                             createdAt={message.createdAt}
                                             attachments={message.attachments}
                                             onImageClick={onImageClick}
+                                            onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}
                                         />}
                                     </div>
                                 </React.Fragment>
@@ -525,9 +541,10 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                     reactions={toReactionChips(message.reactions, user?.id)}
                                     canReact={!message.isInternal && !isTicketClosed}
                                     // One reaction per person: picking another emoji replaces it on the server.
-                                    onAddReaction={(emoji) => void reactionActions.react(message.id, emoji).catch(() => undefined)}
-                                    onRemoveReaction={() => void reactionActions.unreact(message.id).catch(() => undefined)}
+                                    onAddReaction={(emoji) => void reactionActions.react(message.id, emoji).catch((err) => showFallbackErrorToast(err, 'Gagal menambahkan reaksi'))}
+                                    onRemoveReaction={() => void reactionActions.unreact(message.id).catch((err) => showFallbackErrorToast(err, 'Gagal menghapus reaksi'))}
                                     onReply={() => {
+                                        setEditing(null);
                                         setReplyTo({
                                             id: message.id,
                                             senderName: message.sender?.fullName || 'Unknown',
@@ -538,8 +555,8 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                     onEdit={canEditMessage(message, user?.id, isTicketClosed) && !STICKERS.includes(message.content?.trim() || '')
                                         ? () => startEdit(message) : undefined}
                                     onDelete={canDeleteMessage(message, user, isTicketClosed) ? () => setDeletingId(message.id) : undefined}
-                                    onPin={canPinMessage(message, isTicketClosed) && !message.isPinned ? () => void pinActions.pin(message.id).catch(() => undefined) : undefined}
-                                    onUnpin={message.isPinned && !isTicketClosed ? () => void pinActions.unpin(message.id).catch(() => undefined) : undefined}
+                                    onPin={canPinMessage(message, isTicketClosed) && !message.isPinned ? () => void pinActions.pin(message.id).catch((err) => showFallbackErrorToast(err, 'Gagal menyematkan pesan')) : undefined}
+                                    onUnpin={message.isPinned && !isTicketClosed && Boolean(message.canUnpin || user?.role === 'ADMIN' || (user?.id && ticket.assignedTo?.id === user.id)) ? () => void pinActions.unpin(message.id).catch((err) => showFallbackErrorToast(err, 'Gagal melepas sematan pesan')) : undefined}
                                     onQuoteClick={() => jumpToQuoted(message)}
                                     onImageClick={onImageClick}
                                     onPdfClick={(url, filename) => pdfPreview.openPreview(url, filename, 'PDF Attachment')}

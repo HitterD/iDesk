@@ -1,9 +1,6 @@
 import { useEffect, useCallback, useState } from 'react';
 
 interface TicketShortcutActions {
-    onAssign?: () => void;
-    onStatus?: () => void;
-    onPriority?: () => void;
     onReply?: () => void;
     onResolve?: () => void;
     onEscape?: () => void;
@@ -57,27 +54,6 @@ export function useTicketShortcuts(
             if (key === '?' && shiftKey) {
                 e.preventDefault();
                 setShowShortcutsHint(prev => !prev);
-                return;
-            }
-
-            // Ctrl/Cmd + A - Assign ticket
-            if (modKey && key.toLowerCase() === 'a' && !shiftKey) {
-                e.preventDefault();
-                actions.onAssign?.();
-                return;
-            }
-
-            // Ctrl/Cmd + S - Change status
-            if (modKey && key.toLowerCase() === 's' && !shiftKey) {
-                e.preventDefault();
-                actions.onStatus?.();
-                return;
-            }
-
-            // Ctrl/Cmd + P - Change priority
-            if (modKey && key.toLowerCase() === 'p' && !shiftKey) {
-                e.preventDefault();
-                actions.onPriority?.();
                 return;
             }
 
@@ -136,9 +112,6 @@ export function useTicketShortcuts(
 
 // Shortcut hints display component data
 export const TICKET_SHORTCUTS = [
-    { keys: ['Ctrl', 'A'], description: 'Assign ticket' },
-    { keys: ['Ctrl', 'S'], description: 'Change status' },
-    { keys: ['Ctrl', 'P'], description: 'Change priority' },
     { keys: ['R'], description: 'Quick reply' },
     { keys: ['Ctrl', 'Enter'], description: 'Resolve ticket' },
     { keys: ['J'], description: 'Next ticket' },
