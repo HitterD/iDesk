@@ -30,6 +30,9 @@ import { CacheService } from '../../shared/core/cache/cache.service';
 import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
 import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
+import { NOTIFICATIONS_READ_EVENT } from './notification-events';
+
+const GROUPED_INAPP_COOLDOWN_SECONDS = 120;
 
 /** Channels used when a caller does not name any. */
 const DEFAULT_CHANNELS: DeliveryChannel[] = [DeliveryChannel.IN_APP];
@@ -96,20 +99,37 @@ export class NotificationCenterService implements OnModuleInit {
         if (!this.allowsChannel(DeliveryChannel.IN_APP, payload.type, preferences)) return null;
         const quiet = this.isInQuietHours(preferences);
 
-        // Create notification record
-        const notification = await this.createNotification(payload);
-        // Browser push: the user's push switch (global and per type), held back during quiet hours.
-        if (!quiet && this.allowsChannel(DeliveryChannel.PUSH, payload.type, preferences)) {
-            this.webPush?.dispatch(notification);
+        // Create or group notification record
+        const { notification, groupedExisting } = await this.resolveOrCreateNotification(payload);
+        const suppressLiveAlert = await this.shouldThrottleGroupedAlert(payload, groupedExisting);
+
+        // Browser push: the user's push switch (global and per type), held back during quiet hours or grouped cooldown.
+        if (!quiet && !suppressLiveAlert && this.allowsChannel(DeliveryChannel.PUSH, payload.type, preferences)) {
+            this.webPush?.dispatch(notification, {
+                viewingTicketId: payload.viewingTicketId,
+                pushTag: payload.pushTag,
+                bypassCooldown: payload.bypassPushCooldown,
+            });
         }
 
         // Determine channels based on payload and preferences; email waits out quiet hours (it is not re-sent later,
         // the in-app notice is still there).
-        const channels = this.resolveChannels(payload, preferences)
+        const resolvedChannels = this.resolveChannels(payload, preferences)
             .filter(channel => !(quiet && channel === DeliveryChannel.EMAIL));
 
+        if (suppressLiveAlert && resolvedChannels.includes(DeliveryChannel.IN_APP)) {
+            // Bell row was updated in-place; refresh bell counts quietly without triggering another toast/sound.
+            this.eventsGateway?.server?.to(`user:${payload.userId}`)?.emit(NOTIFICATIONS_READ_EVENT, { userId: payload.userId });
+        }
+
+        const channels = suppressLiveAlert
+            ? resolvedChannels.filter(channel => channel !== DeliveryChannel.IN_APP)
+            : resolvedChannels;
+
         if (channels.length === 0) {
-            this.logger.warn(`No channels available for user ${payload.userId}`);
+            if (!suppressLiveAlert) {
+                this.logger.warn(`No channels available for user ${payload.userId}`);
+            }
             return notification;
         }
 
@@ -126,6 +146,42 @@ export class NotificationCenterService implements OnModuleInit {
         }
 
         return notification;
+    }
+
+    private async resolveOrCreateNotification(payload: NotificationPayload): Promise<{ notification: Notification; groupedExisting: boolean }> {
+        if (payload.groupUnread && payload.referenceId) {
+            const existingUnread = await this.notificationRepo.findOne({
+                where: {
+                    userId: payload.userId,
+                    type: payload.type,
+                    referenceId: payload.referenceId,
+                    isRead: false,
+                },
+                order: { createdAt: 'DESC' },
+            });
+            if (existingUnread) {
+                existingUnread.title = payload.title;
+                existingUnread.message = payload.message;
+                existingUnread.link = payload.link;
+                existingUnread.createdAt = new Date();
+                const saved = await this.notificationRepo.save(existingUnread);
+                return { notification: saved, groupedExisting: true };
+            }
+        }
+        return { notification: await this.createNotification(payload), groupedExisting: false };
+    }
+
+    private async shouldThrottleGroupedAlert(payload: NotificationPayload, groupedExisting: boolean): Promise<boolean> {
+        if (!payload.groupUnread || !payload.referenceId || typeof this.cacheService?.getAsync !== 'function') {
+            return false;
+        }
+        const key = `inapp:group:${payload.type}:${payload.userId}:${payload.referenceId}`;
+        const active = Boolean(await this.cacheService.getAsync(key));
+        if (groupedExisting && active && !payload.bypassPushCooldown) {
+            return true;
+        }
+        await this.cacheService.setAsync?.(key, 1, GROUPED_INAPP_COOLDOWN_SECONDS);
+        return false;
     }
 
     /**

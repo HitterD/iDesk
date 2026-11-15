@@ -480,6 +480,16 @@ describe('TicketListRow quick actions (round 2)', () => {
         await user.click(await screen.findByRole('menuitem', { name: 'Buka Hardware Request' }));
         expect(mockNavigate).toHaveBeenCalledWith('/hardware-requests/hr-9?highlight=installation');
     });
+
+    it('displays the origin site badge when forwarded from another IT Support site', () => {
+        renderRow({
+            ...mockTicket,
+            site: { id: 'site-krw', code: 'KRW', name: 'Karawang' },
+            forwardedFromTeam: 'OPS_SUPPORT',
+            forwardedFromSite: { id: 'site-spj', code: 'SPJ', name: 'Head Office SPJ' },
+        });
+        expect(screen.getAllByText('dari IT Support (SPJ)').length).toBeGreaterThanOrEqual(1);
+    });
 });
 
 function cleanupAndRender(renderFn: () => void) {

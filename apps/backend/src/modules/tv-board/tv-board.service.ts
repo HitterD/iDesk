@@ -27,6 +27,8 @@ export interface TvBoardCard {
     siteCode: string | null;
     /** Team it was last forwarded from ("Diteruskan dari ..."); null if never forwarded. */
     forwardedFromTeam: string | null;
+    /** Origin site code if forwarded across IT Support sites; null otherwise. */
+    forwardedFromSiteCode?: string | null;
 }
 
 export interface TvBoardRingtones {
@@ -104,7 +106,7 @@ export class TvBoardService {
                 ...buildBoardTicketFilter(site, TicketStatus.TODO),
                 ...buildBoardTicketFilter(site, TicketStatus.IN_PROGRESS),
             ],
-            relations: ['user', 'user.department', 'assignedTo', 'site'],
+            relations: ['user', 'user.department', 'assignedTo', 'site', 'forwardedFromSite'],
             order: { createdAt: 'ASC' },
         });
 
@@ -137,6 +139,7 @@ export class TvBoardService {
                 ticketType: t.ticketType,
                 siteCode: t.site?.code ?? null,
                 forwardedFromTeam: t.forwardedFromTeam ?? null,
+                forwardedFromSiteCode: t.forwardedFromSite?.code ?? null,
             };
         };
 

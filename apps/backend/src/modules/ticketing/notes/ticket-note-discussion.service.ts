@@ -8,6 +8,8 @@ import { TicketNoteAccessService } from './ticket-note-access.service';
 import { TicketNoteNotificationService } from './ticket-note-notification.service';
 import { Optional } from '@nestjs/common';
 import { AuditLog, AuditAction } from '../../audit/entities/audit-log.entity';
+import { EventsGateway } from '../presentation/gateways/events.gateway';
+import { NOTIFICATIONS_READ_EVENT } from '../../notifications/notification-events';
 
 export interface PostNoteMessage {
     content: string;
@@ -18,8 +20,12 @@ export interface PostNoteMessage {
 
 @Injectable()
 export class TicketNoteDiscussionService {
-    constructor(private readonly source: DataSource, private readonly access: TicketNoteAccessService,
-        @Optional() private readonly notifications?: TicketNoteNotificationService) {}
+    constructor(
+        private readonly source: DataSource,
+        private readonly access: TicketNoteAccessService,
+        @Optional() private readonly notifications?: TicketNoteNotificationService,
+        @Optional() private readonly gateway?: EventsGateway,
+    ) {}
 
     async post(noteId: string, actorId: string, input: PostNoteMessage): Promise<TicketNoteMessage> {
         return this.source.transaction(async manager => {
@@ -52,6 +58,7 @@ export class TicketNoteDiscussionService {
     }
 
     async markRead(noteId: string, actorId: string, throughSequence: number): Promise<void> {
+        let updatedCount = 0;
         await this.source.transaction(async manager => {
             const { note, member } = await this.access.assertMember(noteId, actorId, manager);
             if (!Number.isSafeInteger(throughSequence) || throughSequence < 0 || throughSequence > note.eventSequence) {
@@ -59,11 +66,35 @@ export class TicketNoteDiscussionService {
             }
             await manager.save(TicketNoteMember, { ...member,
                 lastReadSequence: Math.max(member.lastReadSequence, throughSequence) });
-            await manager.query(`UPDATE notifications SET "isRead" = true WHERE "userId" = $1
-                AND type = 'TICKET_NOTE' AND "referenceId" = $2::text AND id IN
-                (SELECT "notificationId" FROM ticket_note_deliveries WHERE "noteId" = $2::uuid AND "recipientId" = $1::uuid AND sequence <= $3)`,
-                [actorId, noteId, throughSequence]);
+            const result: any = await manager.query(
+                `UPDATE notifications n SET "isRead" = true
+                WHERE n."userId" = $1
+                  AND n.type = 'TICKET_NOTE'
+                  AND n."referenceId" = $2::text
+                  AND n."isRead" = false
+                  AND EXISTS (
+                      SELECT 1 FROM ticket_note_deliveries d
+                      WHERE d."notificationId" = n.id
+                        AND d."noteId" = $2::uuid
+                        AND d."recipientId" = $1::uuid
+                        AND d.sequence <= $3
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ticket_note_deliveries d
+                      WHERE d."notificationId" = n.id
+                        AND d."noteId" = $2::uuid
+                        AND d."recipientId" = $1::uuid
+                        AND d.sequence > $3
+                  )
+                RETURNING n.id`,
+                [actorId, noteId, throughSequence],
+            );
+            const rows = Array.isArray(result?.[0]) ? result[0] : (Array.isArray(result) ? result : []);
+            updatedCount = typeof result?.[1] === 'number' ? result[1] : rows.length;
         });
+        if (updatedCount > 0) {
+            this.gateway?.server?.to(`user:${actorId}`)?.emit(NOTIFICATIONS_READ_EVENT, { userId: actorId });
+        }
     }
 
     async solution(noteId: string, actorId: string, messageId: string | null): Promise<void> {

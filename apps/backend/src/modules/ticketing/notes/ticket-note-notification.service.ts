@@ -58,25 +58,81 @@ export class TicketNoteNotificationService {
 
     async deliver(delivery: TicketNoteDelivery): Promise<void> {
         let note: TicketNote;
-        try { ({ note } = await this.access.assertMember(delivery.noteId, delivery.recipientId)); }
+        let member: TicketNoteMember;
+        try { ({ note, member } = await this.access.assertMember(delivery.noteId, delivery.recipientId)); }
         catch (error) {
             if (!(error instanceof NotFoundException)) throw error;
             await this.source.manager.save(TicketNoteDelivery, { ...delivery, state: 'CANCELLED' });
             return;
         }
         if (!this.center) return;
+        const viewingNote = Boolean(await this.gateway?.isViewingNote?.(delivery.recipientId, note.id));
+        if (viewingNote || this.isAlreadyRead(delivery, member)) {
+            await this.source.manager.save(TicketNoteDelivery, {
+                ...delivery, notificationId: null, state: 'SENT', attemptCount: delivery.attemptCount,
+            });
+            this.emitNoteRefresh(delivery.recipientId, note);
+            return;
+        }
         await this.source.manager.save(TicketNoteDelivery, { ...delivery, notificationId: delivery.id });
-        const notification = await this.center.send({ id: delivery.id, userId: delivery.recipientId,
+        const notification = await this.center.send({
+            id: delivery.id,
+            userId: delivery.recipientId,
             type: NotificationType.TICKET_NOTE,
             title: 'Catatan internal',
-            message: delivery.kind === 'INVITE' ? 'Anda ditambahkan ke catatan internal.' : 'Ada pembaruan catatan internal untuk Anda.',
-            referenceId: note.id, link: `/tickets/${note.ticketId}?noteId=${note.id}`,
+            message: this.formatNoteMessage(delivery, note, member),
+            referenceId: note.id,
+            link: `/tickets/${note.ticketId}?noteId=${note.id}`,
+            groupUnread: true,
+            viewingTicketId: note.ticketId,
+            pushTag: `ticket-note:${note.id}`,
+            bypassPushCooldown: delivery.kind === 'INVITE' || delivery.kind === 'MENTION',
             channels: delivery.kind === 'INVITE' ? [DeliveryChannel.IN_APP, DeliveryChannel.EMAIL] : [DeliveryChannel.IN_APP],
         });
         // Null when the member turned these notices off; the delivery is still done.
         await this.source.manager.save(TicketNoteDelivery, { ...delivery, notificationId: notification?.id ?? null,
             state: 'SENT', attemptCount: delivery.attemptCount });
-        this.gateway?.server.to(`user:${delivery.recipientId}`).emit('ticket-note:changed', { ticketId: note.ticketId, noteId: note.id });
-        this.gateway?.server.to(`user:${delivery.recipientId}`).emit(`action-items:refresh:${delivery.recipientId}`, {});
+        this.emitNoteRefresh(delivery.recipientId, note);
+    }
+
+    private isAlreadyRead(delivery: TicketNoteDelivery, member?: TicketNoteMember): boolean {
+        if (!member || typeof member.lastReadSequence !== 'number' || typeof delivery.sequence !== 'number') {
+            return false;
+        }
+        if (delivery.kind === 'MESSAGE' || delivery.kind === 'MENTION') {
+            return member.lastReadSequence >= delivery.sequence;
+        }
+        if (delivery.kind === 'SOLUTION') {
+            return member.lastReadSequence > delivery.sequence;
+        }
+        // INVITE initializes lastReadSequence = note.eventSequence at join time, so never suppress invite by equality.
+        return false;
+    }
+
+    private formatNoteMessage(delivery: TicketNoteDelivery, note: TicketNote, member?: TicketNoteMember): string {
+        const unread = typeof note.eventSequence === 'number' && typeof member?.lastReadSequence === 'number'
+            ? Math.max(1, note.eventSequence - member.lastReadSequence)
+            : 1;
+        if (delivery.kind === 'INVITE') {
+            return 'Anda ditambahkan ke catatan internal.';
+        }
+        if (delivery.kind === 'MENTION') {
+            return unread > 1
+                ? `Anda disebut dalam catatan internal (${unread} pembaruan).`
+                : 'Anda disebut dalam catatan internal.';
+        }
+        if (delivery.kind === 'SOLUTION') {
+            return unread > 1
+                ? `Solusi catatan internal diperbarui (${unread} pembaruan).`
+                : 'Solusi catatan internal telah dipilih.';
+        }
+        return unread > 1
+            ? `Ada ${unread} pembaruan catatan internal untuk Anda.`
+            : 'Ada pembaruan catatan internal untuk Anda.';
+    }
+
+    private emitNoteRefresh(recipientId: string, note: TicketNote): void {
+        this.gateway?.server?.to(`user:${recipientId}`)?.emit('ticket-note:changed', { ticketId: note.ticketId, noteId: note.id });
+        this.gateway?.server?.to(`user:${recipientId}`)?.emit(`action-items:refresh:${recipientId}`, {});
     }
 }

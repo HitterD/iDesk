@@ -260,6 +260,40 @@ describe('BentoTvBoardPage', () => {
         expect(labels[0]).toHaveTextContent('SMG');
     });
 
+    it('renders origin site badge on cross-site forwarded IT Support cards', async () => {
+        const api = (await import('@/lib/api')).default;
+        (api.get as any).mockResolvedValueOnce({
+            data: {
+                siteName: 'Karawang',
+                siteCode: 'KRW',
+                open: [
+                    {
+                        id: 't-fwd',
+                        description: 'Kabel LAN putus',
+                        requesterName: 'Deni',
+                        requesterDepartment: 'OPS',
+                        assignedToName: null,
+                        priority: 'MEDIUM',
+                        slaTarget: null,
+                        isOverdue: false,
+                        isOracleRequest: false,
+                        siteCode: 'KRW',
+                        handlingTeam: 'OPS_SUPPORT',
+                        forwardedFromTeam: 'OPS_SUPPORT',
+                        forwardedFromSiteCode: 'SPJ',
+                    },
+                ],
+                inProgress: [],
+                waitingVendorCount: 0,
+                ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null },
+            },
+        });
+        renderBoard();
+
+        expect(await screen.findByText('Kabel LAN putus')).toBeInTheDocument();
+        expect(screen.getByText('↪ dari IT Support (SPJ)')).toBeInTheDocument();
+    });
+
     describe('theme', () => {
         afterEach(() => window.localStorage.clear());
 

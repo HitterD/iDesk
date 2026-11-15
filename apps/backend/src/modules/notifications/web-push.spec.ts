@@ -126,4 +126,63 @@ describe('NotificationPushService', () => {
 
         expect(push.send).not.toHaveBeenCalled();
     });
+
+    it('suppresses TICKET_NOTE push when viewing the ticket (even without stored ticketId) or viewing the note, and throttles routine note pushes by 120s', async () => {
+        const store = new Map<string, unknown>();
+        const cache = {
+            getAsync: jest.fn(async (k: string) => store.get(k) ?? null),
+            setAsync: jest.fn(async (k: string, v: unknown) => { store.set(k, v); }),
+        };
+        const visibility = { filter: jest.fn(async (_u: string, items: any[]) => items) };
+        const push = { isAvailable: () => true, send: jest.fn(async () => ({ success: true })) };
+        const gateway = {
+            isViewingTicket: jest.fn(async () => false),
+            isViewingNote: jest.fn(async () => false),
+        };
+        const service = new NotificationPushService(push as never, gateway as never, visibility as never, cache as never);
+        const ticketUuid = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+        const noteNotification = {
+            id: 'n-note-1',
+            userId: 'u-1',
+            type: NotificationType.TICKET_NOTE,
+            title: 'Catatan internal',
+            message: 'Ada pembaruan catatan internal untuk Anda.',
+            link: `/tickets/${ticketUuid}?noteId=note-1`,
+            referenceId: 'note-1',
+            ticketId: undefined as any,
+            requiresAcknowledge: false,
+        };
+
+        gateway.isViewingTicket.mockResolvedValueOnce(true);
+        service.dispatch(noteNotification, { viewingTicketId: ticketUuid });
+        await flush();
+        expect(gateway.isViewingTicket).toHaveBeenCalledWith('u-1', ticketUuid);
+        expect(push.send).not.toHaveBeenCalled();
+
+        gateway.isViewingNote.mockResolvedValueOnce(true);
+        service.dispatch(noteNotification, { viewingTicketId: ticketUuid });
+        await flush();
+        expect(push.send).not.toHaveBeenCalled();
+
+        service.dispatch(noteNotification, { viewingTicketId: ticketUuid, pushTag: 'ticket-note:note-1' });
+        await flush();
+        expect(push.send).toHaveBeenCalledTimes(1);
+        expect(push.send).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({ tag: 'ticket-note:note-1' }),
+        }));
+
+        // Routine message within 120s cooldown is suppressed
+        service.dispatch({ ...noteNotification, id: 'n-note-2' }, { viewingTicketId: ticketUuid, pushTag: 'ticket-note:note-1' });
+        await flush();
+        expect(push.send).toHaveBeenCalledTimes(1);
+
+        // Mention/Invite bypasses cooldown while reusing collapse tag
+        service.dispatch({ ...noteNotification, id: 'n-note-3' }, {
+            viewingTicketId: ticketUuid,
+            pushTag: 'ticket-note:note-1',
+            bypassCooldown: true,
+        });
+        await flush();
+        expect(push.send).toHaveBeenCalledTimes(2);
+    });
 });

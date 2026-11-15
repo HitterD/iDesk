@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, MessageSquareText } from 'lucide-react';
 import api from '@/lib/api';
+import { useSocket } from '@/lib/socket';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { notePath, type TicketNote } from './types';
 import { NoteDocumentEditor } from './NoteDocumentEditor';
@@ -16,7 +17,18 @@ const TABS = [
 
 export function NoteWorkspace({ ticketId, noteId, userId, onDeleted }: { ticketId: string; noteId: string; userId: string; onDeleted: () => void }) {
     const client = useQueryClient();
+    const { socket } = useSocket();
     const [tab, setTab] = useState<Tab>('chat');
+    useEffect(() => {
+        if (!socket || !noteId) return;
+        const join = () => { socket.emit('join:ticket-note', noteId); };
+        join();
+        socket.on('connect', join);
+        return () => {
+            socket.off('connect', join);
+            socket.emit('leave:ticket-note', noteId);
+        };
+    }, [socket, noteId]);
     const key = ['private-ticket-note', userId, ticketId, noteId];
     const query = useQuery({ queryKey: key, queryFn: async () => (await api.get<TicketNote>(notePath(ticketId, noteId))).data,
         refetchInterval: 10_000, retry: false, gcTime: 0 });

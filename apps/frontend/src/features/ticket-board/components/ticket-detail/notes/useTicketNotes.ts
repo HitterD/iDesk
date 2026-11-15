@@ -8,7 +8,8 @@ export function useTicketNotes(ticketId: string, userId: string, enabled = true)
     const client = useQueryClient();
     const { socket } = useSocket();
     useEffect(() => {
-        const changed = () => {
+        const changed = (payload?: { ticketId?: string }) => {
+            if (payload?.ticketId && payload.ticketId !== ticketId) return;
             void client.invalidateQueries({ queryKey: ['private-ticket-notes', userId, ticketId] });
             void client.invalidateQueries({ queryKey: ['private-ticket-note', userId, ticketId] });
             void client.invalidateQueries({ queryKey: ['private-note-discussion', userId] });

@@ -269,4 +269,32 @@ describe('TicketsController', () => {
             expect(mockAgentRatingService.submitRatings).toHaveBeenCalledWith('t-1', 'owner-1', ratings);
         });
     });
+
+    describe('forwardTicket', () => {
+        it('passes role, siteId, and targetSiteId in the actor payload', async () => {
+            const dto = {
+                targetTeam: 'OPS_SUPPORT',
+                reason: 'Dialihkan ke site cabang',
+                targetSiteId: 'site-krw',
+            };
+            const req = {
+                user: {
+                    userId: 'agent-1',
+                    fullName: 'Beny Saputra',
+                    username: 'beny',
+                    role: 'AGENT_OPERATIONAL_SUPPORT',
+                    siteId: 'site-spj',
+                },
+            };
+
+            await controller.forwardTicket('t-1', dto as any, req);
+
+            expect(mockTicketForwardService.forwardTicket).toHaveBeenCalledWith('t-1', dto, {
+                userId: 'agent-1',
+                fullName: 'Beny Saputra',
+                role: 'AGENT_OPERATIONAL_SUPPORT',
+                siteId: 'site-spj',
+            });
+        });
+    });
 });

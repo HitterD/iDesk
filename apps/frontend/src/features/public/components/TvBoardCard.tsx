@@ -31,6 +31,10 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
     const requester = toDisplayName(card.requesterName);
     const pic = card.assignedToName ? toDisplayName(card.assignedToName) : null;
     const forwardedFrom = card.forwardedFromTeam ? DIVISION_CONFIGS[card.forwardedFromTeam as DivisionKey] : undefined;
+    const forwardedLabel = forwardedFrom
+        ? (card.forwardedFromSiteCode ? `↪ dari ${forwardedFrom.shortLabel} (${card.forwardedFromSiteCode})` : `↪ dari ${forwardedFrom.shortLabel}`)
+        : (card.forwardedFromSiteCode ? `↪ dari ${card.forwardedFromSiteCode}` : null);
+    const forwardedColor = forwardedFrom?.color ?? division.color;
 
     return (
         <li
@@ -56,13 +60,13 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
                     <span className="shrink-0 font-medium" style={{ color: division.color }}>
                         {divisionKey === 'ORACLE_DEV' ? 'ORACLE / K2' : division.shortLabel}
                     </span>
-                    {forwardedFrom && (
+                    {forwardedLabel && (
                         <span
                             data-testid="tv-board-forwarded-from"
                             className="shrink-0 rounded-[0.4rem] px-[0.45rem] py-[0.2rem] text-[0.85rem] font-semibold"
-                            style={{ color: forwardedFrom.color, backgroundColor: `${forwardedFrom.color}1F` }}
+                            style={{ color: forwardedColor, backgroundColor: `${forwardedColor}1F` }}
                         >
-                            ↪ dari {forwardedFrom.shortLabel}
+                            {forwardedLabel}
                         </span>
                     )}
                     <span className="shrink-0 text-[var(--tv-separator)]" aria-hidden="true">·</span>

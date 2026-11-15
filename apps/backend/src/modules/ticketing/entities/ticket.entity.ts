@@ -185,6 +185,13 @@ export class Ticket {
     @Column({ type: 'uuid', nullable: true })
     forwardedById: string | null;
 
+    @Column({ type: 'uuid', nullable: true })
+    forwardedFromSiteId?: string | null;
+
+    @ManyToOne(() => Site, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'forwardedFromSiteId' })
+    forwardedFromSite?: Site | null;
+
     // Required reason for CRITICAL priority
     @Column({ nullable: true, type: 'text' })
     criticalReason: string;

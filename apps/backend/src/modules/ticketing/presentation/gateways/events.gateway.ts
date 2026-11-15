@@ -8,7 +8,7 @@ import {
     MessageBody,
     ConnectedSocket,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -21,12 +21,15 @@ import { isTicketRequesterSide } from '../../utils/oracle-ticket-access.util';
 import { extractClientIp } from '../../../../shared/security/client-ip';
 import { buildWsCorsOrigin } from '../../../../shared/security/ws-origin';
 import { isCrossSiteRole } from '../../utils/site-access.util';
+import { TicketNoteAccessService } from '../../notes/ticket-note-access.service';
 
 const ACCESS_COOKIE_NAME = 'access_token';
 /** Room for roles that see tickets from every site, so site-scoped ticket events still reach them. */
 export const TICKET_CROSS_SITE_ROOM = 'tickets:cross-site';
 /** Ticket room for everyone except requesters; internal notes are only pushed here. */
 export const ticketStaffRoom = (ticketId: string): string => `ticket:${ticketId}:staff`;
+/** Active viewer room for an open Catatan Internal note workspace. */
+export const ticketNoteRoom = (noteId: string): string => `ticket-note:${noteId}`;
 
 /** Inbound events per socket per minute. Keyed per socket, so one abuser cannot lock out an office. */
 const MAX_MESSAGES_PER_WINDOW = 60;
@@ -85,6 +88,7 @@ export class EventsGateway
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly ticketRepository: TicketRepository,
+        @Optional() private readonly noteAccess?: TicketNoteAccessService,
     ) {
         // Clean up rate limiter entries periodically
         // RateLimiter cleanup occurs on demand; gateway must not keep Jest/process alive.
@@ -239,10 +243,45 @@ export class EventsGateway
         return { status: 'ok', room: `ticket:${ticketId}` };
     }
 
+    /** True when any of the user's connected tabs has this room open. */
+    private async isUserInRoom(userId: string, room: string): Promise<boolean> {
+        if (!this.server?.in) return false;
+        const sockets = await this.server.in(`user:${userId}`).fetchSockets();
+        return sockets.some((socket) => socket.rooms.has(room));
+    }
+
     /** True when any of the user's connected tabs has this ticket open (joined its room). */
     async isViewingTicket(userId: string, ticketId: string): Promise<boolean> {
-        const sockets = await this.server.in(`user:${userId}`).fetchSockets();
-        return sockets.some((socket) => socket.rooms.has(`ticket:${ticketId}`));
+        return this.isUserInRoom(userId, `ticket:${ticketId}`);
+    }
+
+    /** True when any of the user's connected tabs currently has this note open in the drawer. */
+    async isViewingNote(userId: string, noteId: string): Promise<boolean> {
+        return this.isUserInRoom(userId, ticketNoteRoom(noteId));
+    }
+
+    @SubscribeMessage('join:ticket-note')
+    async handleJoinTicketNote(@ConnectedSocket() client: Socket, @MessageBody() noteId: string) {
+        const userId = client.data.userId as string | undefined;
+        if (!userId || !noteId) return { status: 'error', message: 'Unauthorized' };
+        if (!isUUID(noteId)) return { status: 'error', message: 'Invalid note ID format' };
+        if (!this.checkMessageRateLimit(client)) return { status: 'error', message: 'Rate limited' };
+        if (this.noteAccess) {
+            try {
+                await this.noteAccess.assertMember(noteId, userId);
+            } catch {
+                return { status: 'error', message: 'Forbidden' };
+            }
+        }
+        client.join(ticketNoteRoom(noteId));
+        return { status: 'ok', room: ticketNoteRoom(noteId) };
+    }
+
+    @SubscribeMessage('leave:ticket-note')
+    handleLeaveTicketNote(@ConnectedSocket() client: Socket, @MessageBody() noteId: string) {
+        if (!client.data.userId || !noteId) return { status: 'error', message: 'Unauthorized' };
+        client.leave(ticketNoteRoom(noteId));
+        return { status: 'ok', room: ticketNoteRoom(noteId) };
     }
 
     // Leave a ticket room

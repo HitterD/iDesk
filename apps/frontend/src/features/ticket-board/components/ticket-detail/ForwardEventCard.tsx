@@ -15,6 +15,7 @@ import { formatMessageTime, toDisplayName } from './messageThread';
  */
 const FORWARD_RE = /Ticket forwarded from ([A-Z_]+) to ([A-Z_]+)(?: by (.+?))?\.\s*Reason:\s*(.*)/i;
 const LEGACY_FORWARD_RE = /Ticket forwarded to ([A-Z_]+)(?:\s+by\s+([^,.\n]+))?/i;
+const SITE_FORWARD_RE = /Site forwarded:\s*([A-Z0-9_-]+)\s*->\s*([A-Z0-9_-]+)/i;
 /** Reason presets of TicketForwardDialog; the dialog sends "<preset>: <note>" or just "<preset>". */
 const REASON_PRESET_LABELS = [
     'Terkait aplikasi Web / Portal / Frontend',
@@ -53,6 +54,8 @@ function budgetLabel(minutes: number): string {
 export interface ForwardEvent {
     from?: string;
     to: string;
+    fromSite?: string;
+    toSite?: string;
     preset?: string;
     reason?: string;
     actor?: string;
@@ -62,6 +65,11 @@ export interface ForwardEvent {
     /** True when the target team got no PIC automatically. */
     waitingForPic: boolean;
 }
+
+const formatTeamWithSite = (code?: string, site?: string) => {
+    const label = teamName(code);
+    return site ? `${label} (${site})` : label;
+};
 
 /** Reads a forward system message; null when the message is not a forward. */
 export function parseForwardEvent(content: string): ForwardEvent | null {
@@ -74,6 +82,7 @@ export function parseForwardEvent(content: string): ForwardEvent | null {
     const legacy = full ? null : head.match(LEGACY_FORWARD_RE);
     if (!full && !legacy) return null;
 
+    const siteMove = rest.match(SITE_FORWARD_RE);
     const { preset, note } = splitReason(full?.[4]?.trim() ?? '');
     const slaTarget = rest.match(SLA_TARGET_RE);
     let sla: string | undefined;
@@ -91,6 +100,8 @@ export function parseForwardEvent(content: string): ForwardEvent | null {
     return {
         from: full?.[1]?.toUpperCase(),
         to: (full?.[2] ?? legacy![1]).toUpperCase(),
+        fromSite: siteMove?.[1]?.toUpperCase(),
+        toSite: siteMove?.[2]?.toUpperCase(),
         preset,
         reason: note,
         actor: (full?.[3] ?? legacy?.[2])?.trim(),
@@ -109,7 +120,7 @@ interface ForwardEventCardProps {
 
 /** A team handover as a readable card: from → to, why, the new SLA and who picks it up. */
 export const ForwardEventCard: React.FC<ForwardEventCardProps> = ({ event, createdAt, audience = 'staff', className }) => {
-    const to = teamName(event.to);
+    const to = formatTeamWithSite(event.to, event.toSite);
     if (audience === 'requester') {
         return (
             <div className={cn('chat-sys', className)}>
@@ -132,8 +143,8 @@ export const ForwardEventCard: React.FC<ForwardEventCardProps> = ({ event, creat
                 </div>
             </div>
             {event.from && (
-                <div className="chat-event-route" aria-label={`Dari ${teamName(event.from)} ke ${to}`}>
-                    <span className="chat-event-team is-from">{teamName(event.from)}</span>
+                <div className="chat-event-route" aria-label={`Dari ${formatTeamWithSite(event.from, event.fromSite)} ke ${to}`}>
+                    <span className="chat-event-team is-from">{formatTeamWithSite(event.from, event.fromSite)}</span>
                     <ArrowRight aria-hidden="true" />
                     <span className="chat-event-team is-to">{to}</span>
                 </div>
