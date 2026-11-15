@@ -127,20 +127,19 @@ describe('CsiTemplateApplyService', () => {
         service = new CsiTemplateApplyService(templates as any, org as any, dimensions as any, sites as any, periodService as any, dataSource as any);
     });
 
-    it('dry run only reports: PICs without raters still added (listed), inactive PICs and raters without account listed', async () => {
+    it('dry run only reports: PICs without raters are excluded (listed in picsWithoutRaters), inactive PICs and raters without account listed', async () => {
         const report = await service.applyToPeriod(HC, 't1', 'p1', false);
         expect(report).toMatchObject({
-            committed: false, picsAdded: 3, ratersAdded: 1, pairsAdded: 2,
+            committed: false, picsAdded: 2, ratersAdded: 1, pairsAdded: 2,
             picsWithoutRaters: ['JINGGA'], picsUnmatched: ['GHOST (PIC master nonaktif)'], ratersNoAccount: ['ARIEF NOEGROHO'], ratersAmbiguous: ['AGUS SUBEKTI'],
         });
         expect(ratees.rows).toEqual([]);
     });
 
-    it('commit adds PIC ratees (service function snapshot, HC questions), raters and pairs', async () => {
+    it('commit adds PIC ratees with raters (service function snapshot, HC questions), raters and pairs, skipping 0-rater PICs', async () => {
         await service.applyToPeriod(HC, 't1', 'p1', true);
         expect(ratees.rows.map((row) => [row.picId, row.serviceFunction, row.kind])).toEqual([
             ['pic-rara', 'People & Organization Development', CsiRateeKind.PERSON], ['pic-mega', 'Benefit', CsiRateeKind.PERSON],
-            ['pic-jingga', 'Receptionist', CsiRateeKind.PERSON],
         ]);
         expect(rateeDims.rows.filter((row) => row.periodRateeId === ratees.rows[0].id).map((row) => row.shortLabel)).toEqual(['Knowledge', 'Courtesy']);
         expect(raters.rows.map((row) => row.userId)).toEqual(['u-elvi']);
@@ -163,7 +162,7 @@ describe('CsiTemplateApplyService', () => {
         const again = await service.applyToPeriod(HC, 't1', 'p1', true);
         expect(again).toMatchObject({ picsAdded: 0, ratersAdded: 0, pairsAdded: 0 });
         expect(pairs.rows.some((row) => row.id === 'manual')).toBe(true);
-        expect(ratees.rows).toHaveLength(3);
+        expect(ratees.rows).toHaveLength(2);
     });
 
     it('creates a draft period for the template location and applies the template', async () => {
@@ -241,8 +240,8 @@ describe('CsiTemplateApplyService', () => {
         expect(periodService.create).toHaveBeenCalledTimes(1);
         expect(periodService.create).toHaveBeenCalledWith(HC, expect.objectContaining({ siteIds: ['s-smg', 's-krw'], respondentMode: CsiRespondentMode.LISTED }), 'admin');
         expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-        expect(ratees.rows.map((row) => row.displayName)).toEqual(['RARA', 'MEGA', 'JINGGA', 'ANI', 'TIM RECEPTION']);
-        expect(result).toMatchObject({ periodId: 'p-new', report: { committed: true, picsAdded: 4, teamsAdded: 1, siteAdded: null } });
+        expect(ratees.rows.map((row) => row.displayName)).toEqual(['RARA', 'MEGA', 'ANI', 'TIM RECEPTION']);
+        expect(result).toMatchObject({ periodId: 'p-new', report: { committed: true, picsAdded: 3, teamsAdded: 1, siteAdded: null } });
     });
 
     it('a failing second template removes the multi-location draft', async () => {
@@ -259,7 +258,7 @@ describe('CsiTemplateApplyService', () => {
 
     it('rater in two locations counted once', async () => {
         const preview = await service.previewPeriod(HC, ['t1', 't2']);
-        expect(preview).toMatchObject({ committed: false, ratersAdded: 3, picsAdded: 4, teamsAdded: 1, blockedReason: null });
+        expect(preview).toMatchObject({ committed: false, ratersAdded: 3, picsAdded: 3, teamsAdded: 1, blockedReason: null });
         expect(ratees.rows).toEqual([]);
         const created = await service.createPeriodFromTemplates(HC, ['t1', 't2'], INPUT, 'admin');
         expect(raters.rows.map((row) => row.userId).sort()).toEqual(['u-budi', 'u-cici', 'u-elvi']);
@@ -337,7 +336,7 @@ describe('CsiTemplateApplyService', () => {
         templates.get.mockResolvedValueOnce(twice);
         const report = await service.applyToPeriod(HC, 't1', 'p1', true);
         expect(ratees.rows.filter((row) => row.picId === 'pic-rara')).toHaveLength(1);
-        expect(report.picsAdded).toBe(3);
+        expect(report.picsAdded).toBe(2);
         expect(pairs.rows).toHaveLength(3);
     });
 
@@ -368,7 +367,7 @@ describe('CsiTemplateApplyService', () => {
         await service.applyToPeriod(HC, 't1', 'p1', false);
         expect(periodService.overlaps).toHaveBeenCalledWith(HC, ['s-smg'], undefined, undefined, 'p1', expect.objectContaining({ getRepository: expect.any(Function) }));
     });
-    describe('every template PIC is rated (no master yet, no raters)', () => {
+    describe('PICs without raters are not added as survey ratees (no master yet, no raters)', () => {
         /** The SMG case: four new staff in the template with no PIC master and no raters yet. */
         const NEW_STAFF = ['JINGGA FERDASIWI', 'KUSMANTO', 'AGUS SULISTYONO', 'WAHYU PURWO ANOM SASONGKO'];
         const newStaffView = (): CsiTemplateView => {
@@ -387,7 +386,7 @@ describe('CsiTemplateApplyService', () => {
         });
         afterEach(() => templates.get.mockImplementation(async (_scope: string, id: string) => (id === 't2' ? krwView() : view())));
 
-        it('apply creates the missing masters (site = template location) and rates them with 0 pairs and the HC questions', async () => {
+        it('apply resolves missing masters but does not add 0-rater PICs as ratees in the survey', async () => {
             const { periodId, report } = await service.createPeriodFromTemplates(HC, ['t1'], INPUT, 'admin');
             expect(periodId).toBe('p-new');
             const created = masters.rows.filter((row) => NEW_STAFF.includes(row.fullName.toUpperCase()));
@@ -399,16 +398,14 @@ describe('CsiTemplateApplyService', () => {
             // The template rows are linked, so the next apply finds the same masters.
             expect(templatePics.rows.filter((row) => row.id.startsWith('tp-new-')).every((row) => created.some((master) => master.id === row.picId))).toBe(true);
             const added = ratees.rows.filter((row) => created.some((master) => master.id === row.picId));
-            expect(added).toHaveLength(4);
-            expect(added.every((row) => row.siteId === 's-smg' && row.serviceFunction === 'General Affair')).toBe(true);
-            expect(rateeDims.rows.filter((row) => added.some((ratee) => ratee.id === row.periodRateeId))).toHaveLength(8);
-            expect(pairs.rows.filter((row) => added.some((ratee) => ratee.id === row.periodRateeId))).toEqual([]);
-            expect(report).toMatchObject({ picsAdded: 5, picsUnmatched: [], picsWithoutRaters: [...NEW_STAFF].sort() });
+            expect(added).toHaveLength(0);
+            expect(ratees.rows.map((row) => row.picId)).toEqual(['pic-rara']);
+            expect(report).toMatchObject({ picsAdded: 1, picsUnmatched: [], picsWithoutRaters: [...NEW_STAFF].sort() });
         });
 
-        it('a dry run creates nothing but reports the same counts; a second apply reuses the masters', async () => {
+        it('a dry run creates nothing and reports the same counts; a second apply reuses the masters', async () => {
             const preview = await service.previewPeriod(HC, ['t1']);
-            expect(preview).toMatchObject({ picsAdded: 5, picsWithoutRaters: [...NEW_STAFF].sort(), picsUnmatched: [] });
+            expect(preview).toMatchObject({ picsAdded: 1, picsWithoutRaters: [...NEW_STAFF].sort(), picsUnmatched: [] });
             expect(masters.rows).toHaveLength(pics.length);
             expect(templatePics.rows.filter((row) => row.id.startsWith('tp-new-')).every((row) => row.picId === null)).toBe(true);
             await service.applyToPeriod(HC, 't1', 'p1', true);
@@ -444,7 +441,7 @@ describe('CsiTemplateApplyService', () => {
         it('dry run merges the templates once (rater in two locations counted once) and adds both sites', async () => {
             periods.rows[0] = { ...periods.rows[0], publishStatus: CsiPeriodPublishStatus.DRAFT, sites: [] };
             const report = await service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', false, false);
-            expect(report).toMatchObject({ committed: false, picsAdded: 4, teamsAdded: 1, ratersAdded: 3, nonPicRatees: 0, blockedReason: null, siteAdded: 'SMG, KRW' });
+            expect(report).toMatchObject({ committed: false, picsAdded: 3, teamsAdded: 1, ratersAdded: 3, nonPicRatees: 0, blockedReason: null, siteAdded: 'SMG, KRW' });
             expect(ratees.rows).toEqual([]);
             expect(dataSource.transaction).toHaveBeenCalledTimes(1);
         });
@@ -452,8 +449,8 @@ describe('CsiTemplateApplyService', () => {
         it('commit writes all templates in one transaction', async () => {
             const report = await service.applyManyToPeriod(HC, ['t1', 't2'], 'p1', true, false);
             expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-            expect(report).toMatchObject({ committed: true, picsAdded: 4, teamsAdded: 1, ratersAdded: 3 });
-            expect(ratees.rows.map((row) => row.displayName)).toEqual(['RARA', 'MEGA', 'JINGGA', 'ANI', 'TIM RECEPTION']);
+            expect(report).toMatchObject({ committed: true, picsAdded: 3, teamsAdded: 1, ratersAdded: 3 });
+            expect(ratees.rows.map((row) => row.displayName)).toEqual(['RARA', 'MEGA', 'ANI', 'TIM RECEPTION']);
             expect(periodSites.rows).toEqual([expect.objectContaining({ periodId: 'p1', siteId: 's-krw' })]);
         });
 
@@ -463,7 +460,7 @@ describe('CsiTemplateApplyService', () => {
             expect(dry.nonPicRatees).toBe(1);
             expect(ratees.rows.map((row) => row.id)).toEqual(['r-user']);
             const done = await service.applyManyToPeriod(HC, ['t1'], 'p1', true, true);
-            expect(done).toMatchObject({ committed: true, picsAdded: 3, nonPicRatees: 1 });
+            expect(done).toMatchObject({ committed: true, picsAdded: 2, nonPicRatees: 1 });
             expect(ratees.rows.some((row) => row.id === 'r-user')).toBe(false);
             expect(pairs.rows.some((row) => row.id === 'pair-user')).toBe(false);
             expect(rateeDims.rows.some((row) => row.id === 'd-user')).toBe(false);

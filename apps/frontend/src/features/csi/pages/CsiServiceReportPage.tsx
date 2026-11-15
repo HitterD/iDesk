@@ -91,7 +91,9 @@ export function CsiServiceReportPage() {
                     <p id="csi-service-raw-hint" className="basis-full text-right text-xs text-muted-foreground">{RAW_EXPORT_HINT}</p>
                 </div>
             )}
-            {access && access.services.length > 0 && !access.periods.length && <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Belum ada survei HC yang terbit.</p>}
+            {access && access.services.length > 0 && !access.periods.length && (
+                <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>{`Belum ada survei ${scope === 'hc' ? 'HC' : 'ICT'} yang terbit.`}</p>
+            )}
             {report.isError && <ErrorState title="Gagal memuat report layanan" message="Silakan coba lagi." onRetry={() => report.refetch()} />}
             {report.data && (
                 <>

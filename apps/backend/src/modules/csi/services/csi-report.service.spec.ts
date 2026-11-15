@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiRespondentMode } from '../csi.constants';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
@@ -10,6 +10,7 @@ import { User } from '../../users/entities/user.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiReportService } from './csi-report.service';
 
 const ICT = ServiceScope.ICT;
@@ -69,6 +70,7 @@ describe('CsiReportService', () => {
     let sla: { compute: jest.Mock };
     let subjects: { viewsFor: jest.Mock };
     let paired: Set<string> | null;
+    let pairedRatees: Set<string> | null;
     let service: CsiReportService;
     let ratees: ReturnType<typeof memoryRepository>;
     let dataSource: any;
@@ -120,7 +122,11 @@ describe('CsiReportService', () => {
         };
         sla = { compute: jest.fn(async () => ({ basis: 0, pengisiPct: null })) };
         paired = null;
-        const assignments = { ratersWithPairs: jest.fn(async () => paired) };
+        pairedRatees = null;
+        const assignments = {
+            ratersWithPairs: jest.fn(async () => paired),
+            rateesWithPairs: jest.fn(async () => pairedRatees),
+        };
         subjects = { viewsFor: jest.fn(async (_scope: unknown, rows: any[]) => new Map(rows.map((row) => [row.id, {
             siteId: row.siteId ?? null, siteCode: null, photoUrl: row.id === 'r1' ? '/uploads/csi/budi.jpg' : null, tagline: null, jobTitle: null,
         }]))) };
@@ -192,8 +198,17 @@ describe('CsiReportService', () => {
         expect(loads).toHaveBeenCalledTimes(1);
         const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b', matrix: {} as any });
         expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
+        expect(siteB.overall).toMatchObject({ average: 3.5 });
         expect(siteB.hcRecap?.overall.respondents).toBe(1);
         expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
+        // Multi-site PIC via viewsFor.siteIds is still included when filtering by any of its template sites even with 0 responses there.
+        subjects.viewsFor.mockResolvedValueOnce(new Map([
+            ['h1', { siteId: 'site-a', siteIds: ['site-a', 'site-b'], siteCode: 'SMG', photoUrl: null, tagline: null, jobTitle: null }],
+            ['h2', { siteId: 'site-a', siteCode: 'SMG', photoUrl: null, tagline: null, jobTitle: null }],
+        ]));
+        responses.rows.splice(responses.rows.findIndex((row) => row.id === 'rb'), 1);
+        const multiSiteB = await service.getReport(HC, 'p-hc', 'site-b');
+        expect(multiSiteB.ratees.map((row) => row.periodRateeId)).toEqual(['h1']);
     });
 
     it('HC overall (report, site stats) uses the per-rating basis of the recap; ICT keeps the mean of response averages', async () => {
@@ -488,7 +503,10 @@ describe('CsiReportService', () => {
         await expect(service.resetResponse(ICT, 'p1', 'resp1', '  Salah isi departemen ', { id: 'admin' }, req))
             .resolves.toEqual({ reset: true });
         expect(manager.getRepository).toHaveBeenCalledWith(CsiPeriod);
-        expect(deleted).toEqual([{ target: CsiResponse, criteria: { id: 'resp1' } }]);
+        expect(deleted).toEqual([
+            { target: CsiResponse, criteria: { id: 'resp1' } },
+            { target: CsiResponseDraft, criteria: { periodId: 'p1', respondentId: 'x1' } },
+        ]);
         // Response row gone: the (period, respondent) unique slot is free, so the respondent can submit again.
         expect(await responses.count({ where: { periodId: 'p1', respondentId: 'x1' } })).toBe(0);
         expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({
@@ -625,6 +643,25 @@ describe('CsiReportService', () => {
             expect(stats.get('site-c')?.responses).toBe(1);
             expect(stats.get('site-c')?.average).toBe(4);
             expect(stats.get('site-c')?.people).toEqual([{ userId: 'u1', displayName: 'Budi', photoUrl: '/uploads/csi/budi.jpg', average: 4 }]);
+        });
+
+        it('excludes 0-pair ratees from mapped reports while keeping assigned ratees that have 0 responses so far', async () => {
+            periods.rows[0] = { ...periods.rows[0], scope: HC, pairMode: CsiPairMode.CUSTOM, respondentMode: CsiRespondentMode.LISTED };
+            (service as any).ratees.rows.push(
+                { id: 'r3', periodId: 'p1', kind: 'PERSON', userId: 'u3', displayName: 'Kusmanto', jobTitle: 'Security', sortOrder: 2 },
+            );
+            rateeDimensions.rows.push({ id: 'rd3a', periodRateeId: 'r3', dimensionId: 'd1', dimensionName: 'Responsif', type: 'STAR', options: [], sortOrder: 0 });
+            // r1 (answered) and r2 (assigned, 0 responses so far) are paired; r3 (Kusmanto) has 0 assigned pairs.
+            pairedRatees = new Set(['r1', 'r2']);
+            const report = await service.getReport(HC, 'p1');
+            expect(report.ratees.map((r) => r.displayName)).toEqual(['Budi', 'Sari']);
+            expect(report.ratees.find((r) => r.displayName === 'Sari')?.respondentCount).toBe(0);
+
+            // When pairMode is ALL, ratees are not filtered by pairs.
+            periods.rows[0] = { ...periods.rows[0], pairMode: CsiPairMode.ALL };
+            pairedRatees = new Set(['r1']);
+            const allReport = await service.getReport(HC, 'p1');
+            expect(allReport.ratees.map((r) => r.displayName)).toEqual(['Budi', 'Sari', 'Kusmanto']);
         });
     });
 });

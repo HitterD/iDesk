@@ -7,6 +7,7 @@ import type {
     CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiTicketRaterFilter, CsiTicketRaterPreview, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiTeamDeleteImpact, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
+    CsiServerDraft, SaveCsiDraft,
     UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
 } from '../types';
 
@@ -42,6 +43,28 @@ export const CsiApi = {
     async form(id: string): Promise<CsiForm> {
         // The survey page renders 404/410 inline instead of a toast.
         return (await api.get<CsiForm>(`/csi/me/periods/${encodeURIComponent(id)}`, { skipToast: true })).data;
+    },
+    async saveDraft(id: string, payload: SaveCsiDraft): Promise<{ draft: CsiServerDraft | null }> {
+        // Silent background persistence: transient errors stay in localStorage without interrupting the respondent.
+        return (await api.put<{ draft: CsiServerDraft | null }>(`/csi/me/periods/${encodeURIComponent(id)}/draft`, payload, { skipToast: true })).data;
+    },
+    saveDraftKeepalive(id: string, payload: SaveCsiDraft): void {
+        // Keepalive survives tab/browser close during pagehide/beforeunload where standard XHR/axios is aborted.
+        try {
+            const csrf = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('csrf-token='))?.slice('csrf-token='.length);
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = decodeURIComponent(csrf);
+            const baseUrl = import.meta.env.VITE_API_URL || '';
+            void fetch(`${baseUrl}/v1/csi/me/periods/${encodeURIComponent(id)}/draft`, {
+                method: 'PUT',
+                credentials: 'include',
+                keepalive: true,
+                headers,
+                body: JSON.stringify(payload),
+            }).catch(() => undefined);
+        } catch {
+            // Silent fallback: localStorage already holds the draft on this device.
+        }
     },
     async submit(id: string, payload: SubmitCsiResponse): Promise<CsiSubmitResult> {
         return (await api.post<CsiSubmitResult>(`/csi/me/periods/${encodeURIComponent(id)}/responses`, payload, { skipToast: true })).data;

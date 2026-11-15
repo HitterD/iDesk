@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { AlertTriangle, FileSpreadsheet, Pencil, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, FileSpreadsheet, Filter, Pencil, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useCsiDirectory, useCsiPics, useImportCsiDirectory, useRenameCsiPic, useUpdateCsiPic } from '../../../hooks/useCsiHc';
@@ -139,13 +139,16 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
     const [onlyMissing, setOnlyMissing] = useState(false);
     const [onlyUnlinked, setOnlyUnlinked] = useState(false);
     const missing = pics.filter((pic) => pic.isActive && !hasBagian(pic)).length;
-    const unlinked = pics.filter((pic) => pic.isActive && !pic.userId).length;
-    const listed = pics.filter((pic) =>
-        (!onlyMissing || !missing || (pic.isActive && !hasBagian(pic)))
-        && (!onlyUnlinked || !unlinked || (pic.isActive && !pic.userId)),
-    );
+    const scopedByBagian = pics.filter((pic) => !onlyMissing || !missing || (pic.isActive && !hasBagian(pic)));
+    const scopedByService = scopedByBagian.filter((pic) => !service || pic.serviceCode === service);
+    const unlinked = scopedByService.filter((pic) => pic.isActive && !pic.userId).length;
+    const activeUnlinked = onlyUnlinked && unlinked > 0;
+    const listed = scopedByBagian.filter((pic) => !activeUnlinked || (pic.isActive && !pic.userId));
     const services = groupBy(listed, (pic) => pic.serviceCode);
     const shown = services.filter(([code]) => !service || code === service);
+    useEffect(() => {
+        if (onlyUnlinked && unlinked === 0) setOnlyUnlinked(false);
+    }, [onlyUnlinked, unlinked]);
     return (
         <AdminSection title="PIC HC per layanan & bagian" description="Semua staf HCC, HCD dan HCS dari Data Hirarki Approver. PIC yang dinonaktifkan tidak muncul di survei baru.">
             <div className="grid gap-4">
@@ -161,10 +164,12 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
                                     (service ?? '') === code ? 'bg-[hsl(var(--idesk-sapphire))] text-white' : 'bg-[hsl(var(--muted))]')}>{label}</button>
                         ))}
                         {unlinked > 0 && (
-                            <button type="button" aria-pressed={onlyUnlinked} onClick={() => setOnlyUnlinked((value) => !value)}
-                                className={cn('ml-auto rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors',
-                                    onlyUnlinked ? 'bg-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber-ink))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--idesk-text-secondary))] hover:text-foreground')}>
-                                {`Belum punya akun · ${unlinked}`}
+                            <button type="button" aria-pressed={activeUnlinked} onClick={() => setOnlyUnlinked((value) => !value)}
+                                title="Saring daftar ini untuk melihat PIC yang belum tertaut ke akun iDesk"
+                                className={cn('ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors',
+                                    activeUnlinked ? 'bg-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber-ink))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--idesk-text-secondary))] hover:text-foreground')}>
+                                <Filter className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                                <span>{`Filter: Belum punya akun · ${unlinked}`}</span>
                             </button>
                         )}
                     </div>

@@ -32,9 +32,9 @@ export function getCachedUserPageAccess(
         async () => {
             const user = await userRepo.findOne({
                 where: { id: userId },
-                select: ['id', 'role', 'appliedPresetId'],
+                select: ['id', 'role', 'appliedPresetId', 'isActive'],
             });
-            if (!user) {
+            if (!user || user.isActive === false) {
                 return null;
             }
             const pageAccess = await resolveEffectivePageAccess(user, presetRepo);

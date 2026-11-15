@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, MoreThan, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -34,9 +34,27 @@ export function formatReminderDate(date: string): string {
 
 export const reminderReferenceId = (periodId: string, userId: string) => `${periodId}:${userId}`;
 
+const REMINDER_CONCURRENCY = 5;
+
+/** Runs async work across items with a fixed worker pool limit. */
+async function mapBounded<T, R>(items: readonly T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+    const worker = async () => {
+        while (cursor < items.length) {
+            const index = cursor++;
+            results[index] = await fn(items[index]);
+        }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+    return results;
+}
+
 /** In-app (+ Web Push) reminders for LISTED raters who have not answered; at most one per person per 24 hours. */
 @Injectable()
 export class CsiReminderService {
+    private readonly logger = new Logger(CsiReminderService.name);
+
     constructor(
         @InjectRepository(CsiPeriod) private readonly periods: Repository<CsiPeriod>,
         @InjectRepository(CsiPeriodRater) private readonly periodRaters: Repository<CsiPeriodRater>,
@@ -63,11 +81,16 @@ export class CsiReminderService {
         if (!targets.length) return { sent: 0, skipped: 0 };
         const answered = new Set((await this.responses.find({ where: { periodId, respondentId: In(targets) } })).map((row) => row.respondentId));
         const reminded = await this.recentlyReminded(periodId, targets, now);
-        let sent = 0;
-        for (const userId of targets) {
-            if (outsideAudience.has(userId) || answered.has(userId) || reminded.has(userId)) continue;
-            if (await this.notify(period, userId, now)) sent += 1;
-        }
+        const queued = targets.filter((userId) => !outsideAudience.has(userId) && !answered.has(userId) && !reminded.has(userId));
+        const outcomes = await mapBounded(queued, REMINDER_CONCURRENCY, async (userId) => {
+            try {
+                return await this.notify(period, userId, now);
+            } catch (error) {
+                this.logger.warn(`Gagal mengirim pengingat CSI period=${periodId} user=${userId}: ${(error as Error).message}`);
+                return false;
+            }
+        });
+        const sent = outcomes.filter(Boolean).length;
         return { sent, skipped: targets.length - sent };
     }
 

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, GoneException, NotFoundException } from '@nestjs/common';
 import { LessThanOrEqual, MoreThanOrEqual, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRespondentMode } from '../csi.constants';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -9,6 +9,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
@@ -141,6 +142,8 @@ describe('CsiRespondentService', () => {
             [CsiPeriodRaterRatee, memoryRepository<any>(pairs.rows)],
         ]);
         manager = {
+            query: jest.fn().mockResolvedValue([]),
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
             getRepository: jest.fn((target: unknown) => {
                 if (target === CsiPeriod) return periods;
                 if (target === CsiResponse) return txResponses;
@@ -730,6 +733,29 @@ describe('CsiRespondentService', () => {
             expect(txRepos.get(CsiPeriodRateeDimension)!.find).toHaveBeenCalled();
             expect(txRepos.get(CsiDepartment)!.findOne).toHaveBeenCalledWith({ where: { id: 'dep1', scope: ICT, isActive: true } });
             expect(manager.getRepository).toHaveBeenCalledWith(CsiResponse);
+        });
+
+        it('submit with LISTED + CUSTOM pairMode and 0 pairs rejects (404), never collapses to ALL', async () => {
+            periods.rows[0] = period({ respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM });
+            periodRaters.rows.push({ id: 'pr1', periodId: 'p1', userId: 'me' });
+            await expect(service.submit(me, 'p1', dto(), NOW)).rejects.toThrow(NOT_FOUND);
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('submit with respondentPicks rejects whitespace-only TEXT answers (400)', async () => {
+            periods.rows[0] = period({ respondentPicks: true });
+            rateeDimensions.rows[0].type = CsiQuestionType.TEXT;
+            rateeDimensions.rows[0].required = false;
+            await expect(service.submit(me, 'p1', dto({
+                items: [{ periodRateeDimensionId: 'rd1a', text: '   ' }],
+            }), NOW)).rejects.toThrow(BadRequestException);
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+
+        it('submit acquires draft advisory lock and deletes CsiResponseDraft inside transaction', async () => {
+            await service.submit(me, 'p1', dto(), NOW);
+            expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-draft:p1:me']);
+            expect(manager.delete).toHaveBeenCalledWith(CsiResponseDraft, { periodId: 'p1', respondentId: 'me' });
         });
     });
 });

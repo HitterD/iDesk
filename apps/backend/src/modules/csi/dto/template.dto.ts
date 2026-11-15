@@ -29,6 +29,12 @@ export class UpdateTemplatePicDto {
     serviceFunction?: string | null;
 }
 
+export class TemplateAccountSuggestionsQueryDto {
+    @IsString({ message: 'Nama harus berupa teks' })
+    @MaxLength(NAME_MAX, { message: 'Nama terlalu panjang' })
+    name: string;
+}
+
 export class AddTemplateRaterDto {
     @IsOptional() @IsString() @Length(2, NAME_MAX, { message: 'Nama penilai 2-150 karakter' })
     name?: string;

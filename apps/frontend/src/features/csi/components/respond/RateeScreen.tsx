@@ -8,7 +8,7 @@ import type { CsiOpenForm } from '../../types';
 import { CSI_CARD } from '../CsiSurveyParts';
 import { FlowFooter } from './FlowChrome';
 import { QuestionField } from './QuestionField';
-import { commentLabel, missingText, RESPOND_COPY } from './respondCopy';
+import { commentLabel, missingText, RESPOND_COPY, type DraftSyncStatus } from './respondCopy';
 import { SubjectPhoto } from './SubjectPhoto';
 import { buildSubjectStates, SubjectRail } from './SubjectRail';
 
@@ -23,8 +23,9 @@ const STICKY_VARS = '[--csi-chrome:56px] [--csi-stick:12px]';
 interface RateeScreenProps {
     ratees: Ratee[];
     index: number;
-    /** Drafts are stored (live page): show "Tersimpan otomatis". */
+    /** Drafts are stored (live page): show autosave status. */
     saved: boolean;
+    syncStatus?: DraftSyncStatus;
     answers: CsiAnswers;
     comment: string;
     /** Question ids flagged after "Kirim" with a missing required answer; empty until then. */
@@ -68,7 +69,7 @@ function CommentField({ ratee, comment, onComment }: { ratee: Ratee; comment: st
 
 /** One subject: sticky photo on the left (about 40% wide, so the form leads), questions on the right. The page is the only scroller. */
 export function RateeScreen(props: RateeScreenProps) {
-    const { ratees, index, saved, answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
+    const { ratees, index, saved, syncStatus = 'idle', answers, comment, missing, isComplete, onAnswer, onComment, onSelect, onBack, onNext } = props;
     const card = useRef<HTMLElement>(null);
     const ratee = ratees[index];
     const answeredCount = (at: number) => ratees[at].dimensions.filter((dimension) => isAnswered(dimension, answers)).length;
@@ -78,7 +79,7 @@ export function RateeScreen(props: RateeScreenProps) {
     const footerNote = missing.size > 0 ? missingText(missing.size) : '';
     return (
         <div className={cn('space-y-4', STICKY_VARS)}>
-            <SubjectRail ratees={ratees} current={index} saved={saved} onSelect={onSelect}
+            <SubjectRail ratees={ratees} current={index} saved={saved} syncStatus={syncStatus} onSelect={onSelect}
                 answeredCount={answeredCount} questionCount={questionCount} done={done} />
 
             <section ref={card} aria-labelledby={`csi-ratee-${ratee.periodRateeId}`} className={cn(CSI_CARD, 'scroll-mt-3 overflow-clip rounded-[22px] @container')}>

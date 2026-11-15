@@ -51,7 +51,12 @@ export const ClientLayout: React.FC = () => {
     }, [justLoggedIn, setJustLoggedIn]);
 
     // The scroll container outlives routes: start every page at the top, instantly (not scroll-smooth).
+    const shellRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        window.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
+        if (shellRef.current) shellRef.current.scrollTop = 0;
+    }, [location.pathname, location.search]);
     useLayoutEffect(() => {
         scrollRef.current?.scrollTo?.({ top: 0, behavior: 'instant' });
     }, [location.pathname]);
@@ -98,7 +103,7 @@ export const ClientLayout: React.FC = () => {
     );
 
     return (
-        <div className="idesk-shell h-screen flex flex-col overflow-hidden font-sans selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
+        <div ref={shellRef} className="idesk-shell h-dvh flex flex-col overflow-clip font-sans selection:bg-primary/30 transition-colors duration-300 print:h-auto print:overflow-visible print:block">
             {/* Skip Link for Accessibility */}
             <a
                 href="#main-content"
@@ -137,7 +142,7 @@ export const ClientLayout: React.FC = () => {
             </motion.div>
 
             {/* Content on the rounded sheet */}
-            <div className="idesk-sheet portal-sheet flex-1 min-h-0 flex flex-col overflow-hidden print:block print:overflow-visible">
+            <div className="idesk-sheet portal-sheet flex-1 min-h-0 flex flex-col overflow-clip print:block print:overflow-visible">
                 {isTicketDetailPage ? (
                     <main id="main-content" className="flex-1 min-h-0 overflow-hidden flex flex-col">
                         <motion.div

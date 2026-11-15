@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollWithin } from '../../../lib/scrollWithin';
+import { PicSurveyFlow } from '../PicSurveyFlow';
 import { SurveyFlow } from '../SurveyFlow';
 
 vi.mock('../../../lib/scrollWithin', () => ({ scrollWithin: vi.fn() }));
@@ -164,5 +165,96 @@ describe('SurveyFlow mobile footer spacing', () => {
     it('preview: no extra room (the footer is not lifted above a bottom nav there)', () => {
         renderFlow({ mode: 'preview' });
         expect(screen.getByTestId('csi-flow-content').className).not.toMatch(/pb-/);
+    });
+});
+
+describe('SurveyFlow server draft persistence', () => {
+    it('resumes answers and position from form.draft when localStorage is empty and mirrors locally', () => {
+        renderFlow({
+            form: {
+                ...FORM,
+                draft: {
+                    departmentId: 'd2',
+                    position: 2,
+                    answers: { r1: { x1: 5 } },
+                    comments: { r1: 'Cepat' },
+                    picks: null,
+                    updatedAt: '2026-11-14T10:00:00.000Z',
+                },
+            },
+        });
+        expect(screen.getByRole('heading', { name: 'Andi' })).toBeInTheDocument();
+        expect(screen.getByText('Melanjutkan isian sebelumnya')).toBeInTheDocument();
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '5 bintang' })).toBeChecked();
+        expect(localStorage.getItem('csi-draft:v2:u1:p1')).toContain('"departmentId":"d2"');
+    });
+
+    it('flushes pending draft edits to onSaveDraft when the tab becomes hidden', async () => {
+        const user = userEvent.setup();
+        const onSaveDraft = vi.fn().mockResolvedValue({ draft: null });
+        renderFlow({ onSaveDraft });
+        await startFilling(user);
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+
+        await act(async () => {
+            Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        });
+
+        expect(onSaveDraft).toHaveBeenCalledWith(expect.objectContaining({
+            departmentId: 'd2',
+            position: 1,
+            answers: { rt: { t1: 1 } },
+        }));
+        expect(await screen.findByText('Draft tersimpan')).toBeInTheDocument();
+    });
+
+    it('shows "Menyimpan..." while pending and falls back to "Tersimpan di perangkat" when server sync fails', async () => {
+        const user = userEvent.setup();
+        const onSaveDraft = vi.fn().mockRejectedValue(new Error('offline'));
+        renderFlow({ onSaveDraft });
+        await startFilling(user);
+        await choose(user, 'Kualitas layanan untuk Tim IT Support', 'Cukup');
+        expect(screen.getByText('Menyimpan...')).toBeInTheDocument();
+
+        await act(async () => {
+            Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+        });
+
+        expect(await screen.findByText('Tersimpan di perangkat')).toBeInTheDocument();
+    });
+
+    it('preserves unselected HC PIC answers when changing PIC selection and re-picking later', async () => {
+        const user = userEvent.setup();
+        const picForm = {
+            ...FORM,
+            respondentPicks: true,
+            respondent: { fullName: 'Rina Pemohon', departmentId: 'd2' },
+            ratees: FORM.ratees.filter((r) => r.kind === 'PERSON').map((r) => ({ ...r, serviceCode: 'HCD', serviceName: 'HC Development' })),
+        };
+        const onSaveDraft = vi.fn().mockResolvedValue({ draft: null });
+        render(<PicSurveyFlow form={picForm} userId="u1" onSaveDraft={onSaveDraft} />);
+
+        // Pick both Andi and Budi, enter Andi's rating
+        await user.click(screen.getByLabelText(/Andi/));
+        await user.click(screen.getByLabelText(/Budi/));
+        await user.click(button('Lanjut menilai'));
+        await user.click(button('Mulai mengisi'));
+        await rate(user, 'Kecepatan untuk Andi', 4);
+
+        // Temporarily uncheck Andi (stays at step 1, now Budi) and verify Budi can also be rated
+        await user.click(button(/Ubah pilihan PIC/));
+        await user.click(screen.getByLabelText(/Andi/));
+        await user.click(button('Lanjut menilai'));
+        expect(screen.getByRole('heading', { name: /Budi/ })).toBeInTheDocument();
+
+        // Re-check Andi (step 1 is Andi again) and verify Andi's 4-star rating was preserved
+        await user.click(button(/Ubah pilihan PIC/));
+        await user.click(screen.getByLabelText(/Andi/));
+        await user.click(button('Lanjut menilai'));
+        expect(within(screen.getByRole('radiogroup', { name: 'Kecepatan untuk Andi' })).getByRole('radio', { name: '4 bintang' })).toBeChecked();
     });
 });

@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatu
 import { Request, Response } from 'express';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { ReportExportQueryDto, ReportQueryDto, ResetResponseDto, SendRemindersDto } from '../dto/report.dto';
+import { ReportExportQueryDto, ReportQueryDto, ResetResponseDto, SaveSignoffDto, SendRemindersDto } from '../dto/report.dto';
 import { ReportSignoffService } from '../../reports/services/report-signoff.service';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { csiSignoffType, CsiExportService } from '../services/csi-export.service';
@@ -104,7 +104,7 @@ export class CsiAdminReportSignoffController {
     }
 
     @Put()
-    async save(@Req() req: CsiAdminRequest, @Body() body: unknown) {
+    async save(@Req() req: CsiAdminRequest, @Body() body: SaveSignoffDto) {
         return { layout: await this.signoffs.save(csiSignoffType(req.csiScope), null, body, req.user.userId) };
     }
 

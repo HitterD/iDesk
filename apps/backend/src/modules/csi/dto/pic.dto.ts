@@ -23,3 +23,14 @@ export class UpdatePicDto {
     @Length(2, 150, { message: 'Nama PIC harus terdiri dari 2–150 karakter' })
     fullName?: string;
 }
+
+export class PicAccountSuggestionsQueryDto {
+    @IsString({ message: 'Kata kunci pencarian harus berupa teks' })
+    @Length(1, 100, { message: 'Kata kunci pencarian harus terdiri dari 1–100 karakter' })
+    search: string;
+
+    @IsOptional()
+    @Transform(({ value }) => (value === '' ? undefined : value))
+    @IsUUID('all', { message: 'ID site harus berupa UUID' })
+    siteId?: string;
+}

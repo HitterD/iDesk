@@ -60,21 +60,32 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
     const tab: DetailTab = chosenTab ?? (period && period.publishStatus === 'DRAFT' ? 'settings' : 'report');
     // The matrix edits locally; leaving its tab with unsaved pairs asks first.
     const [matrixDirty, setMatrixDirty] = useState(false);
-    const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ type: 'tab'; tab: DetailTab } | { type: 'back' } | null>(null);
     const changeTab = (next: DetailTab) => {
         if (next === tab) return;
-        if (tab === 'raters' && matrixDirty) setPendingTab(next);
+        if (tab === 'raters' && matrixDirty) setPendingAction({ type: 'tab', tab: next });
         else setTab(next);
     };
-    const leave = () => { if (pendingTab) { setMatrixDirty(false); setTab(pendingTab); } setPendingTab(null); };
+    const requestBack = () => {
+        if (tab === 'raters' && matrixDirty) setPendingAction({ type: 'back' });
+        else onBack();
+    };
+    const leave = () => {
+        const action = pendingAction;
+        setPendingAction(null);
+        setMatrixDirty(false);
+        if (action?.type === 'tab') setTab(action.tab);
+        else if (action?.type === 'back') onBack();
+    };
 
     if (isLoading) return <div className={`${ADMIN_PANEL} h-48 animate-pulse motion-reduce:animate-none`} aria-busy="true" aria-label="Memuat survei" />;
     if (isError || !period) return <ErrorState message="Gagal memuat survei." onRetry={() => refetch()} />;
 
     return (
         <div className="grid gap-5">
-            <div className="flex flex-wrap items-center gap-3">
-                <button type="button" onClick={onBack} className="idesk-text-link"><ArrowLeft aria-hidden="true" />Semua survei</button>
+            <div className="sticky top-[var(--csi-admin-sticky-top,47px)] z-10 -mx-3 flex flex-wrap items-center gap-3 border-b border-[hsl(var(--idesk-border)/.45)] bg-[hsl(var(--shell-sheet)/.92)] px-3 py-2 backdrop-blur-md lg:-mx-3.5 lg:px-3.5">
+                <button type="button" onClick={requestBack} className="idesk-text-link"><ArrowLeft aria-hidden="true" />Semua survei</button>
+                <SegmentedControl aria-label="Bagian survei" className="dash-seg ml-auto" options={DETAIL_TABS} value={tab} onValueChange={changeTab} />
             </div>
             <header className="flex flex-wrap items-end gap-4">
                 <div className="min-w-0 flex-1">
@@ -86,16 +97,15 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
                         {[formatSites(period.sites), formatDateRange(period.startDate, period.endDate), CSI_MODE_LABELS[period.respondentMode]].filter(Boolean).join(' · ')}
                     </p>
                 </div>
-                <SegmentedControl aria-label="Bagian survei" className="dash-seg" options={DETAIL_TABS} value={tab} onValueChange={changeTab} />
             </header>
             {tab === 'settings' && <PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} />}
             {tab === 'raters' && (isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
                 : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />)}
             {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} initialSiteId={initialSiteId}
                 hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents} />}
-            <ConfirmationDialog isOpen={pendingTab !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
+            <ConfirmationDialog isOpen={pendingAction !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"
-                onConfirm={leave} onCancel={() => setPendingTab(null)} />
+                onConfirm={leave} onCancel={() => setPendingAction(null)} />
         </div>
     );
 }

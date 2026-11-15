@@ -181,10 +181,13 @@ function headerHeight(sheet: ExcelJS.Worksheet, columns: XlColumn[], first: numb
     return Math.max(HEADER_MIN_HEIGHT, Math.max(1, ...lines) * LINE_HEIGHT + HEADER_PADDING);
 }
 
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+const sanitizeHeader = (header: string) => (FORMULA_PREFIX.test(header) ? `'${header}` : header);
+
 function styleHeader(sheet: ExcelJS.Worksheet, row: number, columns: XlColumn[]) {
     columns.forEach((column, index) => {
         const cell = sheet.getCell(row, index + 1);
-        cell.value = column.header;
+        cell.value = sanitizeHeader(column.header);
         cell.font = font({ bold: true, color: { argb: XL_COLOR.white } });
         cell.fill = fill(XL_COLOR.navy);
         cell.border = { top: { style: 'thin', color: { argb: XL_COLOR.navy } }, bottom: { style: 'thin', color: { argb: XL_COLOR.navy } },

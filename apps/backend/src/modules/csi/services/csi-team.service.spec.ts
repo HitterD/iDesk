@@ -252,4 +252,13 @@ describe('CsiTeamService', () => {
         await expect(service.replaceMembers(HC, 'site-team', [{ name: 'A' }])).rejects.toBeInstanceOf(BadRequestException);
         await expect(service.remove(ICT, 'site-team')).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('refuses removing the last team of a draft survey when individualEnabled is false', async () => {
+        const team = await custom();
+        period('p-team-only', { publishStatus: CsiPeriodPublishStatus.DRAFT, title: 'Hanya Tim', teamEnabled: true, individualEnabled: false });
+        rateTeam(team.teamId!, 'p-team-only');
+        await expect(service.remove(HC, team.teamId!)).rejects.toThrow('satu-satunya bagian penilaian aktif');
+        expect(tables.periods.rows[0].teamEnabled).toBe(true);
+        expect(tables.teams.rows).toHaveLength(1);
+    });
 });

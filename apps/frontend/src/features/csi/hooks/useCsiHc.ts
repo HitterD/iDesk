@@ -116,11 +116,17 @@ export function useSetCsiReportOwners(scope: CsiScopeParam) {
     const client = useQueryClient();
     return useMutation({
         mutationFn: ({ serviceCode, userIds }: { serviceCode: string; userIds: string[] }) => CsiHcApi.setReportOwners(scope, serviceCode, userIds),
-        onSuccess: (data) => client.setQueryData(ownersKey(scope), data),
+        onSuccess: (data) => {
+            client.setQueryData(ownersKey(scope), data);
+            return Promise.all([
+                client.invalidateQueries({ queryKey: ['csi', 'me', scope, 'report-access'] }),
+                client.invalidateQueries({ queryKey: ['csi', 'me', scope, 'periods'] }),
+            ]);
+        },
     });
 }
-export function useCsiPics(scope: CsiScopeParam, includeInactive = false) {
-    return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive) });
+export function useCsiPics(scope: CsiScopeParam, includeInactive = false, enabled = scope === 'hc') {
+    return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive), enabled });
 }
 export function usePicAccountSuggestions(scope: CsiScopeParam, search: string, siteId?: string | null, enabled = true) {
     const trimmed = search.trim();
@@ -138,7 +144,12 @@ export function useImportCsiDirectory(scope: CsiScopeParam) {
     return useMutation({
         mutationFn: (file: File) => CsiHcApi.importDirectory(scope, file),
         onSuccess: () => Promise.all([
-            client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }), client.invalidateQueries({ queryKey: directoryKey(scope) }),
+            client.invalidateQueries({ queryKey: ['csi', scope, 'pics'] }),
+            client.invalidateQueries({ queryKey: directoryKey(scope) }),
+            client.invalidateQueries({ queryKey: templatesKey(scope) }),
+            client.invalidateQueries({ queryKey: keys.subjects(scope) }),
+            client.invalidateQueries({ queryKey: keys.periodDetails(scope) }),
+            client.invalidateQueries({ queryKey: ['csi', scope, 'units'] }),
         ]),
     });
 }
@@ -174,7 +185,12 @@ export function useSetCsiPeriodPics(scope: CsiScopeParam, periodId: string) {
     return useMutation({
         mutationFn: (payload: SetCsiPeriodPics) => CsiHcApi.setPeriodPics(scope, periodId, payload),
         onSuccess: () => Promise.all([
-            client.invalidateQueries({ queryKey: keys.period(scope, periodId) }), client.invalidateQueries({ queryKey: keys.periods(scope) }),
+            client.invalidateQueries({ queryKey: keys.period(scope, periodId) }),
+            client.invalidateQueries({ queryKey: keys.periods(scope) }),
+            client.invalidateQueries({ queryKey: keys.assignments(scope, periodId) }),
+            client.invalidateQueries({ queryKey: keys.respondents(scope, periodId) }),
+            client.invalidateQueries({ queryKey: ratersKey(scope, periodId) }),
+            client.invalidateQueries({ queryKey: recapKey(scope, periodId) }),
         ]),
     });
 }

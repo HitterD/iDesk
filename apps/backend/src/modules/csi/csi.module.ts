@@ -72,6 +72,8 @@ import { CsiTemplateApplyService } from './services/csi-template-apply.service';
 import { CsiTemplateImportService } from './services/csi-template-import.service';
 import { CsiTeamService } from './services/csi-team.service';
 import { CsiPicRenameService } from './services/csi-pic-rename.service';
+import { CsiResponseDraft } from './entities/csi-response-draft.entity';
+import { CsiDraftService } from './services/csi-draft.service';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
 
@@ -81,7 +83,7 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
             CsiDimension, CsiDepartment, CsiRater, CsiPeriod, CsiPeriodSite, CsiPeriodRatee,
             CsiPeriodRateeDimension, CsiPeriodRater, CsiResponse, CsiResponseItem, CsiResponseComment,
             CsiMemoSetting, CsiTeam, CsiTeamMember, CsiSubjectProfile, CsiRaterAssignment, CsiPeriodRaterRatee, CsiQuestionSet,
-            CsiOrgPerson, CsiPic, CsiServiceReportOwner, CsiAssignmentTemplate, CsiAssignmentTemplatePic, CsiAssignmentTemplateRater, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
+            CsiOrgPerson, CsiPic, CsiServiceReportOwner, CsiAssignmentTemplate, CsiAssignmentTemplatePic, CsiAssignmentTemplateRater, CsiResponseDraft, User, PermissionPreset, Site, Ticket, Notification, SystemSettings,
         ]),
         AuthModule,
         AuditModule,
@@ -95,6 +97,6 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
         CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService,
-        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService, CsiPicRenameService],
+        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService, CsiPicRenameService, CsiDraftService],
 })
 export class CsiModule { }

@@ -114,9 +114,24 @@ describe('PicsTab account picker & filter', () => {
         ]);
         renderWithQuery(<PicsTab scope="hc" />);
         const btn = await screen.findByRole('button', { name: /belum punya akun/i });
-        expect(btn.textContent).toContain('Belum punya akun · 1');
+        expect(btn.textContent).toContain('Filter: Belum punya akun · 1');
         await userEvent.click(btn);
         expect(screen.getByText('Tanpa Akun')).toBeTruthy();
         expect(screen.queryByText('Rara Kurnia Maharani Pongdatu')).toBeNull();
+    });
+
+    it('counts unlinked PICs within the active tanpa-bagian and service filters', async () => {
+        const { CsiHcApi } = await import('../../../../api/csiHc.api');
+        vi.mocked(CsiHcApi.pics).mockResolvedValueOnce([
+            { ...PIC, id: 'pic-a', fullName: 'ADA BAGIAN TANPA AKUN', serviceCode: 'HCD', bagian: 'HCD', userId: null, user: null },
+            { ...PIC, id: 'pic-b', fullName: 'TANPA BAGIAN PUNYA AKUN', serviceCode: 'HCS', bagian: null, userId: 'u-1', user: { id: 'u-1', fullName: 'Budi', email: 'budi@santos.co.id' } },
+            { ...PIC, id: 'pic-c', fullName: 'TANPA BAGIAN BELUM AKUN', serviceCode: 'HCS', bagian: null, userId: null, user: null },
+        ]);
+        renderWithQuery(<PicsTab scope="hc" />);
+        // Globally 2 PICs lack accounts.
+        expect((await screen.findByRole('button', { name: /belum punya akun/i })).textContent).toContain('Filter: Belum punya akun · 2');
+        // Narrowing to PICs without bagian shows only the 1 unlinked PIC in that subset.
+        await userEvent.click(screen.getByRole('button', { name: /tampilkan pic tanpa bagian/i }));
+        expect(screen.getByRole('button', { name: /belum punya akun/i }).textContent).toContain('Filter: Belum punya akun · 1');
     });
 });

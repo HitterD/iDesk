@@ -34,8 +34,8 @@ function writeDismissedIds(userId: string, ids: ReadonlySet<string>): void {
     }
 }
 
-function ctaLabel(userId: string, surveyId: string, single: boolean): string {
-    if (hasDraft(userId, surveyId)) return 'Lanjutkan';
+function ctaLabel(userId: string, survey: CsiActivePeriod, single: boolean): string {
+    if (survey.hasDraft || hasDraft(userId, survey.id)) return 'Lanjutkan';
     return single ? 'Isi Survei CSI' : 'Isi';
 }
 
@@ -59,7 +59,7 @@ function SurveyOptionRow({ survey, userId, single, onOpen }: {
                     <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-foreground">{survey.title}</p>
                 </div>
                 <Button type="button" variant="primary" size={single ? 'default' : 'sm'} className="shrink-0" onClick={onOpen}>
-                    {ctaLabel(userId, survey.id, single)}
+                    {ctaLabel(userId, survey, single)}
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Button>
             </div>

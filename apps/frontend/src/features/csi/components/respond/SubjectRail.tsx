@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react';
-import { Check, ChevronLeft, ChevronRight, CloudCheck, LayoutGrid, Search, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, CloudCheck, HardDrive, LayoutGrid, Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { siteTone, toneClasses, toneColor } from '../../lib/csiTone';
 import type { CsiFormRatee } from '../../types';
 import { SubjectAvatar } from './RateeAvatar';
-import { RESPOND_COPY, railPositionText, railDoneText, railAnsweredText, popoverDoneText } from './respondCopy';
+import { RESPOND_COPY, railPositionText, railDoneText, railAnsweredText, popoverDoneText, type DraftSyncStatus } from './respondCopy';
 
 export interface SubjectRailProps {
     ratees: CsiFormRatee[];
@@ -14,8 +14,9 @@ export interface SubjectRailProps {
     onSelect: (index: number) => void;
     /** Finished subject; defaults to "every question answered". */
     done?: (index: number) => boolean;
-    /** Show "Tersimpan otomatis" (off in preview, which never stores anything). */
+    /** Show draft save status (off in preview, which never stores anything). */
     saved?: boolean;
+    syncStatus?: DraftSyncStatus;
 }
 
 export interface SubjectJumpItem { ratee: CsiFormRatee; index: number; answered: number; questions: number; done: boolean }
@@ -106,7 +107,33 @@ function useDismiss(open: boolean, area: RefObject<HTMLElement | null>, trigger:
     }, [open, area, trigger, close]);
 }
 
-function RailHeader({ subjects, current, saved }: { subjects: SubjectState[]; current: number; saved: boolean }) {
+function DraftSyncBadge({ status }: { status: DraftSyncStatus }) {
+    if (status === 'saving') {
+        return (
+            <span aria-live="polite" className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                {RESPOND_COPY.autosaving}
+            </span>
+        );
+    }
+    if (status === 'local') {
+        return (
+            <span aria-live="polite" className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-amber-600 dark:text-amber-400">
+                <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
+                {RESPOND_COPY.autosavedLocal}
+            </span>
+        );
+    }
+    const label = status === 'saved' ? RESPOND_COPY.autosavedServer : RESPOND_COPY.autosaved;
+    return (
+        <span aria-live="polite" className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-muted-foreground">
+            <CloudCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            {label}
+        </span>
+    );
+}
+
+function RailHeader({ subjects, current, saved, syncStatus = 'idle' }: { subjects: SubjectState[]; current: number; saved: boolean; syncStatus?: DraftSyncStatus }) {
     const total = subjects.length;
     const finished = subjects.filter((subject) => subject.done).length;
     const active = subjects[current];
@@ -121,11 +148,7 @@ function RailHeader({ subjects, current, saved }: { subjects: SubjectState[]; cu
                 <i className={cn('block h-full transition-[width] duration-300', toneClasses('green').fill)} style={{ width: `${(finished / total) * 100}%` }} />
                 <i className={cn('block h-full transition-[width] duration-300', toneClasses('amber').fill)} style={{ width: `${partial * 100}%` }} />
             </div>
-            {saved && (
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-muted-foreground">
-                    <CloudCheck className="h-3.5 w-3.5" aria-hidden="true" />{RESPOND_COPY.autosaved}
-                </span>
-            )}
+            {saved && <DraftSyncBadge status={syncStatus} />}
         </div>
     );
 }
@@ -260,7 +283,7 @@ function RailList({ subjects, current, onSelect }: { subjects: SubjectState[]; c
  * Subject rail (spec "Rail subjek"): one ring avatar per subject; only the current one opens its name + status.
  * Scrolls sideways (never the page) with arrows and edge fades when it overflows; "Semua N" lists everyone.
  */
-export function SubjectRail({ ratees, current, answeredCount, questionCount, onSelect, done, saved = true }: SubjectRailProps) {
+export function SubjectRail({ ratees, current, answeredCount, questionCount, onSelect, done, saved = true, syncStatus = 'idle' }: SubjectRailProps) {
     const rail = useRef<HTMLOListElement>(null);
     const area = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -281,7 +304,7 @@ export function SubjectRail({ ratees, current, answeredCount, questionCount, onS
     };
     return (
         <div>
-            <RailHeader subjects={subjects} current={current} saved={saved} />
+            <RailHeader subjects={subjects} current={current} saved={saved} syncStatus={syncStatus} />
             <div ref={area} className="relative flex items-center gap-1.5">
                 {overflow && <ArrowButton side="left" disabled={atStart} onClick={() => scrollBy(-1)} />}
                 <nav aria-label={RESPOND_COPY.chipsLabel} className="min-w-0 flex-1">

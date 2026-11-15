@@ -108,4 +108,12 @@ describe('CsiReminderService', () => {
         expect(formatReminderDate('2026-05-01')).toBe('1 Mei 2026');
         expect(formatReminderDate('2026-08-09')).toBe('9 Agu 2026');
     });
+
+    it('isolates per-rater notification errors so remaining raters still receive reminders', async () => {
+        notifications.create
+            .mockRejectedValueOnce(new Error('push service timeout'))
+            .mockResolvedValue({ id: 'n-ok', createdAt: new Date(NOW.getTime() + 1000) });
+        await expect(service.send(ICT, 'p1', undefined, NOW)).resolves.toEqual({ sent: 2, skipped: 1 });
+        expect(notifications.create).toHaveBeenCalledTimes(3);
+    });
 });

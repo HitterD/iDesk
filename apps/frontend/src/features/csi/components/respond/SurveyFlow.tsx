@@ -9,14 +9,18 @@ import { IntroScreen } from './IntroScreen';
 import { RateeScreen } from './RateeScreen';
 import { ReviewScreen } from './ReviewScreen';
 import { confirmDepartmentText, RESPOND_COPY } from './respondCopy';
-import { isRateeComplete, useSurveyAnswers } from './useSurveyAnswers';
+import { isRateeComplete, useSurveyAnswers, type SaveDraftHandler, type SaveDraftKeepaliveHandler } from './useSurveyAnswers';
 import { useSurveyNavigation } from './useSurveyNavigation';
 
 export interface SurveyFlowProps {
     form: CsiOpenForm;
+    /** Optional un-narrowed form (used by HC PicSurveyFlow so unpicked PIC answers remain in draft). */
+    storageForm?: CsiOpenForm;
     userId: string;
     mode?: 'live' | 'preview';
     onSubmit?: (payload: SubmitCsiResponse) => void;
+    onSaveDraft?: SaveDraftHandler;
+    onSaveDraftKeepalive?: SaveDraftKeepaliveHandler;
     submitting?: boolean;
     error?: unknown;
     /** Screen title level; `h2` when the flow is embedded under another page title (admin preview). */
@@ -36,11 +40,15 @@ const lockedDepartmentOf = (form: CsiOpenForm) =>
     form.departments.some((department) => department.id === form.respondent.departmentId) ? form.respondent.departmentId ?? null : null;
 
 /** Stepped respondent form: intro (0) → one screen per ratee, team first (1..n) → review (n + 1). */
-export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, submitting = false, error, headingLevel }: SurveyFlowProps) {
+export function SurveyFlow({ form: source, storageForm, userId, mode = 'live', onSubmit, onSaveDraft, onSaveDraftKeepalive, submitting = false, error, headingLevel }: SurveyFlowProps) {
     const preview = mode === 'preview';
     const form = useMemo(() => ({ ...source, ratees: orderRatees(source.ratees) }), [source]);
+    const persistForm = useMemo(() => (storageForm ? { ...storageForm, ratees: orderRatees(storageForm.ratees) } : undefined), [storageForm]);
     const lockedDepartment = lockedDepartmentOf(form);
-    const answers = useSurveyAnswers(form, userId, !preview, lockedDepartment);
+    const answers = useSurveyAnswers(form, userId, !preview, lockedDepartment, onSaveDraft, {
+        storageForm: persistForm,
+        onSaveDraftKeepalive,
+    });
     const { draft } = answers;
     const nav = useSurveyNavigation({ form, answers, preview, onSubmit });
     const { position, ratee, goTo } = nav;
@@ -62,7 +70,7 @@ export function SurveyFlow({ form: source, userId, mode = 'live', onSubmit, subm
                         unavailable={!preview && form.departments.length === 0} />
                 )}
                 {ratee && (
-                    <RateeScreen ratees={form.ratees} index={position - 1} saved={!preview} answers={draft.answers}
+                    <RateeScreen ratees={form.ratees} index={position - 1} saved={!preview} syncStatus={answers.syncStatus} answers={draft.answers}
                         comment={draft.comments[ratee.periodRateeId] ?? ''} missing={nav.missing}
                         isComplete={(item, index) => isRateeComplete(item, draft.answers, nav.visited.has(index))}
                         onAnswer={answers.setAnswer} onComment={(text) => answers.setComment(ratee.periodRateeId, text)}
