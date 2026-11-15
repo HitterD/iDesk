@@ -143,7 +143,7 @@ export class User {
 Object.defineProperty(User.prototype, 'toJSON', {
     value(this: User) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { password, ...safe } = this;
+        const { password, hashedRefreshToken, ...safe } = this;
         return safe;
     },
     enumerable: false,

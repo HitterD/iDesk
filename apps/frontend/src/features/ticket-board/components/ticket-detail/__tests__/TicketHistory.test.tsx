@@ -94,4 +94,36 @@ describe('TicketHistory', () => {
         expect(screen.getByText('Pengalihan Teknisi')).toBeInTheDocument();
         expect(screen.queryByText('Perubahan Prioritas Tiket')).not.toBeInTheDocument();
     });
+
+    it('parses handover events and redacts staff actors, internal notes, and raw search for requester audience', () => {
+        const handoverTicket: TicketDetail = {
+            ...mockTicket,
+            messages: [
+                ...mockTicket.messages!,
+                {
+                    id: 'sys-fwd',
+                    content: [
+                        'Ticket forwarded from OPS_SUPPORT to ORACLE_DEV by BENY SAPUTRA. Reason: Salah routing: Perlu perbaikan query internal',
+                        'Site forwarded: SPJ -> KRW',
+                        'SLA reset. Target: 2026-08-28T09:00:00.000Z (480 minutes for HIGH)',
+                    ].join('\n'),
+                    isSystemMessage: true,
+                    createdAt: '2026-08-19T11:00:00.000Z',
+                },
+            ],
+        };
+
+        render(<TicketHistory ticket={handoverTicket} audience="requester" />);
+
+        expect(screen.getByText('Diteruskan ke tim Oracle / K2 (KRW)')).toBeInTheDocument();
+        expect(screen.queryByText(/BENY SAPUTRA/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/System Administrator/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Perlu perbaikan query internal/i)).not.toBeInTheDocument();
+        expect(screen.queryByText('Waktu Kerja (Business Hours)')).not.toBeInTheDocument();
+        expect(screen.queryByText('RM BAGASTYO ANGGORO INDRASTOTO')).not.toBeInTheDocument();
+
+        const searchInput = screen.getByPlaceholderText('Cari log / aksi...');
+        fireEvent.change(searchInput, { target: { value: 'BENY SAPUTRA' } });
+        expect(screen.queryByText('Diteruskan ke tim Oracle / K2 (KRW)')).not.toBeInTheDocument();
+    });
 });

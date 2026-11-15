@@ -53,6 +53,10 @@ export class TicketMessageEditService {
         if (next === message.content.trim()) return this.present(message);
 
         const updated = await this.dataSource.transaction(async (manager) => {
+            const txTicket = await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+            if (txTicket && (txTicket.status === TicketStatus.CLOSED || txTicket.status === TicketStatus.CANCELLED)) {
+                throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+            }
             // Written only if nobody deleted or edited it since it was read: a stale save must not
             // bring a deleted message back or lose another edit's text from the audit trail.
             const { affected } = await manager.update(
@@ -75,19 +79,24 @@ export class TicketMessageEditService {
             throw new ForbiddenException('Anda tidak bisa mengubah pesan ini');
         }
         const updated = await this.dataSource.transaction(async (manager) => {
+            const txTicket = await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+            if (txTicket && (txTicket.status === TicketStatus.CLOSED || txTicket.status === TicketStatus.CANCELLED)) {
+                throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+            }
+            const beforeDelete = await manager.findOne(TicketMessage, { where: { id: message.id }, select: ['id', 'pinnedAt'] });
             const { affected } = await manager.update(
                 TicketMessage,
                 { id: message.id, deletedAt: IsNull() },
-                { deletedAt: new Date(), deletedById: viewer.id },
+                { deletedAt: new Date(), deletedById: viewer.id, pinnedAt: null, pinnedById: null },
             );
             if (!affected) throw new BadRequestException(ALREADY_DELETED);
             const replies = await this.forgetQuotesOf(manager, message);
             const deleted = await manager.findOne(TicketMessage, { where: { id: message.id }, relations: ['sender'] });
-            return { deleted, replies };
+            return { deleted, replies, wasPinned: Boolean(message.pinnedAt || beforeDelete?.pinnedAt) };
         });
         await this.redactNotifications(message, ticket);
         for (const reply of updated.replies) await this.redactNotifications(reply, ticket);
-        if (message.pinnedAt) await this.releasePin(ticketId, message.id);
+        if (updated.wasPinned) await this.releasePin(ticketId, message.id);
         for (const reply of updated.replies) await this.broadcast(ticketId, reply);
         return this.broadcast(ticketId, updated.deleted ?? message);
     }
@@ -100,7 +109,9 @@ export class TicketMessageEditService {
         if (!ticket) throw new NotFoundException('Pesan tidak ditemukan');
         if (!this.canView(ticket, viewer)) throw new ForbiddenException('Anda tidak bisa mengubah pesan ini');
 
-        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
         // Internal notes moved to the private notes drawer; the old ones in chat are a read-only archive.
         if (message.isSystemMessage || message.source === 'EMAIL' || message.isInternal) {
             throw new BadRequestException('Pesan ini tidak bisa diubah');
@@ -172,7 +183,12 @@ export class TicketMessageEditService {
             ? await this.messageRepo.findOne({ where: { id: message.replyToId, ticketId: message.ticketId }, relations: ['sender'] })
             : null;
         const sender = message.sender
-            ? { id: message.sender.id, fullName: message.sender.fullName, role: message.sender.role }
+            ? {
+                id: message.sender.id,
+                fullName: message.sender.fullName,
+                role: message.sender.role,
+                avatarUrl: message.sender.avatarUrl ?? null,
+            }
             : undefined;
         const people = await loadMentionNames(this.messageRepo.manager, [message]);
         return { ...presentInThread(message, original, people), sender };

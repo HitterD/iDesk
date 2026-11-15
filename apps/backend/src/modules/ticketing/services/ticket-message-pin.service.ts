@@ -22,6 +22,12 @@ export interface PinnedMessageSummary {
     snippet: string;
     pinnedAt: Date;
     isInternal: boolean;
+    canUnpin?: boolean;
+}
+
+interface FetchedPins {
+    summaries: PinnedMessageSummary[];
+    owners: Map<string, string | null>;
 }
 
 /**
@@ -40,7 +46,7 @@ export class TicketMessagePinService {
     ) { }
 
     async pin(ticketId: string, messageId: string, viewer: MessageEditor): Promise<PinnedMessageSummary[]> {
-        const { message, access } = await this.loadPinnable(ticketId, messageId, viewer);
+        const { message, ticket, access } = await this.loadPinnable(ticketId, messageId, viewer);
 
         const announcement = await this.dataSource.transaction(async (manager) => {
             // One pin change per ticket at a time: two pins at once can no longer exceed MAX_PINS,
@@ -56,12 +62,12 @@ export class TicketMessagePinService {
             return this.writeAnnouncement(manager, ticketId, viewer, 'menyematkan pesan');
         });
         if (announcement) this.eventsGateway.notifyNewMessage(ticketId, announcement);
-        return this.forViewer(await this.broadcast(ticketId), access);
+        return this.forViewer(await this.broadcast(ticketId), access, viewer, ticket);
     }
 
     async unpin(ticketId: string, messageId: string, viewer: MessageEditor): Promise<PinnedMessageSummary[]> {
         const { message, ticket, access } = await this.loadPinnable(ticketId, messageId, viewer, { allowUnpinnable: true });
-        if (!message.pinnedAt) return this.forViewer(await this.listPins(ticketId), access);
+        if (!message.pinnedAt) return this.forViewer(await this.fetchPins(ticketId), access, viewer, ticket);
         const mayRelease = message.pinnedById === viewer.id || viewer.role === UserRole.ADMIN || ticket.assignedToId === viewer.id;
         if (!mayRelease) throw new ForbiddenException('Hanya yang menyematkan, admin, atau agent yang ditugaskan yang bisa melepasnya');
 
@@ -72,7 +78,7 @@ export class TicketMessagePinService {
             return this.writeAnnouncement(manager, ticketId, viewer, 'melepas sematan pesan');
         });
         if (announcement) this.eventsGateway.notifyNewMessage(ticketId, announcement);
-        return this.forViewer(await this.broadcast(ticketId), access);
+        return this.forViewer(await this.broadcast(ticketId), access, viewer, ticket);
     }
 
     /** Releases the pin of a message that was just deleted (no system message: the delete speaks for itself). */
@@ -83,26 +89,33 @@ export class TicketMessagePinService {
 
     /** The ticket's pins, oldest first. Internal ones are included; the gateway filters them per room. */
     async listPins(ticketId: string): Promise<PinnedMessageSummary[]> {
+        return (await this.fetchPins(ticketId)).summaries;
+    }
+
+    private async fetchPins(ticketId: string): Promise<FetchedPins> {
         const pinned = await this.messageRepo.find({
             where: { ticketId, pinnedAt: Not(IsNull()), deletedAt: IsNull() },
             relations: ['sender'],
             order: { pinnedAt: 'ASC' },
         });
-        return pinned.map((m) => {
+        const owners = new Map<string, string | null>();
+        const summaries = pinned.map((m) => {
+            owners.set(m.id, m.pinnedById ?? null);
             const { senderName, snippet } = summarizeReply(m);
             return { id: m.id, senderName, snippet, pinnedAt: m.pinnedAt as Date, isInternal: Boolean(m.isInternal) };
         });
+        return { summaries, owners };
     }
 
-    private async broadcast(ticketId: string): Promise<PinnedMessageSummary[]> {
-        const pins = await this.listPins(ticketId);
-        this.eventsGateway.notifyPinsChanged(ticketId, pins);
-        return pins;
+    private async broadcast(ticketId: string): Promise<FetchedPins> {
+        const fetched = await this.fetchPins(ticketId);
+        this.eventsGateway.notifyPinsChanged(ticketId, fetched.summaries);
+        return fetched;
     }
 
     private pinnedIn(manager: EntityManager, ticketId: string): Promise<TicketMessage[]> {
         return manager.find(TicketMessage, {
-            where: { ticketId, pinnedAt: Not(IsNull()) },
+            where: { ticketId, pinnedAt: Not(IsNull()), deletedAt: IsNull() },
             order: { pinnedAt: 'ASC' },
         });
     }
@@ -114,21 +127,39 @@ export class TicketMessagePinService {
         const saved = await manager.save(TicketMessage, manager.create(TicketMessage, {
             ticketId, senderId: viewer.id, content: `${name} ${action}`, isSystemMessage: true, isInternal: false, source: 'WEB',
         }));
-        return { ...presentMessage(saved), sender: { id: viewer.id, fullName: name, role: viewer.role } };
+        return {
+            ...presentMessage(saved),
+            sender: { id: viewer.id, fullName: name, role: viewer.role, avatarUrl: actor?.avatarUrl ?? null },
+        };
     }
 
     private async lockTicket(manager: EntityManager, ticketId: string): Promise<void> {
-        await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+        const locked = await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+        if (locked && (locked.status === TicketStatus.CLOSED || locked.status === TicketStatus.CANCELLED)) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
     }
 
     private async isPinned(manager: EntityManager, messageId: string): Promise<boolean> {
-        const current = await manager.findOne(TicketMessage, { where: { id: messageId }, select: ['id', 'pinnedAt'] });
-        return Boolean(current?.pinnedAt);
+        const current = await manager.findOne(TicketMessage, { where: { id: messageId }, select: ['id', 'pinnedAt', 'deletedAt'] });
+        return Boolean(current?.pinnedAt && !current?.deletedAt);
     }
 
     /** Requester-side callers never see pins of internal notes (the socket filters the same way). */
-    private forViewer(pins: PinnedMessageSummary[], access: TicketViewerAccess): PinnedMessageSummary[] {
-        return access === 'handler' ? pins : pins.filter((p) => !p.isInternal);
+    private forViewer(
+        fetched: FetchedPins,
+        access: TicketViewerAccess,
+        viewer: MessageEditor,
+        ticket: Pick<Ticket, 'assignedToId'>,
+    ): PinnedMessageSummary[] {
+        const visible = access === 'handler' ? fetched.summaries : fetched.summaries.filter((p) => !p.isInternal);
+        return visible.map((p) => ({
+            ...p,
+            canUnpin:
+                viewer.role === UserRole.ADMIN ||
+                ticket.assignedToId === viewer.id ||
+                fetched.owners.get(p.id) === viewer.id,
+        }));
     }
 
     private async loadPinnable(ticketId: string, messageId: string, viewer: MessageEditor, opts: { allowUnpinnable?: boolean } = {}) {
@@ -138,7 +169,9 @@ export class TicketMessagePinService {
         if (!ticket) throw new NotFoundException('Pesan tidak ditemukan');
         const access = this.accessOf(ticket, viewer);
         if (!access) throw new ForbiddenException('Anda tidak bisa menyematkan pesan ini');
-        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
         // Archived internal notes are read-only (Q19); a pin left on one before can still be released.
         const locked = message.isSystemMessage || message.deletedAt || message.isInternal;
         if (locked && !(opts.allowUnpinnable && message.pinnedAt)) {

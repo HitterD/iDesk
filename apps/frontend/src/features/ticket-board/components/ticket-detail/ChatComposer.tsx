@@ -200,22 +200,41 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         setMessageLength(value.length);
     };
 
-    // Entering edit mode loads the message into the box; leaving it clears the box.
+    // Entering edit mode stashes any unsent draft + files and restores them when leaving edit mode.
     const editingId = editing?.id;
+    const draftStashRef = useRef<{ text: string; files: typeof selectedFiles } | null>(null);
+    const wasEditingRef = useRef(false);
+    const lastTypingSentRef = useRef(0);
     useEffect(() => {
         const input = inputRef.current;
         if (!input) return;
-        input.value = editing?.body ?? '';
+        const isEditing = Boolean(editingId);
+        if (isEditing && !wasEditingRef.current) {
+            draftStashRef.current = { text: input.value, files: selectedFiles };
+        }
+        wasEditingRef.current = isEditing;
+
+        if (editing) {
+            input.value = editing.body;
+            setMessageLength(input.value.length);
+            setSelectedFiles([]);
+            // Next frame: the ⋯ menu that started the edit is still closing and would take the focus back.
+            const frame = requestAnimationFrame(() => {
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+            });
+            return () => cancelAnimationFrame(frame);
+        }
+
+        const stash = draftStashRef.current;
+        draftStashRef.current = null;
+        input.value = stash?.text ?? '';
         setMessageLength(input.value.length);
-        if (!editing) return undefined;
-        setSelectedFiles([]);
-        // Next frame: the ⋯ menu that started the edit is still closing and would take the focus back.
-        const frame = requestAnimationFrame(() => {
-            input.focus();
-            input.setSelectionRange(input.value.length, input.value.length);
-        });
-        return () => cancelAnimationFrame(frame);
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when another message is picked
+        if (stash?.files?.length) {
+            setSelectedFiles(stash.files);
+        }
+        return undefined;
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when another message is picked or edit exits
     }, [editingId]);
 
     const handleSaveEdit = async () => {
@@ -275,12 +294,27 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
     const handleInputChange = () => {
         mentions.track();
-        onTypingStart?.();
+        const now = Date.now();
+        if (now - lastTypingSentRef.current >= 1200) {
+            lastTypingSentRef.current = now;
+            onTypingStart?.();
+        }
         setMessageLength(inputRef.current?.value.length || 0);
         checkSlashCommand();
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => onTypingStop?.(), TYPING_IDLE_MS);
+        typingTimeoutRef.current = setTimeout(() => {
+            lastTypingSentRef.current = 0;
+            onTypingStop?.();
+        }, TYPING_IDLE_MS);
     };
+
+    useEffect(() => () => {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        if (lastTypingSentRef.current > 0) {
+            lastTypingSentRef.current = 0;
+            onTypingStop?.();
+        }
+    }, [onTypingStop]);
 
     const handleSelectSlashReply = (reply: SavedReply) => {
         const input = inputRef.current;
@@ -496,8 +530,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                             className="chat-compose-tool"
                             variables={ticketVariables}
                             onSelect={content => {
-                                setInputValue(content);
-                                inputRef.current?.focus();
+                                const input = inputRef.current;
+                                if (!input) {
+                                    setInputValue(content);
+                                    return;
+                                }
+                                const start = input.selectionStart ?? input.value.length;
+                                const end = input.selectionEnd ?? start;
+                                const next = `${input.value.slice(0, start)}${content}${input.value.slice(end)}`;
+                                setInputValue(next);
+                                requestAnimationFrame(() => {
+                                    input.focus();
+                                    const caret = start + content.length;
+                                    input.setSelectionRange(caret, caret);
+                                });
                             }}
                         />
                     )}

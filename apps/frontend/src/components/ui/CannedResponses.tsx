@@ -47,7 +47,7 @@ export function applyPlaceholders(content: string, variables?: TicketVariables):
   Object.entries(vars).forEach(([key, val]) => {
     if (val !== undefined) {
       const regex = new RegExp(`\\{${key}\\}`, 'gi');
-      result = result.replace(regex, val);
+      result = result.replace(regex, () => val);
     }
   });
 

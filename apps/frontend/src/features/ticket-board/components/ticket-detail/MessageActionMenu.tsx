@@ -75,7 +75,7 @@ export const MessageActionMenu: React.FC<MessageActionMenuProps> = ({
                     event.preventDefault();
                 }}
             >
-                <DropdownMenuItem onSelect={handleCopy} disabled={isSticker}><Copy />Salin</DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleCopy} disabled={isSticker || !messageContent.trim()}><Copy />Salin</DropdownMenuItem>
                 {onReply && <DropdownMenuItem onSelect={handOff(() => onReply(messageContent))}><Reply />Balas</DropdownMenuItem>}
                 {onPin && <DropdownMenuItem onSelect={onPin}><Pin />Sematkan</DropdownMenuItem>}
                 {onUnpin && <DropdownMenuItem onSelect={onUnpin}><PinOff />Lepas sematan</DropdownMenuItem>}

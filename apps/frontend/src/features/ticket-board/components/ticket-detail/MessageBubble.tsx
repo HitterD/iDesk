@@ -189,11 +189,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                             )}
                         >
                             {showName && <b className="chat-bubble-name">{name}</b>}
-                            {quote && (
+                            {(message.replyTo || quote) && (
                                 <QuoteSnippet
-                                    sender={message.replyTo?.senderName || quote.sender}
+                                    sender={message.replyTo?.senderName || quote?.sender || 'Pesan'}
                                     // The link wins over the stored text: a deleted original reads as deleted.
-                                    quote={message.replyTo ? (message.replyTo.isDeleted ? DELETED_QUOTE : message.replyTo.snippet || quote.quote) : quote.quote}
+                                    quote={message.replyTo ? (message.replyTo.isDeleted ? DELETED_QUOTE : message.replyTo.snippet || quote?.quote || '[Lampiran]') : (quote?.quote || '[Lampiran]')}
                                     onAccent={onAccent}
                                     onClick={onQuoteClick}
                                     className="mb-1.5"

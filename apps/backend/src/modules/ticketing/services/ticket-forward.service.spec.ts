@@ -186,6 +186,8 @@ describe('TicketForwardService', () => {
             emitToTicketAudience: jest.fn(),
             notifyTicketListUpdate: jest.fn(),
             notifyDashboardStatsUpdate: jest.fn(),
+            notifyNewMessage: jest.fn(),
+            pruneTicketRooms: jest.fn(),
         };
         workloadService.recalculateAgentWorkload = jest.fn(async () => ({}));
         workloadService.autoAssignTicket = jest.fn(async () => { throw new Error('auto-assign disabled'); });
@@ -245,6 +247,8 @@ describe('TicketForwardService', () => {
         const sysMsg = messageRepo.save.mock.calls.at(-1)[0].content;
         expect(sysMsg).toContain('Ticket forwarded from OPS_SUPPORT to OPS_SUPPORT by Agent One.');
         expect(sysMsg).toContain('Site forwarded: SPJ -> KRW');
+        expect(gw.notifyNewMessage).toHaveBeenCalledWith('t1', expect.objectContaining({ isSystemMessage: true }));
+        expect(gw.pruneTicketRooms).toHaveBeenCalledWith(expect.objectContaining({ id: 't1', siteId: 'site-krw' }));
     });
 
     it('rejects forwarding to a delegated or inactive site, or cross-site by non-handler agent', async () => {

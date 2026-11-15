@@ -1,5 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
-import { assertValidAttachments } from './attachment-upload.interceptor';
+import { BadRequestException, CallHandler, ExecutionContext } from '@nestjs/common';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { lastValueFrom, throwError } from 'rxjs';
+import { AttachmentMultiInterceptor, assertValidAttachments } from './attachment-upload.interceptor';
 
 const MB = 1024 * 1024;
 const MP4 = Buffer.from([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
@@ -40,5 +44,28 @@ describe('assertValidAttachments', () => {
     it('still rejects a video whose content does not match its extension', () => {
         expect(problemOf([upload('clip.mp4', PDF, 1)]))
             .toBe('File "clip.mp4" rusak atau isinya tidak sesuai dengan ekstensinya');
+    });
+
+    it('cleans up partial disk uploads when a downstream error occurs', async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'upload-clean-'));
+        const filePath = join(dir, 'partial.pdf');
+        writeFileSync(filePath, PDF);
+        try {
+            const Interceptor = AttachmentMultiInterceptor();
+            const instance = new Interceptor();
+            const req: Record<string, unknown> = { _uploadedDiskPaths: [filePath] };
+            const ctx = { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
+            const next: CallHandler = { handle: () => throwError(() => new Error('stream aborted')) };
+            // Bypass multer parsing by invoking prototype chain catchError wrapper directly when mocked
+            const parentProto = Object.getPrototypeOf(Object.getPrototypeOf(instance));
+            const spy = jest.spyOn(parentProto, 'intercept').mockResolvedValue(next.handle());
+
+            await expect(lastValueFrom(await instance.intercept(ctx, next))).rejects.toThrow('stream aborted');
+            await new Promise((r) => setTimeout(r, 30));
+            expect(existsSync(filePath)).toBe(false);
+            spy.mockRestore();
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

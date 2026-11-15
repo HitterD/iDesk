@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   CannedResponsePicker,
@@ -88,6 +88,17 @@ describe('Dynamic Placeholder Parser', () => {
     });
 
     expect(parsed).toBe('Halo Budi Santoso, saya Agent John. Tiket #12345 sedang diproses.');
+  });
+
+  it('preserves dollar replacement sequences like $&, $1, and $$ literally', () => {
+    const raw = 'User {user_name}, Agent {agent_name}, Tiket #{ticket_id}';
+    const parsed = applyPlaceholders(raw, {
+      user_name: 'Price $& $1 $$',
+      agent_name: "Test $' $`",
+      ticket_id: 'T-$100',
+    });
+
+    expect(parsed).toBe("User Price $& $1 $$, Agent Test $' $`, Tiket #T-$100");
   });
 });
 

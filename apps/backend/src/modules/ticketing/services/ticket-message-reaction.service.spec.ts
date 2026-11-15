@@ -79,6 +79,7 @@ describe('TicketMessageReactionService', () => {
         ['a deleted message', message({ deletedAt: new Date() }), ticket()],
         ['an archived internal note', message({ isInternal: true }), ticket()],
         ['a closed ticket', message(), ticket({ status: TicketStatus.CLOSED })],
+        ['a cancelled ticket', message(), ticket({ status: TicketStatus.CANCELLED })],
     ])('refuses on %s', async (_label, msg, t) => {
         await expect(build(msg, t).service.react('t-1', 'm-1', AGENT, '👍')).rejects.toBeInstanceOf(BadRequestException);
     });

@@ -72,11 +72,19 @@ export interface MentionSummary {
     fullName: string;
 }
 
+/** Viewer context for computing viewer-specific flags without exposing internal user ids. */
+export interface PinViewerContext {
+    id?: string | null;
+    role?: string;
+    assignedToId?: string | null;
+}
+
 export type PresentedThreadMessage<T extends ThreadMessage> = Omit<PresentedMessage<T>, 'pinnedById' | 'pinnedBy' | 'reactions'> & {
     replyTo: ReplySummary | null;
     isPinned: boolean;
     pinnedAt: Date | string | null;
     pinnedByName: string | null;
+    canUnpin?: boolean;
     reactions: ReactionSummary[];
     mentions: MentionSummary[];
 };
@@ -132,18 +140,24 @@ export function presentInThread<T extends ThreadMessage>(
     message: T,
     original?: ThreadMessage | null,
     people: ReadonlyMap<string, string> = new Map(),
+    pinViewer?: PinViewerContext,
 ): PresentedThreadMessage<T> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { pinnedById, pinnedBy, reactions: rows, ...rest } = presentMessage(message) as PresentedMessage<T> & Pick<ThreadMessage, 'pinnedById' | 'pinnedBy' | 'reactions'>;
     const replyTo = original ? summarizeReply(original) : null;
     const content = replyTo?.isDeleted && !message.deletedAt ? withDeletedQuote(rest.content, replyTo.senderName) : rest.content;
+    const isPinned = Boolean(message.pinnedAt) && !message.deletedAt;
+    const canUnpin = isPinned && pinViewer
+        ? pinViewer.role === 'ADMIN' || (Boolean(pinViewer.id) && (pinViewer.id === pinViewer.assignedToId || pinViewer.id === pinnedById))
+        : undefined;
     return {
         ...rest,
         content,
         replyTo,
-        isPinned: Boolean(message.pinnedAt) && !message.deletedAt,
+        isPinned,
         pinnedAt: message.pinnedAt ?? null,
         pinnedByName: message.pinnedAt ? (pinnedBy?.fullName ?? null) : null,
+        ...(canUnpin !== undefined ? { canUnpin } : {}),
         // A deleted message keeps no reactions, so no names of who reacted to it either.
         reactions: message.deletedAt || !rows ? [] : summarizeReactions(rows),
         mentionedUserIds: message.deletedAt ? [] : (message.mentionedUserIds ?? []),
@@ -154,9 +168,13 @@ export function presentInThread<T extends ThreadMessage>(
 }
 
 /** Every message of one ticket, replies resolved against the same list. `people` names mentioned users. */
-export function presentThread<T extends ThreadMessage>(messages: T[], people: ReadonlyMap<string, string> = new Map()): PresentedThreadMessage<T>[] {
+export function presentThread<T extends ThreadMessage>(
+    messages: T[],
+    people: ReadonlyMap<string, string> = new Map(),
+    pinViewer?: PinViewerContext,
+): PresentedThreadMessage<T>[] {
     const byId = new Map(messages.map((m) => [m.id, m]));
-    return messages.map((m) => presentInThread(m, m.replyToId ? byId.get(m.replyToId) : null, people));
+    return messages.map((m) => presentInThread(m, m.replyToId ? byId.get(m.replyToId) : null, people, pinViewer));
 }
 
 /** Every user id a thread mentions (to load their names in one query). */

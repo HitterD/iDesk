@@ -27,6 +27,7 @@ import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resol
 import { SlaClockService } from './sla-clock.service';
 import { TicketVendorVisitService, formatVendorVisit, normalizeVendorNote } from './ticket-vendor-visit.service';
 import { TicketSystemEvent, diffActivity, snapshotTicket, systemEvent } from '../utils/ticket-activity.util';
+import { presentMessage } from '../utils/message-presenter.util';
 import {
     AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
     describeReassignment, ineligibleAssigneeMessage, recordStatusTakeover, resolveStatusTakeover,
@@ -299,10 +300,18 @@ export class TicketUpdateService {
                 isSystemMessage: true,
                 systemEvent: activity && activity.changes.length > 0 ? activity : null,
             });
-            await this.messageRepo.save(systemMessage);
+            const savedSystemMessage = await this.messageRepo.save(systemMessage);
+            this.eventsGateway?.notifyNewMessage?.(ticketId, {
+                ...presentMessage(savedSystemMessage),
+                sender: { id: user.id, fullName: user.fullName, role: user.role },
+            });
 
             if ((savedTicket as any).siteId) {
-                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+                if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
+                    this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
+                } else {
+                    this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+                }
             }
 
             this.eventEmitter.emit(
@@ -369,11 +378,18 @@ export class TicketUpdateService {
                 systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: null }], reason),
                 isSystemMessage: true,
             });
-            await this.messageRepo.save(systemMessage);
+            const savedSystemMessage = await this.messageRepo.save(systemMessage);
+            this.eventsGateway?.notifyNewMessage?.(ticketId, {
+                ...presentMessage(savedSystemMessage),
+                sender: { id: assigner.id, fullName: assigner.fullName, role: assigner.role },
+            });
 
             if ((savedTicket as any).siteId) {
-                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', { ticketId });
+                if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
+                    this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
+                } else {
+                    this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+                }
             }
 
             if ((savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) && oldAssigneeId) {
@@ -478,11 +494,18 @@ export class TicketUpdateService {
             isSystemMessage: true,
             systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: assignee.fullName }], reason),
         });
-        await this.messageRepo.save(systemMessage);
+        const savedSystemMessage = await this.messageRepo.save(systemMessage);
+        this.eventsGateway?.notifyNewMessage?.(ticketId, {
+            ...presentMessage(savedSystemMessage),
+            sender: { id: assigner.id, fullName: assigner.fullName, role: assigner.role },
+        });
 
         if ((savedTicket as any).siteId) {
-            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-            this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('NEW_MESSAGE', { ticketId });
+            if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
+                this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
+            } else {
+                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
+            }
         }
 
         // -------------------------------------------------------------
@@ -590,7 +613,11 @@ export class TicketUpdateService {
             isSystemMessage: true,
             systemEvent: systemEvent(user, [{ field: 'status', from: previousStatus, to: TicketStatus.CANCELLED }], reason),
         });
-        await this.messageRepo.save(systemMessage);
+        const savedSystemMessage = await this.messageRepo.save(systemMessage);
+        this.eventsGateway?.notifyNewMessage?.(ticketId, {
+            ...presentMessage(savedSystemMessage),
+            sender: { id: user.id, fullName: user.fullName, role: user.role },
+        });
 
         // Emit WebSocket events
         this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName, (savedTicket as any).siteId ?? null);

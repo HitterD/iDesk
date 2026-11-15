@@ -82,7 +82,7 @@ const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
             </span>
             <button
                 type="button"
-                onClick={() => navigate(`/tickets/browse?search=${parentNumber}`)}
+                onClick={() => navigate(`/client/my-tickets?search=${encodeURIComponent(parentNumber)}`)}
                 className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-amber-700 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-amber-800"
             >
                 <span>Buka Tiket Utama</span>

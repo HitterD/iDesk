@@ -39,4 +39,13 @@ describe('pins next to the tabs', () => {
         rerender(<DetailTabs value="chat" onChange={vi.fn()} pins={[]} onJumpToPin={vi.fn()} />);
         expect(screen.queryByRole('button', { name: /Pesan disematkan/ })).not.toBeInTheDocument();
     });
+
+    it('hides Lepas sematan when current pin has canUnpin: false and preserves boolean canUnpin in pinsOf', () => {
+        const pins = pinsOf([
+            msg('a', { isPinned: true, pinnedAt: '2026-11-02T08:00:00Z', canUnpin: false }),
+        ]);
+        expect(pins[0].canUnpin).toBe(false);
+        render(<DetailTabs value="chat" onChange={vi.fn()} pins={pins} onJumpToPin={vi.fn()} onUnpinPin={vi.fn()} />);
+        expect(screen.queryByRole('button', { name: 'Lepas sematan' })).not.toBeInTheDocument();
+    });
 });

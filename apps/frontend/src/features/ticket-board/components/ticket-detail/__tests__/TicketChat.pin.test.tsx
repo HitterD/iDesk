@@ -88,7 +88,7 @@ describe('TicketChat pins and reply links', () => {
 
     it('Lepas sematan calls the API from the menu', async () => {
         const user = userEvent.setup();
-        renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30), { isPinned: true, pinnedAt: ago(5) })]));
+        renderChat(baseTicket([msg('a', USER_SENDER, 'Printer mati', ago(30), { isPinned: true, pinnedAt: ago(5), canUnpin: true })]));
         await user.click(within(row('a')).getByRole('button', { name: 'Aksi lainnya' }));
         await user.click(await screen.findByRole('menuitem', { name: 'Lepas sematan' }));
         await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/tickets/t-1/messages/a/pin'));
@@ -126,12 +126,52 @@ describe('TicketChat pins and reply links', () => {
         currentUser = REQUESTER;
         const user = userEvent.setup();
         renderChat(baseTicket([
-            msg('a', AGENT_SENDER, 'Sudah saya restart', ago(30), { isPinned: true, pinnedAt: ago(5) }),
+            msg('a', AGENT_SENDER, 'Sudah saya restart', ago(30), { isPinned: true, pinnedAt: ago(5), canUnpin: true }),
             msg('b', AGENT_SENDER, '', ago(20), { isDeleted: true }),
         ], { viewerAccess: 'requester' }));
         expect(within(row('a')).getByRole('img', { name: 'Disematkan' })).toBeInTheDocument();
         expect(within(row('b')).queryByRole('button', { name: 'Aksi lainnya' })).not.toBeInTheDocument();
         await user.click(within(row('a')).getByRole('button', { name: 'Aksi lainnya' }));
         expect(await menuItems()).toContain('Lepas sematan');
+    });
+
+    it('hides Lepas sematan when canUnpin is false for non-PIC non-ADMIN viewer', async () => {
+        const user = userEvent.setup();
+        renderChat(baseTicket([
+            msg('a', USER_SENDER, 'Info penting', ago(30), { isPinned: true, pinnedAt: ago(5), canUnpin: false }),
+        ]));
+        await user.click(within(row('a')).getByRole('button', { name: 'Aksi lainnya' }));
+        expect(await menuItems()).not.toContain('Lepas sematan');
+    });
+
+    it('locks composer, pins, and reactions when ticket status is CANCELLED', () => {
+        renderChat(baseTicket([
+            msg('a', USER_SENDER, 'Sudah dibatalkan', ago(30), { isPinned: true, pinnedAt: ago(5), canUnpin: true }),
+        ], { status: 'CANCELLED' }));
+        expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+        expect(screen.getAllByRole('status').some((el) => /ditutup|dibatalkan/i.test(el.textContent ?? ''))).toBe(true);
+        expect(within(row('a')).queryByRole('button', { name: 'Beri reaksi' })).not.toBeInTheDocument();
+    });
+
+    it('renders live replyTo quote snippet for attachment-only replies without quoted text', () => {
+        renderChat(baseTicket([
+            msg('a', USER_SENDER, '', ago(30), { attachments: ['/uploads/foto.png'] }),
+            msg('b', AGENT_SENDER, 'Sudah saya terima lampirannya', ago(20), {
+                replyToId: 'a',
+                replyTo: { id: 'a', senderName: 'SHANNON STEPHANIE LIMAWAN', snippet: '', isDeleted: false },
+            }),
+        ]));
+        expect(within(row('b')).getByRole('button', { name: /Shannon Stephanie Limawan.*File/i })).toBeInTheDocument();
+    });
+
+    it('focusInput focuses the message textbox via imperative handle', () => {
+        const ref = createRef<TicketChatHandle>();
+        render(
+            <QueryClientProvider client={new QueryClient()}>
+                <TicketChat ref={ref} ticket={baseTicket([msg('a', USER_SENDER, 'Halo', ago(10))])} isConnected onSendMessage={vi.fn(() => Promise.resolve())} onImageClick={vi.fn()} />
+            </QueryClientProvider>,
+        );
+        act(() => ref.current?.focusInput());
+        expect(screen.getByRole('textbox')).toHaveFocus();
     });
 });

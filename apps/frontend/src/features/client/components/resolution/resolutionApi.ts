@@ -28,6 +28,15 @@ export const getApiErrorMessage = (error: unknown, fallback: string): string => 
     return message || fallback;
 };
 
+/** True when an error came from an axios call whose interceptor already showed a toast. */
+export const isToastHandledByApi = (err: unknown): boolean =>
+    Boolean(
+        err &&
+        typeof err === 'object' &&
+        'isAxiosError' in err &&
+        !(err as { config?: { skipToast?: boolean } }).config?.skipToast,
+    );
+
 export const invalidateTicketQueries = async (queryClient: QueryClient, ticketId: string): Promise<void> => {
     await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] }),

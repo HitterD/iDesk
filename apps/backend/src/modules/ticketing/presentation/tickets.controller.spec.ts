@@ -206,6 +206,16 @@ describe('TicketsController', () => {
             await new Promise((r) => setTimeout(r, 20));
             expect(existsSync(file.path)).toBe(false);
         });
+
+        it('rejects non-UUID mentionedUserIds and cleans up uploaded files', async () => {
+            const file = upload('b.txt', [0x68, 0x69], 'text/plain');
+
+            await expect(controller.replyToTicket(ticketId, req, 'x', '["not-a-uuid"]', 'false', [file]))
+                .rejects.toThrow('UUID');
+            expect(mockTicketMessagingService.replyToTicket).not.toHaveBeenCalled();
+            await new Promise((r) => setTimeout(r, 20));
+            expect(existsSync(file.path)).toBe(false);
+        });
     });
 
     describe('markRead', () => {

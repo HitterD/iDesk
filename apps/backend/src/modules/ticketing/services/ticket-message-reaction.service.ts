@@ -34,14 +34,29 @@ export class TicketMessageReactionService {
         const message = await this.loadReactable(ticketId, messageId, viewer);
         // One statement on the (messageId, userId) unique key: reacting again replaces the emoji, and a
         // double click cannot collide with itself.
-        await this.dataSource.transaction((manager) =>
-            manager.upsert(TicketMessageReaction, { messageId, userId: viewer.id, emoji }, ['messageId', 'userId']));
+        await this.dataSource.transaction(async (manager) => {
+            if (typeof manager.findOne === 'function') {
+                const txTicket = await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+                if (txTicket && (txTicket.status === TicketStatus.CLOSED || txTicket.status === TicketStatus.CANCELLED)) {
+                    throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+                }
+            }
+            await manager.upsert(TicketMessageReaction, { messageId, userId: viewer.id, emoji }, ['messageId', 'userId']);
+        });
         return this.broadcast(ticketId, message);
     }
 
     async unreact(ticketId: string, messageId: string, viewer: MessageEditor): Promise<ReactionSummary[]> {
         const message = await this.loadReactable(ticketId, messageId, viewer);
-        await this.dataSource.transaction((manager) => manager.delete(TicketMessageReaction, { messageId, userId: viewer.id }));
+        await this.dataSource.transaction(async (manager) => {
+            if (typeof manager.findOne === 'function') {
+                const txTicket = await manager.findOne(Ticket, { where: { id: ticketId }, lock: { mode: 'pessimistic_write' } });
+                if (txTicket && (txTicket.status === TicketStatus.CLOSED || txTicket.status === TicketStatus.CANCELLED)) {
+                    throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+                }
+            }
+            await manager.delete(TicketMessageReaction, { messageId, userId: viewer.id });
+        });
         return this.broadcast(ticketId, message);
     }
 
@@ -58,7 +73,9 @@ export class TicketMessageReactionService {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId }, relations: ['participants'] });
         if (!ticket) throw new NotFoundException('Pesan tidak ditemukan');
         if (!this.canView(ticket, viewer)) throw new ForbiddenException('Anda tidak bisa memberi reaksi pada pesan ini');
-        if (ticket.status === TicketStatus.CLOSED) throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
+            throw new BadRequestException(TICKET_CLOSED_MESSAGE);
+        }
         // Archived internal notes are read-only (Q19); system lines and deleted messages take no reactions.
         if (message.isSystemMessage || message.deletedAt || message.isInternal) {
             throw new BadRequestException('Pesan ini tidak bisa diberi reaksi');

@@ -15,9 +15,6 @@ import type { Ticket, TicketMessage } from '@/lib/api/types';
 // Use TicketMessage from types instead of local interface
 type Message = TicketMessage;
 
-// Ticket data type for socket events
-type TicketSocketData = Partial<Ticket> & { id: string };
-
 /** How often a ticket page refetches while the socket is down, so missed messages still show up. */
 export const TICKET_OFFLINE_POLL_MS = 15000;
 /** Window in which the message + notification events for one reply share a single resync. */
@@ -167,7 +164,7 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
 
         // Typing indicators with 3.5s auto-expire TTL to eliminate ghost typing
         const handleTypingStart = (data: { ticketId: string; user: { fullName: string }; socketId: string }) => {
-            if (data.ticketId === ticketId && data.socketId) {
+            if (data.ticketId === ticketId && data.socketId && data.socketId !== socket.id) {
                 setTypingUsers(prev => ({ ...prev, [data.socketId]: data.user?.fullName || 'User' }));
 
                 // Reset auto-expire timer for this socket

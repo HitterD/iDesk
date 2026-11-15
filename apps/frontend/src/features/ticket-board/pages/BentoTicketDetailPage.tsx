@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { buildReplyForm } from '@/lib/ticketReplyForm';
 import { TICKET_OFFLINE_POLL_MS, useTicketSocket } from '@/hooks/useTicketSocket';
 import { useAuth } from '@/stores/useAuth';
-import { TicketDetail, Agent } from '../components/ticket-detail/types';
+import { TicketDetail, Agent, SlaAdjustmentReasonCategory } from '../components/ticket-detail/types';
 import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
@@ -25,7 +25,12 @@ import { AlertTriangle } from 'lucide-react';
 import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../components/ticket-detail/DetailTabs';
 import { TicketAttributes } from '../types';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
-import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
+import { getApiErrorMessage, isToastHandledByApi } from '@/features/client/components/resolution/resolutionApi';
+import {
+    appendOptimisticMessage,
+    reconcileOptimisticMessage,
+    removeOptimisticMessage,
+} from '@/lib/ticketMessageCache';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMarkNotificationsRead';
 import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
@@ -35,6 +40,10 @@ import type { CancelTicketPayload } from '../components/ticket-detail/CancelTick
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    return <BentoTicketDetailContent key={id ?? ''} id={id} />;
+};
+
+const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) => {
     useMarkNotificationsRead(id ? { ticketId: id } : null);
     const queryClient = useQueryClient();
     const { user } = useAuth();
@@ -46,20 +55,18 @@ export const BentoTicketDetailPage: React.FC = () => {
     const chatRef = useRef<TicketChatHandle>(null);
     const pinActions = usePinActions(id ?? '');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-    const chatInputRef = useRef<HTMLTextAreaElement>(null);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(() =>
+        Boolean(id && !sessionStorage.getItem(`idesk_kb_suggested_${id}`)),
+    );
+    const [resolveOpen, setResolveOpen] = useState(false);
     const chatSectionRef = useRef<HTMLDivElement>(null);
     const pdfPreview = usePDFPreview();
 
-    // Suggest KB articles once per ticket visit (per browser session).
+    // Record once per browser session that KB suggestions were surfaced for this ticket.
     useEffect(() => {
-        if (!id) return;
-        const key = `idesk_kb_suggested_${id}`;
-        if (!sessionStorage.getItem(key)) {
-            sessionStorage.setItem(key, '1');
-            setSuggestionsOpen(true);
-        }
-    }, [id]);
+        if (!id || !suggestionsOpen) return;
+        sessionStorage.setItem(`idesk_kb_suggested_${id}`, '1');
+    }, [id, suggestionsOpen]);
 
     // Use authenticated user from auth store
     const currentUser = user ? { id: user.id, fullName: user.fullName } : { id: '', fullName: '' };
@@ -142,13 +149,15 @@ export const BentoTicketDetailPage: React.FC = () => {
 
     // Keyboard shortcuts for ticket actions
     useTicketShortcuts({
-        onAssign: () => toast.info('Assign shortcut pressed'),
-        onStatus: () => toast.info('Status shortcut pressed'),
-        onPriority: () => toast.info('Priority shortcut pressed'),
-        onReply: () => chatInputRef.current?.focus(),
+        onReply: () => {
+            if (!ticket || ticket.status === 'CLOSED' || ticket.status === 'CANCELLED') return;
+            setMainTab('chat');
+            chatRef.current?.focusInput();
+            requestAnimationFrame(() => chatRef.current?.focusInput());
+        },
         onResolve: () => {
-            if (ticket && !isTerminalStatus(ticket.status)) {
-                handleFieldChange('status', 'RESOLVED');
+            if (ticket && !isTerminalStatus(ticket.status) && ticket.viewerAccess !== 'requester') {
+                setResolveOpen(true);
             }
         },
         onCopyTicketNumber: () => toast.success('Ticket number copied!'),
@@ -176,15 +185,16 @@ export const BentoTicketDetailPage: React.FC = () => {
 
             await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                skipToast: true,
             });
 
-            await api.patch(`/tickets/${id}/status`, { status: 'RESOLVED' });
+            await api.patch(`/tickets/${id}/status`, { status: 'RESOLVED' }, { skipToast: true });
             toast.success('Tiket berhasil diselesaikan');
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message || 'Gagal menyelesaikan tiket');
+        } catch (err: unknown) {
+            toast.error(getApiErrorMessage(err, 'Gagal menyelesaikan tiket'));
             throw err;
         } finally {
             setIsResolving(false);
@@ -273,8 +283,8 @@ export const BentoTicketDetailPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             queryClient.invalidateQueries({ queryKey: ['tickets'] });
             queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        } catch (err: any) {
-            toast.error(err?.response?.data?.message || 'Gagal meneruskan tiket');
+        } catch (err: unknown) {
+            toast.error(getApiErrorMessage(err, 'Gagal meneruskan tiket'));
             throw err;
         }
     }, [id, queryClient]);
@@ -314,8 +324,9 @@ export const BentoTicketDetailPage: React.FC = () => {
 
         // Optimistic update
         const previewUrls = files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [];
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const optimisticMessage = {
-            id: `temp-${Date.now()}`,
+            id: tempId,
             content,
             isInternal,
             isSystemMessage: false,
@@ -327,28 +338,24 @@ export const BentoTicketDetailPage: React.FC = () => {
             attachments: previewUrls,
         };
 
-        queryClient.setQueryData(['ticket', id], (oldData: TicketDetail | undefined) => {
-            if (!oldData) return oldData;
-            return {
-                ...oldData,
-                messages: [...(oldData.messages || []), optimisticMessage],
-            };
-        });
+        if (id) appendOptimisticMessage(queryClient, id, optimisticMessage);
 
         try {
             const formData = buildReplyForm({ content, files, isInternal, replyToId, mentionedUserIds });
 
-            await api.post(`/tickets/${id}/reply`, formData, {
+            const res = await api.post(`/tickets/${id}/reply`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
                 skipToast: true,
                 onUploadProgress: (e) => onUploadProgress?.(toUploadPercent(e.loaded, e.total)),
             });
 
+            if (id) reconcileOptimisticMessage(queryClient, id, tempId, res?.data);
             if (!isInternal) {
                 toast.success('Message sent');
             }
             await queryClient.invalidateQueries({ queryKey: ['ticket', id] });
         } catch (error) {
+            if (id) removeOptimisticMessage(queryClient, id, tempId);
             queryClient.invalidateQueries({ queryKey: ['ticket', id] });
             toast.error(getApiErrorMessage(error, 'Gagal mengirim pesan'));
             throw error;
@@ -373,14 +380,13 @@ export const BentoTicketDetailPage: React.FC = () => {
             toast.success('Target SLA berhasil diperpanjang');
             setExtendSlaOpen(false);
         },
-        onError: (err: any) => {
-            const msg = err.response?.data?.message || 'Gagal memperpanjang target SLA';
-            toast.error(msg);
+        onError: (err: unknown) => {
+            toast.error(getApiErrorMessage(err, 'Gagal memperpanjang target SLA'));
         },
     });
 
     const handleExtendSla = async (data: {
-        reasonCategory: any;
+        reasonCategory: SlaAdjustmentReasonCategory;
         reasonText: string;
         newTargetDate?: string;
         minutes?: number;
@@ -394,10 +400,15 @@ export const BentoTicketDetailPage: React.FC = () => {
     if (!ticket) return <div className="p-8 text-center text-rose-500 font-medium">Ticket not found</div>;
 
     const isClosed = isTerminalStatus(ticket.status);
+    const isChatLocked = ticket.status === 'CLOSED' || ticket.status === 'CANCELLED';
     // Filed by me but handled by another team: view & chat only.
     const isRequesterView = ticket.viewerAccess === 'requester';
     const canAct = !isClosed && !isRequesterView;
     const canExtendSla = canAct && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
+    const pinsWithAccess = pinsOf(ticket.messages).map((p) => ({
+        ...p,
+        canUnpin: Boolean(p.canUnpin || isAdmin || (user?.id && ticket.assignedTo?.id === user.id)),
+    }));
 
     const handleToggleSidebar = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -424,14 +435,18 @@ export const BentoTicketDetailPage: React.FC = () => {
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
+                resolveOpen={resolveOpen}
+                onResolveOpenChange={setResolveOpen}
                 tabs={(
                     <DetailTabs
                         value={mainTab}
                         onChange={setMainTab}
                         messageCount={countChatMessages(ticket.messages)}
-                        pins={pinsOf(ticket.messages)}
-                        onJumpToPin={(id) => chatRef.current?.jumpToMessage(id)}
-                        onUnpinPin={ticket.status === 'CLOSED' ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
+                        pins={pinsWithAccess}
+                        onJumpToPin={(pinId) => chatRef.current?.jumpToMessage(pinId)}
+                        onUnpinPin={isChatLocked ? undefined : (pinId) => void pinActions.unpin(pinId).catch((err) => {
+                            if (!isToastHandledByApi(err)) toast.error('Gagal melepas sematan pesan');
+                        })}
                     />
                 )}
             />
@@ -497,7 +512,7 @@ export const BentoTicketDetailPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
-                                <TicketHistory ticket={ticket} />
+                                <TicketHistory ticket={ticket} audience={isRequesterView ? 'requester' : 'staff'} />
                             </div>
                         )}
                     </div>

@@ -31,6 +31,7 @@ interface PinnableMessage {
     content: string;
     isPinned?: boolean;
     pinnedAt?: string | null;
+    canUnpin?: boolean;
     isDeleted?: boolean;
     sender?: { fullName?: string } | null;
 }
@@ -40,7 +41,12 @@ export const pinsOf = (messages: ReadonlyArray<PinnableMessage> | undefined): Pi
     (messages ?? [])
         .filter((m) => m.isPinned && !m.isDeleted)
         .sort((a, b) => new Date(a.pinnedAt ?? 0).getTime() - new Date(b.pinnedAt ?? 0).getTime())
-        .map((m) => ({ id: m.id, senderName: m.sender?.fullName ?? '', snippet: quotableText(m.content) }));
+        .map((m) => ({
+            id: m.id,
+            senderName: m.sender?.fullName ?? '',
+            snippet: quotableText(m.content),
+            ...(typeof m.canUnpin === 'boolean' ? { canUnpin: m.canUnpin } : {}),
+        }));
 
 interface DetailTabsProps {
     value: DetailTab;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { SystemMessageEvent } from '../SystemMessageEvent';
 
 describe('SystemMessageEvent Component', () => {
@@ -239,6 +239,53 @@ Diperpanjang oleh: System Administrator`;
         );
 
         expect(screen.getByText('Tiket Anda diteruskan ke tim IT Support (KRW)')).toBeInTheDocument();
+    });
+
+    it('redacts staff actor names and SLA extension internals when audience is requester', () => {
+        const { rerender } = render(
+            <SystemMessageEvent
+                audience="requester"
+                content="System: Status changed from TODO to IN_PROGRESS by BENY SAPUTRA"
+                createdAt="2026-08-28T07:42:59.000Z"
+            />
+        );
+        expect(screen.getByText('Sedang Dikerjakan')).toBeInTheDocument();
+        expect(screen.queryByText(/Beny Saputra/i)).not.toBeInTheDocument();
+
+        rerender(
+            <SystemMessageEvent
+                audience="requester"
+                content={`Target SLA Diperpanjang\n\nDeadline Baru: Senin, 21 Sep 2026 15.44 WIB\nKategori Kendala: Internal Esc\nPenjelasan: Catatan internal rahasia\nDiperpanjang oleh: BENY SAPUTRA`}
+                createdAt="2026-09-14T08:00:00.000Z"
+            />
+        );
+        expect(screen.getByText('Senin, 21 Sep 2026 15.44 WIB')).toBeInTheDocument();
+        expect(screen.queryByText('Internal Esc')).not.toBeInTheDocument();
+        expect(screen.queryByText(/Catatan internal rahasia/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Beny Saputra/i)).not.toBeInTheDocument();
+    });
+
+    it('opens resolution PDF attachments via onPdfClick instead of onImageClick and hides actor for requester', () => {
+        const onImageClick = vi.fn();
+        const onPdfClick = vi.fn();
+        const resolutionContent = `✅ Tiket Dinyatakan Selesai (Resolved)\n\n📌 Tindakan & Solusi:\nSelesai.\nDiselesaikan oleh: BAGAS`;
+
+        render(
+            <SystemMessageEvent
+                audience="requester"
+                content={resolutionContent}
+                createdAt="2026-08-28T08:00:00.000Z"
+                attachments={['/uploads/laporan.pdf', '/uploads/manual.docx']}
+                onImageClick={onImageClick}
+                onPdfClick={onPdfClick}
+            />
+        );
+
+        expect(screen.queryByText('Bagas')).not.toBeInTheDocument();
+        screen.getByRole('button', { name: 'Lihat PDF' }).click();
+        expect(onPdfClick).toHaveBeenCalledWith(expect.stringMatching(/\/uploads\/laporan\.pdf$/), 'laporan.pdf');
+        expect(onImageClick).not.toHaveBeenCalled();
+        expect(screen.getByRole('link', { name: 'manual.docx' })).toHaveAttribute('download', 'manual.docx');
     });
 });
 

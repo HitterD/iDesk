@@ -26,6 +26,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
 import { isUUID } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import { User } from '../../users/entities/user.entity';
 import { Public } from '../../../shared/core/decorators/public.decorator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -347,7 +348,12 @@ export class TicketsController {
     @ApiOperation({ summary: 'Get ticket messages' })
     @ApiResponse({ status: 200, description: 'Return ticket messages.' })
     async getMessages(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
-        return this.ticketMessagingService.getMessages(id, req.user.role, req.user.siteId ?? null);
+        return this.ticketMessagingService.getMessages(
+            id,
+            req.user.role,
+            req.user.siteId ?? null,
+            req.user.userId || req.user.id,
+        );
     }
 
     @Get(':id/messages/paginated')
@@ -361,10 +367,12 @@ export class TicketsController {
         @Query('limit') limit: number = 20,
         @Request() req: any,
     ) {
+        const parsedPage = Math.max(1, Math.trunc(Number(page)) || 1);
+        const parsedLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit)) || 20));
         return this.ticketMessagingService.getMessagesPaginated(
             ticketId,
-            +page || 1,
-            +limit || 20,
+            parsedPage,
+            parsedLimit,
             req.user.role,
             req.user.siteId ?? null,
             req.user.userId || req.user.id,
@@ -373,12 +381,13 @@ export class TicketsController {
 
     @Post(':id/reply')
     @UseGuards(JwtAuthGuard)
+    @Throttle({ default: { limit: 30, ttl: 60_000 } })
     @UseInterceptors(AttachmentMultiInterceptor())
     async replyToTicket(
         @Param('id', ParseUUIDPipe) id: string,
         @Req() req: any,
-        @Body('content') content: string,
-        @Body('mentionedUserIds') mentionedUserIds: string | string[],
+        @Body('content') content: unknown,
+        @Body('mentionedUserIds') mentionedUserIds: unknown,
         @Body('isInternal') isInternal: string | boolean,
         @UploadedFiles() files: Express.Multer.File[],
         @Body('replyToId') replyToId?: string,
@@ -386,16 +395,50 @@ export class TicketsController {
         assertValidAttachments(files);
         const attachmentInfo = (files ?? []).map(toAttachmentInfo);
 
+        const rawContent = typeof content === 'string' ? content : '';
+        // Mirror @Sanitize(): trim whitespace and remove null bytes / control characters (keeping newlines and tabs).
+        const sanitizedContent = rawContent
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            .trim();
+
+        if (sanitizedContent.length > 10000) {
+            discardUploads(files);
+            throw new BadRequestException('Pesan terlalu panjang (maksimal 10.000 karakter)');
+        }
+        if (!sanitizedContent && attachmentInfo.length === 0) {
+            discardUploads(files);
+            throw new BadRequestException('Pesan atau lampiran wajib diisi');
+        }
+
         let parsedMentionedUserIds: string[] = [];
         if (typeof mentionedUserIds === 'string') {
-            try {
-                parsedMentionedUserIds = JSON.parse(mentionedUserIds);
-            } catch (e) {
-                parsedMentionedUserIds = [];
+            const trimmedMentions = mentionedUserIds.trim();
+            if (trimmedMentions) {
+                let parsed: unknown;
+                try {
+                    parsed = JSON.parse(trimmedMentions);
+                } catch {
+                    discardUploads(files);
+                    throw new BadRequestException('mentionedUserIds harus berupa JSON array UUID yang valid');
+                }
+                if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string' || !isUUID(item))) {
+                    discardUploads(files);
+                    throw new BadRequestException('mentionedUserIds harus berupa daftar UUID yang valid');
+                }
+                parsedMentionedUserIds = parsed;
             }
         } else if (Array.isArray(mentionedUserIds)) {
+            if (mentionedUserIds.some((item) => typeof item !== 'string' || !isUUID(item))) {
+                discardUploads(files);
+                throw new BadRequestException('mentionedUserIds harus berupa daftar UUID yang valid');
+            }
             parsedMentionedUserIds = mentionedUserIds;
+        } else if (mentionedUserIds !== undefined && mentionedUserIds !== null) {
+            discardUploads(files);
+            throw new BadRequestException('mentionedUserIds tidak valid');
         }
+
+        const sanitizedReplyToId = typeof replyToId === 'string' && isUUID(replyToId) ? replyToId : undefined;
 
         // Parse isInternal (can come as string 'true'/'false' from FormData)
         const isInternalNote = isInternal === true || isInternal === 'true';
@@ -404,15 +447,15 @@ export class TicketsController {
         try {
             result = await this.ticketMessagingService.replyToTicket(
                 id,
-                req.user.userId,
-                content,
+                req.user.userId || req.user.id,
+                sanitizedContent,
                 attachmentInfo.map((a) => a.path),
                 parsedMentionedUserIds,
                 isInternalNote,
                 attachmentInfo,
                 undefined,
                 undefined,
-                { replyToId: isUUID(replyToId ?? '') ? replyToId : undefined },
+                { replyToId: sanitizedReplyToId },
             );
         } catch (error) {
             // e.g. ticket closed meanwhile or no access: the files would never be referenced.
@@ -512,8 +555,12 @@ export class TicketsController {
     @Get(':id/participants')
     @ApiOperation({ summary: 'Get participants of a ticket' })
     @ApiResponse({ status: 200, description: 'Return participants.' })
-    async getParticipants(@Param('id', ParseUUIDPipe) id: string) {
-        return this.ticketParticipantService.getParticipants(id);
+    async getParticipants(@Param('id', ParseUUIDPipe) id: string, @Request() req: any) {
+        return this.ticketParticipantService.getParticipants(id, {
+            id: req.user.userId || req.user.id,
+            role: req.user.role,
+            siteId: req.user.siteId ?? null,
+        });
     }
 
     @Post(':id/participants')
@@ -526,21 +573,23 @@ export class TicketsController {
     ) {
         const actorUserId = req.user.userId || req.user.id;
         const actorRole = req.user.role;
-        return this.ticketParticipantService.addParticipants(id, body.userIds, actorUserId, actorRole);
+        const actorSiteId = req.user.siteId ?? null;
+        return this.ticketParticipantService.addParticipants(id, body.userIds, actorUserId, actorRole, actorSiteId);
     }
 
     @Delete(':id/participants/:userId')
-    @Roles(UserRole.ADMIN, UserRole.AGENT_ORACLE, UserRole.AGENT_WEB_DEV, UserRole.AGENT_MOBILE_DEV)
-    @ApiOperation({ summary: 'Remove a participant from a ticket (Developer Agent / Admin only)' })
+    @Roles(...TICKET_AGENT_ROLES)
+    @ApiOperation({ summary: 'Remove a participant from a ticket (Handling Staff / Admin)' })
     @ApiResponse({ status: 200, description: 'Participant removed successfully.' })
     async removeParticipant(
         @Param('id', ParseUUIDPipe) id: string,
-        @Param('userId') targetUserId: string,
+        @Param('userId', ParseUUIDPipe) targetUserId: string,
         @Request() req: any,
     ) {
         const actorUserId = req.user.userId || req.user.id;
         const actorRole = req.user.role;
-        return this.ticketParticipantService.removeParticipant(id, targetUserId, actorUserId, actorRole);
+        const actorSiteId = req.user.siteId ?? null;
+        return this.ticketParticipantService.removeParticipant(id, targetUserId, actorUserId, actorRole, actorSiteId);
     }
 
     @Patch(':id/status')

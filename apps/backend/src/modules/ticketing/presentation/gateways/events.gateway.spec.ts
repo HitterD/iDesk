@@ -1,5 +1,6 @@
 import { EventsGateway, TICKET_CROSS_SITE_ROOM, buildCorsOrigin, ticketStaffRoom } from './events.gateway';
 import { UserRole } from '../../../users/enums/user-role.enum';
+import { HandlingTeam, TicketType } from '../../entities/ticket.entity';
 
 describe('EventsGateway security boundary', () => {
     const jwt = { verify: jest.fn() } as any;
@@ -315,5 +316,54 @@ describe('EventsGateway presence', () => {
         noteGw.handleLeaveTicketNote(client, NOTE_UUID);
         expect(client.leave).toHaveBeenCalledWith(`ticket-note:${NOTE_UUID}`);
         expect(await noteGw.isViewingNote('user-1', NOTE_UUID)).toBe(false);
+    });
+
+    it('rejects refresh JWTs on WebSocket handshake and keeps USER out of site rooms', () => {
+        jwt.verify.mockReturnValueOnce({ sub: 'u-1', role: UserRole.USER, type: 'refresh', siteId: 'site-1' });
+        const refreshClient = socket('sock-refresh', { auth: { token: 'refresh-jwt' } });
+        gateway.handleConnection(refreshClient);
+        expect(refreshClient.disconnect).toHaveBeenCalledWith(true);
+
+        jwt.verify.mockReturnValueOnce({ sub: 'u-2', role: UserRole.USER, type: 'access', siteId: 'site-1' });
+        const userClient = socket('sock-user', { auth: { token: 'access-jwt' } });
+        gateway.handleConnection(userClient);
+        expect(userClient.disconnect).not.toHaveBeenCalled();
+        expect(userClient.join).not.toHaveBeenCalledWith('site:site-1');
+    });
+
+    it('evicts removed viewers and prunes unauthorized sockets after ticket forwarding', async () => {
+        const clientA = socket('sock-a');
+        clientA.data = { userId: 'old-agent', role: UserRole.AGENT, siteId: 'site-spj' };
+        clientA.rooms.add('ticket:t-1');
+        clientA.rooms.add(ticketStaffRoom('t-1'));
+        const clientB = socket('sock-b');
+        clientB.data = { userId: 'req-1', role: UserRole.USER, siteId: 'site-spj' };
+        clientB.rooms.add('ticket:t-1');
+        gateway.server = {
+            emit: jest.fn(),
+            to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+            in: jest.fn((room: string) => ({
+                fetchSockets: jest.fn(async () => (room === 'user:old-agent' || room === 'ticket:t-1' ? [clientA, clientB] : [])),
+            })),
+        } as any;
+
+        await gateway.evictUserFromTicket('t-1', 'old-agent');
+        expect(clientA.leave).toHaveBeenCalledWith('ticket:t-1');
+        expect(clientA.leave).toHaveBeenCalledWith(ticketStaffRoom('t-1'));
+
+        clientA.leave.mockClear();
+        clientB.leave.mockClear();
+        await gateway.pruneTicketRooms({
+            id: 't-1',
+            userId: 'req-1',
+            createdById: null,
+            siteId: 'site-krw',
+            handlingTeam: HandlingTeam.OPS_SUPPORT,
+            category: 'GENERAL',
+            ticketType: TicketType.SERVICE,
+            participants: [],
+        });
+        expect(clientA.leave).toHaveBeenCalledWith('ticket:t-1');
+        expect(clientB.leave).not.toHaveBeenCalledWith('ticket:t-1');
     });
 });

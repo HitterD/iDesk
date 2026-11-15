@@ -476,7 +476,7 @@ describe('TicketMessagingService Oracle scope', () => {
 
             // Re-opening an already-read ticket is a no-op in the database, not a row write.
             expect(qb.andWhere).toHaveBeenCalledWith(
-                '("userLastReadAt" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "userLastReadAt"))',
+                '"lastMessageAt" IS NOT NULL AND ("userLastReadAt" IS NULL OR "lastMessageAt" > "userLastReadAt")',
             );
         });
 
@@ -500,6 +500,52 @@ describe('TicketMessagingService Oracle scope', () => {
             const values = set.mock.lastCall[0];
             expect(values.updatedAt()).toBe('"updatedAt"');
             expect(values.version()).toBe('"version"');
+        });
+    });
+
+    describe('reply locks, SLA isolation and avatar presentation', () => {
+        const build = (status: TicketStatus, role: UserRole = UserRole.AGENT_OPERATIONAL_SUPPORT) => {
+            const ticket = {
+                id: 't-1', siteId: 'site-1', userId: 'u-1', status, handlingTeam: 'OPS_SUPPORT',
+                ticketType: TicketType.SERVICE, category: 'GENERAL', participants: [], user: { id: 'u-1' },
+                firstResponseAt: null, slaStartedAt: new Date(),
+            };
+            const manager = {
+                findOne: jest.fn()
+                    .mockResolvedValueOnce(ticket)
+                    .mockResolvedValueOnce({ id: 'ag-1', fullName: 'Agen', avatarUrl: '/uploads/a.png', role, siteId: 'site-1' }),
+                create: jest.fn((_e, data) => data),
+                save: jest.fn((_e, data) => Promise.resolve({ id: 'msg-1', createdAt: new Date(), ...data })),
+            };
+            const eventsGateway = {
+                notifyNewMessage: jest.fn(), emitToTicketAudience: jest.fn(), notifyReadState: jest.fn(),
+                notifyStatusChange: jest.fn(), notifyTicketUpdate: jest.fn(),
+                server: { to: jest.fn(() => ({ emit: jest.fn() })) },
+            };
+            const service = new TicketMessagingService(
+                {} as never, {} as never, {} as never, {} as never,
+                { transaction: jest.fn((cb) => cb(manager)) } as never,
+                eventsGateway as never, { emit: jest.fn() } as never, createTestSlaClock(),
+            );
+            return { service, ticket, eventsGateway };
+        };
+
+        it('rejects replying on a CANCELLED ticket', async () => {
+            const { service } = build(TicketStatus.CANCELLED);
+            await expect(service.replyToTicket('t-1', 'ag-1', 'halo')).rejects.toThrow('sudah');
+        });
+
+        it('does not record firstResponseAt or move unread markers when an agent posts an internal note', async () => {
+            const { service, ticket, eventsGateway } = build(TicketStatus.IN_PROGRESS);
+            const saved = await service.replyToTicket('t-1', 'ag-1', 'internal note', [], [], true);
+
+            expect(ticket.firstResponseAt).toBeNull();
+            expect(eventsGateway.notifyReadState).not.toHaveBeenCalled();
+            expect(eventsGateway.notifyNewMessage).toHaveBeenCalledWith('t-1', expect.objectContaining({
+                isInternal: true,
+                sender: expect.objectContaining({ avatarUrl: '/uploads/a.png' }),
+            }));
+            expect(saved.sender?.avatarUrl).toBe('/uploads/a.png');
         });
     });
 });

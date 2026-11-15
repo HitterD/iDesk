@@ -464,4 +464,19 @@ describe('TicketNotificationListener', () => {
         expect(mailDispatch.send.mock.calls.map((c: any[]) => c[0].to)).toEqual(['budi@example.com']);
         gate.allows.mockResolvedValue(true);
     });
+
+    it('never refreshes requester action items or mentions USER on internal notes', async () => {
+        userRepo.findOne.mockResolvedValueOnce({ id: 'u-1', email: 'ani@example.com', fullName: 'Ani', role: UserRole.USER });
+        const event = new TicketRepliedEvent(
+            't-8', 'TK-2026-0008', 'Laptop', 'IN_PROGRESS', 'u-1', 'ani@example.com', 'Ani', 'agent-1',
+            { id: 'm-int', content: '@Ani internal note', isInternal: true } as any,
+            'agent-2', 'Budi', UserRole.AGENT, ['u-1'],
+        );
+
+        await listener.handleTicketRepliedEvent(event);
+
+        expect(notificationService.notifyTicketReply).not.toHaveBeenCalledWith('u-1', expect.anything(), expect.anything(), expect.anything(), expect.anything(), expect.anything());
+        expect(notificationCenterService.emitActionItemsRefresh).toHaveBeenCalledWith('agent-1', 'TICKET', 't-8');
+        expect(notificationCenterService.emitActionItemsRefresh).not.toHaveBeenCalledWith('u-1', 'TICKET', 't-8');
+    });
 });

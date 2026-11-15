@@ -18,7 +18,12 @@ import { KbSuggestionDialog } from '../../ticket-board/components/KbSuggestionDi
 import { SELF_RESOLVABLE_STATUSES, isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { ResolutionConfirmationBanner } from '../components/resolution/ResolutionConfirmationBanner';
 import { AgentRatingForm } from '../components/resolution/AgentRatingForm';
-import { getApiErrorMessage } from '../components/resolution/resolutionApi';
+import { getApiErrorMessage, isToastHandledByApi } from '../components/resolution/resolutionApi';
+import {
+    appendOptimisticMessage,
+    reconcileOptimisticMessage,
+    removeOptimisticMessage,
+} from '@/lib/ticketMessageCache';
 import { ClientTicketHeader } from '../components/ClientTicketHeader';
 import { ClientTicketInspector } from '../components/ClientTicketInspector';
 import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
@@ -28,6 +33,10 @@ import { useMarkNotificationsRead } from '@/features/notifications/hooks/useMark
 
 export const ClientTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
+    return <ClientTicketDetailContent key={id ?? ''} id={id} />;
+};
+
+const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) => {
     useMarkNotificationsRead(id ? { ticketId: id } : null);
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -39,21 +48,19 @@ export const ClientTicketDetailPage: React.FC = () => {
     const chatRef = useRef<TicketChatHandle>(null);
     const pinActions = usePinActions(id ?? '');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+    const [suggestionsOpen, setSuggestionsOpen] = useState(() =>
+        Boolean(id && !sessionStorage.getItem(`idesk_kb_suggested_${id}`)),
+    );
 
     const { isConnected, typingUsers, sendTypingStart, sendTypingStop } = useTicketSocket({
         ticketId: id,
     });
 
-    // Suggest KB articles once per ticket visit (per browser session).
+    // Record once per browser session that KB suggestions were surfaced for this ticket.
     useEffect(() => {
-        if (!id) return;
-        const key = `idesk_kb_suggested_${id}`;
-        if (!sessionStorage.getItem(key)) {
-            sessionStorage.setItem(key, '1');
-            setSuggestionsOpen(true);
-        }
-    }, [id]);
+        if (!id || !suggestionsOpen) return;
+        sessionStorage.setItem(`idesk_kb_suggested_${id}`, '1');
+    }, [id, suggestionsOpen]);
 
     const { data: ticket, isLoading } = useQuery<TicketDetail>({
         queryKey: ['ticket', id],
@@ -114,8 +121,32 @@ export const ClientTicketDetailPage: React.FC = () => {
             }
         }
         const formData = buildReplyForm({ content, files, isInternal, replyToId, mentionedUserIds });
+        const previewUrls = files ? Array.from(files).map((f) => URL.createObjectURL(f)) : [];
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        if (id) {
+            appendOptimisticMessage(queryClient, id, {
+                id: tempId,
+                content,
+                isInternal: Boolean(isInternal),
+                isSystemMessage: false,
+                createdAt: new Date().toISOString(),
+                sender: {
+                    id: user?.id || '',
+                    fullName: user?.fullName || 'User',
+                },
+                attachments: previewUrls,
+            });
+        }
 
-        await replyMutation.mutateAsync({ formData, onUploadProgress });
+        try {
+            const saved = await replyMutation.mutateAsync({ formData, onUploadProgress });
+            if (id) reconcileOptimisticMessage(queryClient, id, tempId, saved);
+        } catch (error) {
+            if (id) removeOptimisticMessage(queryClient, id, tempId);
+            throw error;
+        } finally {
+            previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        }
     };
 
     if (isLoading) {
@@ -148,15 +179,20 @@ export const ClientTicketDetailPage: React.FC = () => {
     }
 
     const isClosed = isTerminalStatus(ticket.status);
+    const isChatLocked = ticket.status === 'CLOSED' || ticket.status === 'CANCELLED';
     const isRequester = Boolean(user?.id) && ticket.user?.id === user?.id;
     const canSelfResolve = isRequester && SELF_RESOLVABLE_STATUSES.includes(ticket.status);
+    const pinsWithAccess = pinsOf(ticket.messages).map((p) => ({
+        ...p,
+        canUnpin: Boolean(p.canUnpin || user?.role === 'ADMIN' || (user?.id && ticket.assignedTo?.id === user?.id)),
+    }));
 
     const handleToggleSidebar = () => {
         setIsSidebarOpen(prev => !prev);
     };
 
     return (
-        <div className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
+        <div key={id} className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
           <div className="ticket-detail">
             <section className="ticket-detail-surface flex-1" aria-label="Percakapan">
             {/* ── Compact header: number, readonly bubbles, title, requester actions ── */}
@@ -172,9 +208,11 @@ export const ClientTicketDetailPage: React.FC = () => {
                         value={mainTab}
                         onChange={setMainTab}
                         messageCount={countChatMessages(ticket.messages)}
-                        pins={pinsOf(ticket.messages)}
-                        onJumpToPin={(id) => chatRef.current?.jumpToMessage(id)}
-                        onUnpinPin={ticket.status === 'CLOSED' ? undefined : (id) => void pinActions.unpin(id).catch(() => undefined)}
+                        pins={pinsWithAccess}
+                        onJumpToPin={(pinId) => chatRef.current?.jumpToMessage(pinId)}
+                        onUnpinPin={isChatLocked ? undefined : (pinId) => void pinActions.unpin(pinId).catch((err) => {
+                            if (!isToastHandledByApi(err)) toast.error('Gagal melepas sematan pesan');
+                        })}
                     />
                 )}
             />
@@ -217,7 +255,7 @@ export const ClientTicketDetailPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6">
-                                <TicketHistory ticket={ticket} />
+                                <TicketHistory ticket={ticket} audience="requester" />
                             </div>
                         )}
                     </div>

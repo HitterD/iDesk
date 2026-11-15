@@ -10,7 +10,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
 import { resolveTicketViewerAccess } from './ticket-oracle-access';
-import { canAccessTicketObject } from '../utils/oracle-ticket-access.util';
+import { canAccessTicketObject, isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
@@ -67,7 +67,7 @@ export class TicketMessagingService {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
-            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById'],
+            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById', 'assignedToId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         const access = userRole
@@ -80,9 +80,10 @@ export class TicketMessagingService {
                 ...(access === 'requester' ? { isInternal: false } : {}),
             },
             relations: ['sender', 'pinnedBy', 'reactions', 'reactions.user'],
-            order: { createdAt: 'ASC' },
+            order: { createdAt: 'ASC', id: 'ASC' },
         });
-        return presentThread(messages, await this.mentionNames(messages));
+        const pinViewer = userId || userRole ? { id: userId, role: userRole, assignedToId: ticket.assignedToId ?? null } : undefined;
+        return presentThread(messages, await this.mentionNames(messages), pinViewer);
     }
 
     /**
@@ -104,14 +105,16 @@ export class TicketMessagingService {
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
             relations: ['participants'],
-            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById'],
+            select: ['id', 'category', 'ticketType', 'handlingTeam', 'siteId', 'userId', 'createdById', 'assignedToId'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         const access = userRole
             ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
             : 'handler';
 
-        const skip = (page - 1) * limit;
+        const safePage = Math.max(1, Math.trunc(Number(page)) || 1);
+        const safeLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit)) || 20));
+        const skip = (safePage - 1) * safeLimit;
 
         // Build query
         const qb = this.messageRepo
@@ -132,10 +135,10 @@ export class TicketMessagingService {
         const data = await qb
             .orderBy('msg.createdAt', 'DESC')
             .skip(skip)
-            .take(limit)
+            .take(safeLimit)
             .getMany();
 
-        const totalPages = Math.ceil(total / limit);
+        const totalPages = Math.ceil(total / safeLimit);
 
         const pageMessages = data.reverse(); // oldest first within the page
         // Originals on earlier pages are loaded too, so a reply to a deleted one never shows the old quote.
@@ -148,15 +151,16 @@ export class TicketMessagingService {
             })
             : [];
 
+        const pinViewer = userId || userRole ? { id: userId, role: userRole, assignedToId: ticket.assignedToId ?? null } : undefined;
         return {
-            data: presentThread([...originals, ...pageMessages], await this.mentionNames(pageMessages)).slice(originals.length),
+            data: presentThread([...originals, ...pageMessages], await this.mentionNames(pageMessages), pinViewer).slice(originals.length),
             meta: {
                 total,
-                page,
-                limit,
+                page: safePage,
+                limit: safeLimit,
                 totalPages,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
+                hasNextPage: safePage < totalPages,
+                hasPrevPage: safePage > 1,
             },
         };
     }
@@ -191,7 +195,7 @@ export class TicketMessagingService {
             if (!ticket) {
                 throw new NotFoundException('Ticket not found');
             }
-            if (ticket.status === TicketStatus.CLOSED) {
+            if (ticket.status === TicketStatus.CLOSED || ticket.status === TicketStatus.CANCELLED) {
                 throw new BadRequestException(TICKET_CLOSED_MESSAGE);
             }
 
@@ -231,9 +235,9 @@ export class TicketMessagingService {
 
             const savedMessage = await manager.save(TicketMessage, message);
 
-            // === Track First Response Time ===
-            const isAgentOrAdmin = isHandler && (user.role === UserRole.AGENT || user.role === UserRole.ADMIN);
-            const isFirstAgentReply = isHandler && !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
+            // === Track First Response Time & Work Start (public handler replies only) ===
+            const isAgentOrAdmin = !isInternal && isHandler && SLA_RESPONDER_ROLES.includes(user.role);
+            const isFirstAgentReply = !isInternal && isHandler && !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
 
             if (isFirstAgentReply) {
                 ticket.firstResponseAt = new Date();
@@ -247,7 +251,7 @@ export class TicketMessagingService {
                 }
             }
 
-            // Update Ticket Status if Agent/Admin replies and ticket is still TODO
+            // Update Ticket Status if Agent/Handler replies publicly and ticket is still TODO
             const startedWork = isAgentOrAdmin && ticket.status === TicketStatus.TODO;
             if (startedWork) {
                 ticket.status = TicketStatus.IN_PROGRESS;
@@ -258,16 +262,17 @@ export class TicketMessagingService {
                 }
             }
 
-            // === Update Unread Tracking ===
+            // === Update Unread Tracking (only for public messages — internal notes never move public unread state) ===
             const now = new Date();
-            ticket.lastMessageAt = now;
-            // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
             const senderSideRole = isHandler ? user.role : UserRole.USER;
-            ticket.lastMessageSenderRole = senderSideRole;
-            // The sender's side has read everything up to its own reply. Sides follow viewer access,
-            // like senderSideRole: every handling role is the team side, not only AGENT/ADMIN.
-            const senderReadMarker = isHandler ? 'agentLastReadAt' : 'userLastReadAt';
-            ticket[senderReadMarker] = now;
+            let senderReadMarker: 'agentLastReadAt' | 'userLastReadAt' | null = null;
+            if (!isInternal) {
+                ticket.lastMessageAt = now;
+                // Unread tracking is two-sided: a requester-side staff reply counts as the user side.
+                ticket.lastMessageSenderRole = senderSideRole;
+                senderReadMarker = isHandler ? 'agentLastReadAt' : 'userLastReadAt';
+                ticket[senderReadMarker] = now;
+            }
 
             // Save ticket changes
             await manager.save(Ticket, ticket);
@@ -275,7 +280,18 @@ export class TicketMessagingService {
             return { savedMessage, ticket, user, startedWork, senderSideRole, isFirstAgentReply, duplicate: false, senderReadMarker, now, original };
         });
 
-        if (duplicate) return savedMessage;
+        const mentionMap = this.userRepo?.manager ? await this.mentionNames([savedMessage]) : new Map<string, string>();
+        const messageWithSender = {
+            ...presentInThread(savedMessage, original, mentionMap),
+            sender: {
+                id: user.id,
+                fullName: user.fullName,
+                role: user.role,
+                avatarUrl: (user as any).avatarUrl ?? null,
+            },
+        };
+
+        if (duplicate) return messageWithSender;
         // The reply moved the ticket from Open to In Progress; TV boards must show it.
         if (startedWork) {
             this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (ticket as any).siteId });
@@ -289,21 +305,15 @@ export class TicketMessagingService {
         }
 
         // Notify frontend via WebSocket with full message data (post-commit)
-        const messageWithSender = {
-            ...presentInThread(savedMessage, original, await this.mentionNames([savedMessage])),
-            sender: {
-                id: user.id,
-                fullName: user.fullName,
-                role: user.role,
-            },
-        };
         this.eventsGateway.notifyNewMessage(ticketId, messageWithSender);
-        // The reply moved the sender side's read marker: the other side's ticks turn read live.
-        if (senderReadMarker && now) this.eventsGateway.notifyReadState(ticketId, { [senderReadMarker]: now });
         // Broadcast typing:stop to ensure no client retains ghost typing indicator
         this.eventsGateway.server.to(`ticket:${ticketId}`).emit('typing:stop', { ticketId });
-        // Site room includes other requesters: send only the id, never the message body.
-        this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
+        if (!isInternal) {
+            // The reply moved the sender side's read marker: the other side's ticks turn read live.
+            if (senderReadMarker && now) this.eventsGateway.notifyReadState(ticketId, { [senderReadMarker]: now });
+            // Site room includes other requesters (or cross-site list listeners): never fire NEW_MESSAGE for internal notes.
+            this.eventsGateway.emitToTicketAudience((ticket as any).siteId, 'NEW_MESSAGE', { ticketId });
+        }
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -326,7 +336,7 @@ export class TicketMessagingService {
             ),
         );
 
-        return savedMessage;
+        return messageWithSender;
     }
 
     /**
@@ -361,10 +371,11 @@ export class TicketMessagingService {
         // the team's unread marker only when they also handle the ticket.
         const ticket = await this.ticketRepo.findOne({
             where: { id: ticketId },
+            relations: ['participants'],
             select: ['id', 'userId', 'createdById', 'handlingTeam', 'category', 'ticketType', 'siteId'],
         });
         if (!ticket) return;
-        const isRequesterStaff = ticket.userId === userId || ticket.createdById === userId;
+        const isRequesterStaff = isTicketRequesterSide(userId, ticket);
         const isHandler = canAccessTicketObject({ role }, ticket) && canAccessTicketSite(role as UserRole, userSiteId, ticket.siteId);
         const updateData = {
             ...(isHandler || !isRequesterStaff ? { agentLastReadAt: now } : {}),
@@ -402,7 +413,7 @@ export class TicketMessagingService {
             .update(Ticket)
             .set({ [column]: at, updatedAt: () => '"updatedAt"', version: () => '"version"' })
             .where('id = :ticketId', { ticketId })
-            .andWhere(`("${column}" IS NULL OR ("lastMessageAt" IS NOT NULL AND "lastMessageAt" > "${column}"))`)
+            .andWhere(`"lastMessageAt" IS NOT NULL AND ("${column}" IS NULL OR "lastMessageAt" > "${column}")`)
             .execute();
         return (result.affected ?? 0) > 0;
     }

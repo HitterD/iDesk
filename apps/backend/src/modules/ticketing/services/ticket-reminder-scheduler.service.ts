@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import { TicketReminder } from '../entities/ticket-reminder.entity';
 import { Ticket, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
+import { EventsGateway } from '../presentation/gateways/events.gateway';
+import { presentMessage } from '../utils/message-presenter.util';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 
@@ -23,6 +25,8 @@ export class TicketReminderSchedulerService {
         private readonly messageRepo: Repository<TicketMessage>,
         private readonly mailDispatch: MailDispatchService,
         private readonly configService: ConfigService,
+        @Optional()
+        private readonly eventsGateway?: EventsGateway,
     ) {}
 
     @Cron('*/1 * * * *', { timeZone: 'Asia/Jakarta', name: 'ticket-reminder-check' })
@@ -115,15 +119,26 @@ export class TicketReminderSchedulerService {
                 },
             });
 
-            // Add system timeline message
+            // Add internal system timeline message (hidden from requester; omit staff email address)
             const noteText = reminder.note ? ` Catatan: "${reminder.note}"` : '';
+            const senderActor = reminder.createdBy ?? assignedAgent;
             const timelineMessage = this.messageRepo.create({
-                content: `🔔 **Pengingat Tiket Terkirim**: Email pengingat jadwal (${remindAtFormatted}) telah dikirimkan ke agent ${assignedAgent.fullName} (${assignedAgent.email}).${noteText}`,
+                content: `🔔 **Pengingat Tiket Terkirim**: Jadwal pengingat (${remindAtFormatted}) telah dikirim ke agent ${assignedAgent.fullName}.${noteText}`,
                 ticket: ticket,
                 senderId: reminder.createdById || assignedAgent.id,
                 isSystemMessage: true,
+                isInternal: true,
             });
-            await this.messageRepo.save(timelineMessage);
+            const savedTimeline = await this.messageRepo.save(timelineMessage);
+            this.eventsGateway?.notifyNewMessage?.(ticket.id, {
+                ...presentMessage(savedTimeline),
+                sender: {
+                    id: savedTimeline.senderId,
+                    fullName: senderActor.fullName,
+                    role: senderActor.role,
+                    avatarUrl: (senderActor as any).avatarUrl ?? null,
+                },
+            });
 
             reminder.isSent = true;
             reminder.sentAt = new Date();

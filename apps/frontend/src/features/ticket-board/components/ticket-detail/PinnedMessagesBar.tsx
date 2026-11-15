@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pin, PinOff } from 'lucide-react';
 import { quoteKind, toDisplayName } from './messageThread';
 
@@ -6,6 +6,7 @@ export interface PinnedBarItem {
     id: string;
     senderName: string;
     snippet: string;
+    canUnpin?: boolean;
 }
 
 interface PinnedMessagesBarProps {
@@ -31,13 +32,16 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJu
     // Any change to the set (a new pin may replace the oldest at three) shows the newest pin again.
     const pinKey = pins.map((p) => p.id).join(',');
     const [shownKey, setShownKey] = useState(pinKey);
-    if (shownKey !== pinKey) {
-        setShownKey(pinKey);
-        setIndex(pins.length - 1);
-    }
+    useEffect(() => {
+        if (shownKey !== pinKey) {
+            setShownKey(pinKey);
+            setIndex(pins.length - 1);
+        }
+    }, [pinKey, shownKey, pins.length]);
     if (pins.length === 0) return null;
 
-    const current = pins[Math.min(Math.max(index, 0), pins.length - 1)];
+    const effectiveIndex = shownKey !== pinKey ? pins.length - 1 : index;
+    const current = pins[Math.min(Math.max(effectiveIndex, 0), pins.length - 1)];
     const position = pins.indexOf(current) + 1;
     const handleClick = () => {
         onJump(current.id);
@@ -63,7 +67,7 @@ export const PinnedMessagesBar: React.FC<PinnedMessagesBarProps> = ({ pins, onJu
                     <span>{preview(current.snippet)}</span>
                 </span>
             </button>
-            {onUnpin && (
+            {onUnpin && current.canUnpin !== false && (
                 <button type="button" className="chat-pins-x" aria-label="Lepas sematan" title="Lepas sematan" onClick={() => onUnpin(current.id)}>
                     <PinOff aria-hidden="true" />
                 </button>

@@ -8,7 +8,6 @@ import {
     XCircle,
     Store,
     ArrowRight,
-    UserCheck,
     AlertCircle,
     UserPlus,
     UserMinus,
@@ -29,16 +28,24 @@ import { STATUS_TONE_CLASSES } from '@/lib/constants/ticket.constants';
 import { formatRelativeTime, formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatMessageTime, toDisplayName } from './messageThread';
 import { ForwardEventCard, parseForwardEvent } from './ForwardEventCard';
+import { getAttachmentUrl, isImageUrl } from './utils';
 
 interface SystemMessageEventProps {
     content: string;
     createdAt: string;
     attachments?: string[];
     onImageClick?: (url: string) => void;
+    onPdfClick?: (url: string, filename: string) => void;
     className?: string;
     /** Requester copy hides staff-only details (SLA pause note, actor). */
     audience?: 'staff' | 'requester';
 }
+
+const redactActorForRequester = (text: string): string =>
+    text
+        .replace(/\s+\b(?:by|oleh)\s+[^\n.(]+/gi, '')
+        .replace(/\n\s*Diperpanjang oleh:[^\n]*/gi, '')
+        .trim();
 
 // Config for status badges with Indonesian labels & tailored colors
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; border: string; dot: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -112,6 +119,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
     createdAt,
     attachments = [],
     onImageClick,
+    onPdfClick,
     className,
     audience = 'staff',
 }) => {
@@ -174,32 +182,64 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {attachments.map((url, idx) => {
-                                        const isPdf = typeof url === 'string' && url.toLowerCase().includes('.pdf');
-                                        return (
-                                            <div
-                                                key={idx}
-                                                className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer transition-all h-24"
-                                                onClick={() => onImageClick && onImageClick(url)}
-                                            >
-                                                {isPdf ? (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center p-2 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30">
-                                                        <FileText className="w-6 h-6 mb-1" />
-                                                        <span className="text-[10px] font-bold truncate max-w-full">Lihat PDF</span>
+                                        if (typeof url !== 'string') return null;
+                                        const fullUrl = getAttachmentUrl(url);
+                                        if (!fullUrl) return null;
+                                        const cleanPath = url.split(/[?#]/)[0];
+                                        const fileName = decodeURIComponent(cleanPath.substring(cleanPath.lastIndexOf('/') + 1)) || `Lampiran #${idx + 1}`;
+                                        const isPdf = cleanPath.toLowerCase().endsWith('.pdf');
+                                        const isImg = isImageUrl(url);
+
+                                        if (isPdf) {
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => (onPdfClick ? onPdfClick(fullUrl, fileName) : window.open(fullUrl, '_blank', 'noopener,noreferrer'))}
+                                                    title={fileName}
+                                                    className="group relative rounded-xl overflow-hidden bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100/70 dark:hover:bg-emerald-950/50 cursor-pointer transition-all h-24 w-full flex flex-col items-center justify-center p-2 text-emerald-600 dark:text-emerald-400"
+                                                >
+                                                    <FileText className="w-6 h-6 mb-1" />
+                                                    <span className="text-[10px] font-bold truncate max-w-full">Lihat PDF</span>
+                                                </button>
+                                            );
+                                        }
+
+                                        if (isImg) {
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer transition-all h-24 w-full"
+                                                    onClick={() => onImageClick?.(fullUrl)}
+                                                    aria-label={`Perbesar ${fileName}`}
+                                                >
+                                                    <img
+                                                        src={fullUrl}
+                                                        alt={`Bukti Penyelesaian #${idx + 1}`}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                                        <ZoomIn className="w-3.5 h-3.5" />
+                                                        <span>Perbesar</span>
                                                     </div>
-                                                ) : (
-                                                    <>
-                                                        <img
-                                                            src={url}
-                                                            alt={`Bukti Penyelesaian #${idx + 1}`}
-                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                                        />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1">
-                                                            <ZoomIn className="w-3.5 h-3.5" />
-                                                            <span>Perbesar</span>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
+                                                </button>
+                                            );
+                                        }
+
+                                        return (
+                                            <a
+                                                key={idx}
+                                                href={fullUrl}
+                                                download={fileName}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={fileName}
+                                                className="group relative rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-all h-24 w-full flex flex-col items-center justify-center p-2 text-slate-600 dark:text-slate-300"
+                                            >
+                                                <FileText className="w-6 h-6 mb-1" />
+                                                <span className="text-[10px] font-semibold truncate max-w-full px-1">{fileName}</span>
+                                            </a>
                                         );
                                     })}
                                 </div>
@@ -209,7 +249,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                     {/* Footer */}
                     <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-slate-400">
-                        {actorMatch ? (
+                        {actorMatch && audience !== 'requester' ? (
                             <div className="flex items-center gap-1.5">
                                 <UserIcon className="w-3 h-3 text-emerald-600" />
                                 <span>Diselesaikan oleh <strong className="font-medium text-slate-800 dark:text-slate-200">{toDisplayName(actorMatch[1].trim())}</strong></span>
@@ -250,6 +290,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
         const category = categoryMatch ? sanitize(categoryMatch[1]) : '';
         const explanation = explanationMatch ? sanitize(explanationMatch[1]) : '';
         const actor = actorMatch ? sanitize(actorMatch[1]) : '';
+        const isRequester = audience === 'requester';
 
         return (
             <div className={cn("w-full flex justify-center my-3.5 px-2", className)}>
@@ -274,7 +315,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     {/* Body */}
                     <div className="p-3.5 space-y-2.5 text-xs">
                         {/* Target Deadline Baru & Kategori */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className={cn("grid grid-cols-1 gap-2", !isRequester && category && "sm:grid-cols-2")}>
                             {deadline && (
                                 <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
                                     <Calendar className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
@@ -289,7 +330,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                                 </div>
                             )}
 
-                            {category && (
+                            {!isRequester && category && (
                                 <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] flex items-start gap-2">
                                     <AlertCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                                     <div className="min-w-0">
@@ -305,7 +346,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         </div>
 
                         {/* Penjelasan Alasan */}
-                        {explanation && (
+                        {!isRequester && explanation && (
                             <div className="p-3 rounded-xl bg-slate-100/70 dark:bg-white/[0.04] space-y-1">
                                 <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
                                     Rincian Kendala
@@ -319,7 +360,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                     {/* Footer */}
                     <div className="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-                        {actor ? (
+                        {actor && !isRequester ? (
                             <div className="flex items-center gap-1.5 min-w-0">
                                 <UserIcon className="w-3 h-3 text-slate-400 shrink-0" />
                                 <span className="truncate">
@@ -426,7 +467,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
 
                 {/* Subtitle / Actor Info */}
                 <small className="flex items-center gap-1">
-                    {actor && (
+                    {actor && audience !== 'requester' && (
                         <>
                             <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
@@ -499,7 +540,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                     </span>
                 </div>
                 <small className="flex items-center gap-1">
-                    {actor && (
+                    {actor && audience !== 'requester' && (
                         <>
                             <span>oleh <strong className="font-medium">{toDisplayName(actor)}</strong></span>
                             <span>·</span>
@@ -510,6 +551,8 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
             </div>
         );
     }
+
+    const displayFallbackContent = audience === 'requester' ? redactActorForRequester(cleanContent) : cleanContent;
 
     // 6. Generic Multiline System Message
     if (content.includes('\n')) {
@@ -523,7 +566,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                         </span>
                         <span>{formatRelativeTime(createdAt)}</span>
                     </div>
-                    <p className="whitespace-pre-wrap leading-relaxed">{cleanContent}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed">{displayFallbackContent}</p>
                 </div>
             </div>
         );
@@ -543,7 +586,7 @@ export const SystemMessageEvent: React.FC<SystemMessageEventProps> = ({
                 ) : (
                     <Info className="w-3.5 h-3.5 text-primary shrink-0" />
                 )}
-                <span>{cleanContent}</span>
+                <span>{displayFallbackContent}</span>
                 <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
                     · {formatMessageTime(createdAt)}
                 </span>

@@ -99,6 +99,12 @@ export interface TicketDetail {
         email?: string;
         site?: { name?: string; code?: string };
     };
+    requester?: {
+        fullName?: string;
+    } | null;
+    customerSession?: {
+        fullName?: string;
+    } | null;
     messages?: {
         id: string;
         content: string;
@@ -119,6 +125,7 @@ export interface TicketDetail {
         replyTo?: { id: string; senderName: string; snippet: string; isDeleted: boolean } | null;
         isPinned?: boolean;
         pinnedAt?: string | null;
+        canUnpin?: boolean;
         /** Saved reactions: who reacted with which emoji (one per person). */
         reactions?: { emoji: string; count: number; userIds: string[]; userNames: string[] }[];
         mentionedUserIds?: string[];

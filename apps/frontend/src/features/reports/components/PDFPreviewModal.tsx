@@ -94,30 +94,43 @@ export const PDFPreviewModal: React.FC<PDFPreviewModalProps> = ({
     const fetchUrl = withSignoff(pdfUrl, applied);
 
     useEffect(() => {
-        if (isOpen && pdfUrl) {
-            setLoading(true);
-            setError(null);
+        if (!isOpen || !pdfUrl) return;
+        let cancelled = false;
+        let createdUrl: string | null = null;
+        setLoading(true);
+        setError(null);
 
-            api.get(fetchUrl, { responseType: 'blob' })
-                .then((response) => {
-                    const blob = new Blob([response.data], { type: 'application/pdf' });
-                    const url = window.URL.createObjectURL(blob);
-                    setPdfBlobUrl(url);
-                    setLoading(false);
-                })
-                .catch((err) => {
-                    logger.error('Failed to load PDF preview:', err);
-                    setError('Failed to load preview');
-                    setLoading(false);
-                });
+        api.get(fetchUrl, { responseType: 'blob' })
+            .then((response) => {
+                if (cancelled) return;
+                const blob = new Blob([response.data], { type: 'application/pdf' });
+                createdUrl = window.URL.createObjectURL(blob);
+                setPdfBlobUrl(createdUrl);
+                setLoading(false);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                logger.error('Failed to load PDF preview:', err);
+                setError('Failed to load preview');
+                setLoading(false);
+            });
 
-            return () => {
-                if (pdfBlobUrl) {
-                    window.URL.revokeObjectURL(pdfBlobUrl);
-                }
-            };
-        }
-    }, [isOpen, fetchUrl]);
+        return () => {
+            cancelled = true;
+            if (createdUrl) {
+                window.URL.revokeObjectURL(createdUrl);
+            }
+        };
+    }, [isOpen, pdfUrl, fetchUrl]);
+
+    useEffect(() => {
+        if (!isOpen || editorOpen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, editorOpen, onClose]);
 
     const handleDownload = () => {
         if (pdfBlobUrl) {

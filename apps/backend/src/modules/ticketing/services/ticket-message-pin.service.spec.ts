@@ -90,6 +90,7 @@ describe('TicketMessagePinService', () => {
 
     it.each([
         ['a closed ticket', message(), ticket({ status: TicketStatus.CLOSED })],
+        ['a cancelled ticket', message(), ticket({ status: TicketStatus.CANCELLED })],
         ['a system message', message({ isSystemMessage: true }), ticket()],
         ['a deleted message', message({ deletedAt: new Date() }), ticket()],
         ['an archived internal note', message({ isInternal: true }), ticket()],
@@ -163,5 +164,17 @@ describe('TicketMessagePinService', () => {
         await service.pin('t-1', 'm-1', REQUESTER);
         for (const u of updates) expect(Object.keys(u.values).sort()).toEqual(['pinnedAt', 'pinnedById']);
         expect(TicketMessage).toBeDefined();
+    });
+
+    it('computes canUnpin per viewer in pin/unpin responses without exposing pinnedById', async () => {
+        const { service } = build(message(), ticket(), [pinned('m-2', 10, { pinnedById: 'u-1' })]);
+        const requesterPins = await service.pin('t-1', 'm-1', REQUESTER);
+        expect(requesterPins.find((p) => p.id === 'm-2')).toMatchObject({ canUnpin: true });
+        expect(requesterPins.find((p) => p.id === 'm-2')).not.toHaveProperty('pinnedById');
+
+        const otherPins = await build(message({ id: 'm-3', senderId: 'agent-1' }), ticket(), [pinned('m-2', 10, { pinnedById: 'u-1' })])
+            .service.pin('t-1', 'm-3', AGENT);
+        expect(otherPins.find((p) => p.id === 'm-2')).toMatchObject({ canUnpin: false });
+        expect(otherPins.find((p) => p.id === 'm-3')).toMatchObject({ canUnpin: true });
     });
 });

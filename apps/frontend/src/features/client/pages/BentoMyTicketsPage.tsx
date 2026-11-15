@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Inbox,
     ArrowRight,
@@ -73,7 +73,13 @@ const ROW_SKELETON_COUNT = 5;
 const PAGER_BUTTON = 'p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer';
 
 export const BentoMyTicketsPage: React.FC = () => {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchParams] = useSearchParams();
+    const initialSearch = searchParams.get('search') ?? '';
+    return <BentoMyTicketsContent key={initialSearch} initialSearch={initialSearch} />;
+};
+
+const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSearch }) => {
+    const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
@@ -89,7 +95,7 @@ export const BentoMyTicketsPage: React.FC = () => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleNewMessage = (data: any) => {
+        const handleNewMessage = (data: { message?: { senderId?: string }; ticketId?: string }) => {
             if (data.message?.senderId === user?.id) return;
 
             const ticketId = data.ticketId;

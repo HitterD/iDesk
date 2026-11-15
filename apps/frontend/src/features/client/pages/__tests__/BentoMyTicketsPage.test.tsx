@@ -231,4 +231,19 @@ describe('BentoMyTicketsPage', () => {
         expect(banner).not.toHaveTextContent(/segera|cepat|menit|jam/i);
         expect(banner.querySelector('img')).toHaveAttribute('src', '/characters/mascot-service.png');
     });
+
+    it('initializes search filter from ?search= URL query parameter', async () => {
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter initialEntries={['/client/my-tickets?search=190826-GEN-0001']}>
+                    <BentoMyTicketsPage />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        await screen.findAllByText('Komputer tidak bisa menyala');
+        expect(screen.getByRole('searchbox')).toHaveValue('190826-GEN-0001');
+        const last = new URLSearchParams(listCalls().at(-1)!.split('?')[1]);
+        expect(last.get('search')).toBe('190826-GEN-0001');
+    });
 });

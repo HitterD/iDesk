@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const handlers = new Map<string, Array<(payload?: any) => void>>();
 
 const socket = {
+    id: 'sock-self',
     connected: true,
     on: vi.fn((event: string, handler: (payload?: any) => void) => {
         handlers.set(event, [...(handlers.get(event) ?? []), handler]);
@@ -120,6 +121,20 @@ describe('useTicketSocket', () => {
         act(() => {
             vi.advanceTimersByTime(200);
         });
+        expect(result.current.typingUsers).toEqual({});
+    });
+
+    it('ignores self-tab typing:start events matching own socket.id', () => {
+        const { result } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), {
+            wrapper: createWrapper(),
+        });
+
+        fire('typing:start', {
+            ticketId: 'ticket-1',
+            user: { fullName: 'Agent Bagas' },
+            socketId: 'sock-self',
+        });
+
         expect(result.current.typingUsers).toEqual({});
     });
 

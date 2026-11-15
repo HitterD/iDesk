@@ -14,6 +14,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { NotificationService } from '../../notifications/notification.service';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
+import { presentMessage } from '../utils/message-presenter.util';
 
 /**
  * Move a ticket between ops-support (within or across self-handled sites) and developer teams.
@@ -187,9 +188,17 @@ export class TicketForwardService {
             senderId: actor.userId,
             isSystemMessage: true,
         });
-        await this.messageRepo.save(message);
+        const savedMessage = await this.messageRepo.save(message);
+        this.eventsGateway?.notifyNewMessage?.(ticketId, {
+            ...presentMessage(savedMessage),
+            sender: {
+                id: actor.userId,
+                fullName: actor.fullName,
+                role: actor.role ?? UserRole.AGENT,
+            },
+        });
 
-        this.emitForwardUpdates(ticketId, previousSiteId, saved.siteId ?? null);
+        this.emitForwardUpdates(saved, previousSiteId, saved.siteId ?? null);
 
         this.logger.log(
             `Ticket ${ticket.ticketNumber || ticketId} forwarded ${previousTeam} -> ${dto.targetTeam}` +
@@ -239,7 +248,9 @@ export class TicketForwardService {
         }
     }
 
-    private emitForwardUpdates(ticketId: string, previousSiteId: string | null, nextSiteId: string | null): void {
+    private emitForwardUpdates(ticket: Ticket, previousSiteId: string | null, nextSiteId: string | null): void {
+        const ticketId = ticket.id;
+        void this.eventsGateway?.pruneTicketRooms?.(ticket);
         const affectedSites = [...new Set([previousSiteId, nextSiteId].filter((id): id is string => Boolean(id)))];
         this.eventsGateway?.server?.to?.(`ticket:${ticketId}`)?.emit('ticket:updated', { ticketId });
         for (const siteId of affectedSites) {

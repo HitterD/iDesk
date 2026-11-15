@@ -1541,6 +1541,7 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .chat-tools svg { width: 15px; height: 15px; stroke-width: 1.9; }
 @media (max-width: 860px), (hover: none) {
   .chat-tools { top: auto; bottom: calc(100% + 6px); left: 0; }
+  .chat-msg:first-child .chat-tools, .chat-day:first-child + .chat-msg .chat-tools { bottom: auto; top: calc(100% + 6px); }
   .chat-msg.is-out .chat-tools { left: auto; right: 0; }
   .chat-tools > button { width: 36px; height: 36px; }
   .chat-msg { max-width: 92%; }
