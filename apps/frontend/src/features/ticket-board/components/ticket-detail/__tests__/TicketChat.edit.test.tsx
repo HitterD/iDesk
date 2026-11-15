@@ -228,9 +228,10 @@ describe('TicketChat edit and delete', () => {
         await user.click(within(row('m-1')).getByRole('button', { name: 'Aksi lainnya' }));
         await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
         expect(input.value).toBe('Baik, saya cek');
+        await waitFor(() => expect(input).toHaveFocus());
 
         await user.keyboard('{Escape}');
-        expect(screen.queryByText('Mengedit pesan')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByText('Mengedit pesan')).not.toBeInTheDocument());
         expect(input.value).toBe('Draft balasan belum terkirim');
     });
 
