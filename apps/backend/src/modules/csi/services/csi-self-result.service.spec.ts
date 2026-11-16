@@ -237,6 +237,29 @@ describe('CsiSelfResultService', () => {
             expect(pics.rows[1].userId).toBeNull();
         });
 
+        it('finds personal results when another duplicate csi_pics row or orphan ratee matches unique active user', async () => {
+            ratees = repo([
+                { id: 'r-dup-tpl', periodId: 'p1', userId: null, picId: 'pic-tpl', kind: 'PERSON', displayName: 'SRI SUPATMI', serviceFunction: 'ATK', period },
+                { id: 'r-orphan', periodId: 'p2', userId: null, picId: null, kind: 'PERSON', displayName: 'Sri  Supatmi', serviceFunction: 'ATK', period: { ...period, id: 'p2', startDate: '2026-10-01' } },
+                { id: 'r-other-active', periodId: 'p3', userId: 'u-other', picId: null, kind: 'PERSON', displayName: 'Sri Supatmi', serviceFunction: 'ATK', period: { ...period, id: 'p3', startDate: '2026-09-01' } },
+            ]);
+            // Admin already linked pic-linked to u-sri, while active survey points to pic-tpl (userId: null).
+            pics = repo([
+                { id: 'pic-linked', scope: 'HC', nik: '00003713', fullName: 'Sri Supatmi', userId: 'u-sri', user: null },
+                { id: 'pic-tpl', scope: 'HC', nik: 'TPL-8899', fullName: 'SRI SUPATMI', aliases: [], userId: null, user: null },
+            ]);
+            const users = repo([
+                { id: 'u-sri', fullName: 'SRI SUPATMI', employeeId: '00003713', isActive: true },
+                { id: 'u-other', fullName: 'Someone Else', employeeId: null, isActive: true },
+            ]);
+            const fullService = new CsiSelfResultService(
+                ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any,
+                undefined, undefined, users as any,
+            );
+            const results = await fullService.list('u-sri', NOW);
+            expect(results.map((r) => r.periodRateeId)).toEqual(['r-dup-tpl', 'r-orphan']);
+        });
+
         it('remindRaters delegates only assigned pending targets via CsiReminderService without leaking counts', async () => {
             const listedPeriod = { ...period, id: 'p-listed', respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, sites: [{ siteId: 's1' }] };
             ratees = repo([
