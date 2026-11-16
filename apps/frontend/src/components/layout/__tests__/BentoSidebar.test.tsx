@@ -6,6 +6,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { BentoSidebar } from '../BentoSidebar';
 
 const csiActive = vi.hoisted(() => ({ current: [] as Array<{ id: string; scope: string; title: string; submitted: boolean }> }));
+const csiMyResults = vi.hoisted(() => ({ current: [] as Array<{ periodRateeId: string }> }));
 const csiReportAccess = vi.hoisted(() => ({
     hc: { admin: false, services: [] as string[] },
     ict: { admin: false, services: [] as string[] },
@@ -17,6 +18,7 @@ vi.mock('@/lib/api', () => ({
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
             if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
             if (url.startsWith('/csi/me/active')) return Promise.resolve({ data: csiActive.current });
+            if (url.startsWith('/csi/me/results')) return Promise.resolve({ data: csiMyResults.current });
             if (url.startsWith('/csi/me/hc/report-access')) return Promise.resolve({ data: csiReportAccess.hc });
             if (url.startsWith('/csi/me/ict/report-access')) return Promise.resolve({ data: csiReportAccess.ict });
             return Promise.resolve({ data: {} });
@@ -132,6 +134,15 @@ describe('BentoSidebar', () => {
         renderSidebar('/manager/dashboard');
         const link = await screen.findByRole('link', { name: 'Survei CSI' });
         expect(link).toHaveAttribute('href', '/manager/csi');
+    });
+
+    it('shows Hasil CSI Saya when user is rated without an active survey', async () => {
+        csiActive.current = [];
+        csiMyResults.current = [{ periodRateeId: 'pr-1' }];
+        authUser.current = { id: 'agent-1', fullName: 'Rated Agent', role: 'AGENT' };
+        renderSidebar('/dashboard');
+        expect(await screen.findByRole('link', { name: 'Hasil CSI Saya' })).toHaveAttribute('href', '/csi/hasil-saya');
+        csiMyResults.current = [];
     });
 
     it('shows Report CSI for non-admin report owners when no survey is active, but skips extra entry for admin', async () => {

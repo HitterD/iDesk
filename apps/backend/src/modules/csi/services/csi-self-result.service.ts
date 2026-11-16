@@ -96,17 +96,20 @@ export class CsiSelfResultService {
     /** Resolves and returns published non-cancelled ratees owned by `userId` (personal first, then custom teams). */
     private async ownedRatees(userId: string): Promise<{ rows: CsiPeriodRatee[]; linkedByPic: Map<string, string | null> }> {
         const picIds = await this.resolveOwnedPicIds(userId);
-        const published = { publishStatus: CsiPeriodPublishStatus.PUBLISHED };
-        const hc = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.HC } };
-        // ICT only for surveys created with the promise (csi_periods.selfResults), never for older ICT surveys.
-        const ict = { kind: CsiRateeKind.PERSON, period: { ...published, scope: ServiceScope.ICT, selfResults: true } };
-        const teamIds = (await this.members.find({ where: { userId, team: { kind: CsiTeamKind.CUSTOM } }, select: { teamId: true } }))
+        // Load direct member rows without nested relation filters so TypeORM OR-joins never drop matches.
+        const memberRows = await this.members.find({ where: { userId }, relations: { team: true } });
+        const teamIds = memberRows
+            .filter((member) => !member.team || member.team.kind === CsiTeamKind.CUSTOM)
             .map((member) => member.teamId);
-        const teams = teamIds.length ? [{ ...hc, kind: CsiRateeKind.TEAM, teamId: In(teamIds), team: { kind: CsiTeamKind.CUSTOM } }] : [];
         const rawRows = (await this.ratees.find({
-            where: [{ ...hc, userId }, { ...ict, userId }, ...(picIds.length ? [{ ...hc, picId: In(picIds) }] : []), ...teams],
+            where: [
+                { kind: CsiRateeKind.PERSON, userId },
+                ...(picIds.length ? [{ kind: CsiRateeKind.PERSON, picId: In(picIds) }] : []),
+                ...(teamIds.length ? [{ kind: CsiRateeKind.TEAM, teamId: In(teamIds) }] : []),
+            ],
             relations: { period: { sites: true }, team: true },
         }))
+            .filter((row) => row.period?.publishStatus === CsiPeriodPublishStatus.PUBLISHED)
             .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true))
             .filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index);
         const rowPicIds = [...new Set(rawRows.map((row) => row.picId).filter((id): id is string => !!id))];

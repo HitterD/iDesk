@@ -46,7 +46,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
     const siteCodeOf = (siteId: string | null) => siteOf(siteId)?.code ?? null;
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' },
         ...sites.map((row) => ({ value: row.id, label: row.code ?? row.name ?? row.id }))];
-    const ranked = report ? byAverageDesc(report.ratees) : [];
+    const ranked = report ? byAverageDesc(report.ratees, siteParam) : [];
     const open = ranked.find((ratee) => ratee.periodRateeId === openId) ?? null;
     // The sheet stays mounted while the report loads; it needs bands before any report exists.
     const bands = report?.scoreBands ?? CSI_SCORE_BANDS_DEFAULT;

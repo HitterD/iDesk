@@ -27,6 +27,7 @@ import {
     Smartphone,
     Trash2,
     Star,
+    Award,
     ClipboardCheck,
     HeartHandshake,
     LucideIcon
@@ -39,7 +40,7 @@ import { usePermissions as useIctPermissions } from '@/features/hardware-request
 import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useCsiActive } from '@/features/csi/hooks/useCsi';
+import { useCsiActive, useCsiMyResults } from '@/features/csi/hooks/useCsi';
 import { useCsiOwnerReportAccess } from '@/features/csi/hooks/useCsiHc';
 import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
 import { csiAdminPath, CSI_ADMIN_PAGE_KEYS } from '@/features/csi/lib/csiAdmin';
@@ -152,7 +153,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const { isIctRole, isIctLead } = useIctPermissions();
     // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
     const { data: activeSurveys } = useCsiActive();
+    const { data: myResults } = useCsiMyResults();
     const hasActiveSurvey = (activeSurveys?.length ?? 0) > 0;
+    const hasMyResults = (myResults?.length ?? 0) > 0;
     const pendingSurveyCount = activeSurveys?.filter((survey) => !survey.submitted).length ?? 0;
     const hasOwnerReport = useCsiOwnerReportAccess();
 
@@ -458,12 +461,15 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             }
         }
 
+        const csiBase = isManager ? CSI_PATHS.manager : CSI_PATHS.staff;
         if (hasActiveSurvey) {
             // No pageKey: eligibility is decided by the backend's active-survey list.
-            nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei CSI', path: isManager ? CSI_PATHS.manager : CSI_PATHS.staff });
+            nav.push({ key: 'csi', icon: Star, tone: 'teal', label: 'Survei CSI', path: csiBase });
+        } else if (hasMyResults) {
+            nav.push({ key: 'csi_my_results', icon: Award, tone: 'teal', label: 'Hasil CSI Saya', path: `${csiBase}/hasil-saya` });
         }
         if (hasOwnerReport) {
-            nav.push({ key: 'csi_report', icon: BarChart3, tone: 'teal', label: 'Report CSI', path: `${isManager ? CSI_PATHS.manager : CSI_PATHS.staff}/report` });
+            nav.push({ key: 'csi_report', icon: BarChart3, tone: 'teal', label: 'Report CSI', path: `${csiBase}/report` });
         }
 
         return nav;

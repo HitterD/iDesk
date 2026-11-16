@@ -60,9 +60,24 @@ export function strongestAndWeakest(columns: readonly QuestionColumn[]) {
     return { strongest: scored[0] ?? null, weakest: scored.length > 1 ? scored[scored.length - 1] : null };
 }
 
-/** Subjects by average, highest first; subjects without a score go last. */
-export const byAverageDesc = (ratees: readonly CsiReportRatee[]) =>
-    [...ratees].sort((a, b) => (b.average ?? -1) - (a.average ?? -1));
+/**
+ * Subjects by average, highest first; subjects without a score go last.
+ * When filtering by one site, subjects based at that site precede cross-site subjects (so a 1-rater 5,00 from
+ * another site never ranks first across non-home site tabs); ties break by respondent count, then displayName.
+ */
+export const byAverageDesc = (ratees: readonly CsiReportRatee[], activeSiteId?: string) =>
+    [...ratees].sort((a, b) => {
+        if (activeSiteId) {
+            const aOwn = a.siteId === activeSiteId ? 1 : 0;
+            const bOwn = b.siteId === activeSiteId ? 1 : 0;
+            if (bOwn !== aOwn) return bOwn - aOwn;
+        }
+        const avgDiff = (b.average ?? -1) - (a.average ?? -1);
+        if (avgDiff !== 0) return avgDiff;
+        const countDiff = b.respondentCount - a.respondentCount;
+        if (countDiff !== 0) return countDiff;
+        return a.displayName.localeCompare(b.displayName, 'id');
+    });
 
 export const scorePct = (average: number | null) => average === null ? 0 : (average / SCORE_MAX) * PERCENT;
 /** Share of the basis, never above 100% (more answers than the basis reads as complete). */

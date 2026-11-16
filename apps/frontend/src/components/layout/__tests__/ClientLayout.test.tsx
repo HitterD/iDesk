@@ -12,6 +12,7 @@ vi.mock('@/hooks/usePermissions', () => ({
 }));
 vi.mock('@/features/csi/hooks/useCsi', () => ({
     useCsiActive: () => ({ data: [] }),
+    useCsiMyResults: () => ({ data: [] }),
 }));
 vi.mock('@/features/csi/hooks/useCsiHc', () => ({
     useCsiOwnerReportAccess: () => false,
