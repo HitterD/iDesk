@@ -74,7 +74,7 @@ export class CsiSelfResultService {
 
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
         const { rows, linkedByPic } = await this.ownedRatees(userId);
-        const targetByRatee = await this.assignedRaterUserIdsByRatee(rows, linkedByPic);
+        const targetByRatee = await this.assignedRaterUserIdsByRatee(rows, linkedByPic, userId);
         const results = await Promise.all(rows.map((row) => this.resultOf(row, targetByRatee.get(row.id) ?? null, now)));
         return results.sort((a, b) => b.startDate.localeCompare(a.startDate));
     }
@@ -86,7 +86,7 @@ export class CsiSelfResultService {
         if (!ratee) throw new NotFoundException(NOT_FOUND_MESSAGE);
         if (computeStatus(ratee.period, now) !== 'ACTIVE') throw new BadRequestException(NOT_ACTIVE_MESSAGE);
         if (ratee.period.respondentMode !== CsiRespondentMode.LISTED) throw new BadRequestException(LISTED_ONLY_MESSAGE);
-        const targetByRatee = await this.assignedRaterUserIdsByRatee([ratee], linkedByPic);
+        const targetByRatee = await this.assignedRaterUserIdsByRatee([ratee], linkedByPic, userId);
         const targets = targetByRatee.get(ratee.id) ?? [];
         if (!targets.length || !this.reminders) return { reminded: false };
         const result = await this.reminders.send(ratee.period.scope, ratee.period.id, targets, now);
@@ -95,16 +95,18 @@ export class CsiSelfResultService {
 
     /** Resolves and returns published non-cancelled ratees owned by `userId` (personal first, then custom teams). */
     private async ownedRatees(userId: string): Promise<{ rows: CsiPeriodRatee[]; linkedByPic: Map<string, string | null> }> {
-        const picIds = await this.resolveOwnedPicIds(userId);
+        const ctx = await this.resolveViewerContext(userId);
         // Load direct member rows without nested relation filters so TypeORM OR-joins never drop matches.
         const memberRows = await this.members.find({ where: { userId }, relations: { team: true } });
         const teamIds = memberRows
             .filter((member) => !member.team || member.team.kind === CsiTeamKind.CUSTOM)
             .map((member) => member.teamId);
+        const personFilters = ctx.isUniqueActiveName
+            ? [{ kind: CsiRateeKind.PERSON }]
+            : [{ kind: CsiRateeKind.PERSON, userId }, ...(ctx.allPicIds.length ? [{ kind: CsiRateeKind.PERSON, picId: In(ctx.allPicIds) }] : [])];
         const rawRows = (await this.ratees.find({
             where: [
-                { kind: CsiRateeKind.PERSON, userId },
-                ...(picIds.length ? [{ kind: CsiRateeKind.PERSON, picId: In(picIds) }] : []),
+                ...personFilters,
                 ...(teamIds.length ? [{ kind: CsiRateeKind.TEAM, teamId: In(teamIds) }] : []),
             ],
             relations: { period: { sites: true }, team: true },
@@ -115,10 +117,17 @@ export class CsiSelfResultService {
         const rowPicIds = [...new Set(rawRows.map((row) => row.picId).filter((id): id is string => !!id))];
         const rowPics = rowPicIds.length ? await this.pics.find({ where: { id: In(rowPicIds) }, select: { id: true, userId: true } }) : [];
         const linkedByPic = new Map(rowPics.map((pic) => [pic.id, pic.userId ?? null]));
+        for (const reconciledId of ctx.reconciledIds) linkedByPic.set(reconciledId, userId);
+
         const rows = rawRows
-            .filter((row) => row.kind === CsiRateeKind.TEAM
-                ? row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!)
-                : ratedAccountOf(row, linkedByPic) === userId)
+            .filter((row) => {
+                if (row.kind === CsiRateeKind.TEAM) return row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!);
+                const owner = ratedAccountOf(row, linkedByPic);
+                if (owner === userId) return true;
+                if (!ctx.isUniqueActiveName || row.period?.scope !== ServiceScope.HC) return false;
+                const ownerInactive = owner !== null && ctx.activeIds !== null && !ctx.activeIds.has(owner);
+                return normalizeName(row.displayName ?? '') === ctx.viewerName && (!owner || ownerInactive);
+            })
             .filter((row) => row.period && !row.period.cancelledAt
                 && (row.kind === CsiRateeKind.TEAM ? row.period.teamEnabled === true : row.period.individualEnabled !== false));
         const ordered = [...rows.filter((row) => row.kind !== CsiRateeKind.TEAM), ...rows.filter((row) => row.kind === CsiRateeKind.TEAM)];
@@ -126,42 +135,65 @@ export class CsiSelfResultService {
     }
 
     /**
-     * Reconciles unlinked (or inactive-user-linked) HC PICs when the signed-in active user matches by normalised
-     * NIK (`employeeId === pic.nik`) or uniquely by normalised full name across active users & HC PICs.
+     * Resolves all HC PIC ids belonging to `userId` — including duplicate/TPL-/inactive-owner PIC rows even when
+     * another PIC row is already linked to `userId` — plus whether `viewer` has a globally unique active name.
      */
-    private async resolveOwnedPicIds(userId: string): Promise<string[]> {
-        const direct = (await this.pics.find({ where: { userId }, select: { id: true } })).map((pic) => pic.id);
-        if (direct.length || !this.users) return direct;
+    private async resolveViewerContext(userId: string): Promise<{
+        allPicIds: string[]; reconciledIds: string[]; isUniqueActiveName: boolean; viewerName: string; activeIds: Set<string> | null;
+    }> {
+        const directRows = await this.pics.find({ where: { userId }, select: { id: true } });
+        const directIds = directRows.map((pic) => pic.id);
+        if (!this.users) {
+            return { allPicIds: directIds, reconciledIds: [], isUniqueActiveName: false, viewerName: '', activeIds: null };
+        }
         const viewer = await this.users.findOne({ where: { id: userId }, select: { id: true, fullName: true, employeeId: true, isActive: true } });
-        if (!viewer || viewer.isActive === false) return direct;
+        if (!viewer || viewer.isActive === false) {
+            return { allPicIds: directIds, reconciledIds: [], isUniqueActiveName: false, viewerName: '', activeIds: null };
+        }
 
         const hcPics = await this.pics.find({ where: { scope: ServiceScope.HC }, relations: { user: true } });
-        if (hcPics.some((pic) => pic.userId === userId)) return hcPics.filter((pic) => pic.userId === userId).map((pic) => pic.id);
+        const ownedDirect = new Set(hcPics.filter((pic) => pic.userId === userId).map((pic) => pic.id));
+        const allDirectIds = [...new Set([...directIds, ...ownedDirect])];
 
-        const eligible = (pic: CsiPic) => !pic.userId || pic.user?.isActive === false;
+        const viewerName = normalizeName(viewer.fullName ?? '');
+        const activeUsers = viewerName
+            ? await this.users.find({ where: { isActive: true }, select: { id: true, fullName: true } })
+            : [];
+        const activeIds = viewerName ? new Set(activeUsers.map((account) => account.id)) : null;
+        const matchingUsers = viewerName ? activeUsers.filter((account) => normalizeName(account.fullName ?? '') === viewerName) : [];
+        const isUniqueActiveName = Boolean(viewerName) && matchingUsers.length === 1 && matchingUsers[0].id === userId;
+
         const viewerNik = normalizeNik(viewer.employeeId);
-        let matched = viewerNik ? hcPics.find((pic) => eligible(pic) && normalizeNik(pic.nik) === viewerNik) : undefined;
+        const eligible = (pic: CsiPic) => pic.userId !== userId && (!pic.userId || pic.user?.isActive === false);
+        const matchesViewer = (pic: CsiPic) => {
+            if (!eligible(pic)) return false;
+            if (viewerNik && normalizeNik(pic.nik) === viewerNik) return true;
+            if (!isUniqueActiveName) return false;
+            return normalizeName(pic.fullName ?? '') === viewerName
+                || (pic.aliases ?? []).some((alias) => normalizeName(alias) === viewerName);
+        };
 
-        if (!matched) {
-            const viewerName = normalizeName(viewer.fullName ?? '');
-            const namedPics = viewerName ? hcPics.filter((pic) => normalizeName(pic.fullName) === viewerName) : [];
-            if (namedPics.length === 1 && eligible(namedPics[0])) {
-                const activeUsers = await this.users.find({ where: { isActive: true }, select: { id: true, fullName: true } });
-                const matchingUsers = activeUsers.filter((account) => normalizeName(account.fullName ?? '') === viewerName);
-                if (matchingUsers.length === 1 && matchingUsers[0].id === userId) matched = namedPics[0];
-            }
+        const reconciledPics = hcPics.filter(matchesViewer);
+        // Only write back pic.userId when there was no linked HC PIC yet and exactly one clean match exists.
+        if (allDirectIds.length === 0 && reconciledPics.length === 1) {
+            const { user: _staleUser, ...picRow } = reconciledPics[0];
+            await this.pics.save({ ...picRow, userId }).catch(() => undefined);
         }
-        if (!matched) return direct;
-
-        const { user: _staleUser, ...picRow } = matched;
-        await this.pics.save({ ...picRow, userId }).catch(() => undefined);
-        return [matched.id];
+        const reconciledIds = reconciledPics.map((pic) => pic.id);
+        return {
+            allPicIds: [...new Set([...allDirectIds, ...reconciledIds])],
+            reconciledIds,
+            isUniqueActiveName,
+            viewerName,
+            activeIds,
+        };
     }
 
     /** Computes assigned active rater userIds per ratee (`null` for OPEN periods without fixed raters). */
     private async assignedRaterUserIdsByRatee(
         rows: CsiPeriodRatee[],
         linkedByPic: ReadonlyMap<string, string | null>,
+        viewerUserId?: string,
     ): Promise<Map<string, string[] | null>> {
         const result = new Map<string, string[] | null>();
         const byPeriod = new Map<string, CsiPeriodRatee[]>();
@@ -196,7 +228,7 @@ export class CsiSelfResultService {
                         .map((pair) => raterUserById.get(pair.periodRaterId))
                         .filter((id): id is string => Boolean(id))
                     : allActiveUserIds;
-                result.set(ratee.id, [...new Set(rawUserIds)].filter((id) => id !== ownerId));
+                result.set(ratee.id, [...new Set(rawUserIds)].filter((id) => id !== ownerId && !(ratee.kind === CsiRateeKind.PERSON && id === viewerUserId)));
             }
         }
         return result;
