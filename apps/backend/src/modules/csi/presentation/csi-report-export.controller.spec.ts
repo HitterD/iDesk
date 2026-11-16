@@ -7,22 +7,16 @@ import { CsiAdminReportController } from './csi-admin-report.controller';
 import { CsiMeReportController } from './csi-me-report.controller';
 
 const ID = '12345678-1234-4234-8234-123456789012';
-const file = { filename: 'csi-hc - DATA MENTAH (RAHASIA).xlsx', buffer: Buffer.from('x') };
 const response = () => ({ setHeader: jest.fn(), send: jest.fn() });
 const path = (target: object, method: string) => Reflect.getMetadata(PATH_METADATA, (target as any)[method]);
 
 describe('CSI report export endpoints', () => {
-    it('admin raw export lives next to the main export, behind the same admin guard', async () => {
+    it('admin export lives behind the CSI admin guard and omits raw/matrix/response-detail routes', async () => {
         expect(Reflect.getMetadata(GUARDS_METADATA, CsiAdminReportController)).toEqual([JwtAuthGuard, CsiAdminGuard]);
         expect(path(CsiAdminReportController.prototype, 'export')).toBe('export');
-        expect(path(CsiAdminReportController.prototype, 'exportRaw')).toBe('export-raw');
-        const exporter = { buildRawWorkbook: jest.fn(async () => file) };
-        const controller = new CsiAdminReportController({} as any, exporter as any, {} as any);
-        const res = response();
-        await controller.exportRaw({ csiScope: ServiceScope.HC, user: { userId: 'u' } } as any, ID, res as any);
-        expect(exporter.buildRawWorkbook).toHaveBeenCalledWith(ServiceScope.HC, ID, expect.any(Date));
-        expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', `attachment; filename="${file.filename}"`);
-        expect(res.send).toHaveBeenCalledWith(file.buffer);
+        expect((CsiAdminReportController.prototype as any).exportRaw).toBeUndefined();
+        expect((CsiAdminReportController.prototype as any).raterMatrix).toBeUndefined();
+        expect((CsiAdminReportController.prototype as any).responseDetail).toBeUndefined();
     });
 
     it('admin Excel export forwards both siteId filter and notes to buildWorkbook', async () => {
@@ -35,13 +29,8 @@ describe('CSI report export endpoints', () => {
         expect(res.send).toHaveBeenCalledWith(xlsx.buffer);
     });
 
-    it('service-owner raw export goes through the owner-checked service with the caller id', async () => {
-        expect(path(CsiMeReportController.prototype, 'exportRaw')).toBe('periods/:id/services/:serviceCode/export-raw');
-        const reports = { exportRawWorkbook: jest.fn(async () => file) };
-        const controller = new CsiMeReportController({} as any, reports as any);
-        const res = response();
-        await controller.exportRaw({ user: { userId: 'u-rara' } }, 'hc', ID, 'HCD', res as any);
-        expect(reports.exportRawWorkbook).toHaveBeenCalledWith('u-rara', ID, 'HCD', ServiceScope.HC);
-        expect(res.send).toHaveBeenCalledWith(file.buffer);
+    it('service-owner controller exposes only aggregate report and anonymous export (no export-raw)', () => {
+        expect(path(CsiMeReportController.prototype, 'export')).toBe('periods/:id/services/:serviceCode/export');
+        expect((CsiMeReportController.prototype as any).exportRaw).toBeUndefined();
     });
 });

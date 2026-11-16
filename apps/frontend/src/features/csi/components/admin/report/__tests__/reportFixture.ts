@@ -26,7 +26,7 @@ export const report = (over: Partial<CsiReport> = {}): CsiReport => ({
     ratees: [
         ratee({ periodRateeId: 'r1', displayName: 'Dimas', average: 4.4, questions: [
             question('Seberapa cepat petugas merespon laporan Anda?', 4.2, 'Kecepatan respon'), question('Keramahan petugas', 4.6),
-        ], comments: [{ text: 'Respon cepat', departmentName: 'Finance', submittedAt: '2026-10-29T03:00:00Z' }] }),
+        ], comments: [{ text: 'Respon cepat' }] }),
         ratee({ periodRateeId: 'r2', displayName: 'Nur', siteId: 's2', average: 4.9, questions: [
             question('Seberapa cepat petugas merespon laporan Anda?', 4.8, 'Kecepatan respon'), question('Keramahan petugas', 5),
         ] }),

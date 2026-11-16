@@ -23,8 +23,8 @@ function useCsiMutation<TData, TVariables>(mutationFn: (variables: TVariables) =
 }
 
 const periodKeys = (scope: CsiScopeParam, id: string): QueryKey[] => [
-    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id), keys.raterMatrix(scope, id),
-    keys.responseDetail(scope, id), keys.active(), keys.form(id),
+    keys.period(scope, id), keys.periods(scope), keys.report(scope, id), keys.respondents(scope, id),
+    keys.active(), keys.form(id),
 ];
 
 /** Active surveys change rarely; submitting a response invalidates this query anyway. */
@@ -149,9 +149,6 @@ export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
 export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
     return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id });
 }
-export function useCsiRaterMatrix(scope: CsiScopeParam, id: string, siteId?: string) {
-    return useQuery({ queryKey: keys.raterMatrix(scope, id, siteId), queryFn: () => CsiApi.raterMatrix(scope, id, siteId), enabled: !!id });
-}
 export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
     return useCsiMutation((payload: SendCsiReminders = {}) => CsiApi.sendReminders(scope, periodId, payload),
         () => [keys.respondents(scope, periodId)]);
@@ -265,10 +262,6 @@ export function useApplyCsiAssignmentTemplate(scope: CsiScopeParam, periodId: st
 }
 export function useCsiRespondents(scope: CsiScopeParam, id: string) {
     return useQuery({ queryKey: keys.respondents(scope, id), queryFn: () => CsiApi.respondents(scope, id), enabled: !!id });
-}
-export function useCsiResponseDetail(scope: CsiScopeParam, id: string, responseId: string) {
-    return useQuery({ queryKey: keys.responseDetail(scope, id, responseId),
-        queryFn: () => CsiApi.responseDetail(scope, id, responseId), enabled: !!id && !!responseId });
 }
 export function useResetCsiResponse(scope: CsiScopeParam, id: string) {
     return useCsiMutation(({ responseId, reason }: ResetCsiResponse & { responseId: string }) =>

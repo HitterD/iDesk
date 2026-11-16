@@ -92,7 +92,7 @@ export function DashboardLive({ scope, data, today, onOpenReport }: { scope: Csi
     return (
         <div className="grid grid-cols-12 gap-3">
             <LiveStats summary={liveSummary(data)} />
-            <AdminSection title="Target per site" description={onOpenReport ? 'Klik kartu untuk melihat siapa menilai siapa dan nilai per subjek.' : undefined} className="col-span-12">
+            <AdminSection title="Target per site" description={onOpenReport ? 'Klik kartu untuk melihat laporan penilaian per subjek.' : undefined} className="col-span-12">
                 <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(250px,100%),1fr))]">
                     {data.active.map((row) => <SiteTargetCard key={`${row.periodId}:${row.siteId}`} row={row} today={today} onOpen={onOpenReport} />)}
                 </div>

@@ -5,26 +5,14 @@ import type { CsiReport } from '../../../types';
 import { PeriodReport } from '../PeriodReport';
 import { PERIOD, report } from '../report/__tests__/reportFixture';
 
-const fx = vi.hoisted(() => ({ dialog: vi.fn(), useCsiReport: vi.fn(), useCsiRaterMatrix: vi.fn(), report: null as unknown as CsiReport }));
-vi.mock('../../../hooks/useCsi', () => ({ useCsiReport: fx.useCsiReport, useCsiRaterMatrix: fx.useCsiRaterMatrix }));
+const fx = vi.hoisted(() => ({ dialog: vi.fn(), useCsiReport: vi.fn(), report: null as unknown as CsiReport }));
+vi.mock('../../../hooks/useCsi', () => ({ useCsiReport: fx.useCsiReport }));
 vi.mock('../report/ReportExportDialog', () => ({ ReportExportDialog: (props: unknown) => { fx.dialog(props); return null; } }));
 
 beforeEach(() => {
     fx.report = report();
     fx.useCsiReport.mockReset();
     fx.useCsiReport.mockImplementation(() => ({ data: fx.report, isLoading: false, isError: false, refetch: vi.fn() }));
-    fx.useCsiRaterMatrix.mockReset();
-    fx.useCsiRaterMatrix.mockImplementation(() => ({
-        data: {
-            subjects: [{ periodRateeId: 'a', kind: 'TEAM', displayName: 'ICT Sepanjang', siteId: 's1' }, { periodRateeId: 'b', kind: 'PERSON', displayName: 'Nur', siteId: 's2' }],
-            rows: [
-                { responseId: 'x', respondentName: 'Rina', departmentName: 'Produksi', areaName: null, submittedAt: '2026-11-02T03:00:00Z', scores: [4.5, null], average: 4.5 },
-                { responseId: 'y', respondentName: 'Dodi', departmentName: 'Gudang', areaName: null, submittedAt: '2026-11-02T04:00:00Z', scores: [3, 5], average: 4 },
-            ],
-            totals: [{ raters: 2, average: 3.75 }, { raters: 1, average: 5 }],
-        },
-        isLoading: false, isError: false, refetch: vi.fn(),
-    }));
 });
 afterEach(cleanup);
 
@@ -70,7 +58,7 @@ describe('PeriodReport', () => {
         const bars = within(sheet).getByRole('list', { name: 'Nilai per pertanyaan' });
         expect(bars).toHaveTextContent('Kecepatan respon');
         expect(within(sheet).getByText('“Respon cepat”')).toBeInTheDocument();
-        expect(within(sheet).getByText(/Finance · 29 Okt 2026/)).toBeInTheDocument();
+        expect(within(sheet).queryByText(/Finance|29 Okt 2026/)).not.toBeInTheDocument();
     });
 
     it('Perbandingan shows a heatmap with short labels and the full text as title', async () => {
@@ -85,21 +73,10 @@ describe('PeriodReport', () => {
         expect(rows[1]).toHaveTextContent('4,90');
     });
 
-    it('opens on the site picked from the dashboard', () => {
+    it('opens on the site picked from the dashboard and never shows a rater score matrix', () => {
         render(<PeriodReport scope="ict" periodId="p1" sites={PERIOD.sites} initialSiteId="s2" />);
         expect(fx.useCsiReport).toHaveBeenLastCalledWith('ict', 'p1', 's2');
-        expect(fx.useCsiRaterMatrix).toHaveBeenLastCalledWith('ict', 'p1', 's2');
-    });
-
-    it('shows who rated whom, "–" where a subject was not rated, and filters by rater', async () => {
-        const user = userEvent.setup();
-        renderReport();
-        const panel = screen.getByRole('region', { name: 'Siapa menilai siapa' });
-        const rina = within(panel).getByRole('rowheader', { name: /Rina/ }).closest('tr')!;
-        expect(within(rina).getByLabelText('tidak menilai')).toBeInTheDocument();
-        await user.type(within(panel).getByRole('searchbox', { name: 'Cari penilai' }), 'gudang');
-        expect(within(panel).queryByRole('rowheader', { name: /Rina/ })).not.toBeInTheDocument();
-        expect(within(panel).getByRole('rowheader', { name: /Dodi/ })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Siapa menilai siapa' })).not.toBeInTheDocument();
     });
 
     it('opens the report dialog (PDF preview + Excel) for the selected site', async () => {

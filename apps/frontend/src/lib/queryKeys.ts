@@ -80,13 +80,9 @@ export const queryKeys = {
         raterGroup: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'rater-group', key] as const,
         raterTickets: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'rater-tickets', key] as const,
         raterDepartments: (scope: 'ict' | 'hc', siteId: string) => ['csi', scope, 'rater-departments', siteId] as const,
-        raterMatrix: (scope: 'ict' | 'hc', id: string, siteId?: string) =>
-            ['csi', scope, 'rater-matrix', id, ...(siteId === undefined ? [] : [siteId])] as const,
         assignments: (scope: 'ict' | 'hc', periodId: string) => ['csi', scope, 'assignments', periodId] as const,
         dashboard: (scope: 'ict' | 'hc') => ['csi', scope, 'dashboard'] as const,
         respondents: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'respondents', id] as const,
-        responseDetail: (scope: 'ict' | 'hc', id: string, responseId?: string) =>
-            ['csi', scope, 'response', id, ...(responseId === undefined ? [] : [responseId])] as const,
     },
 
     // ─── System & User ─────────────────────────────────────────────────────────

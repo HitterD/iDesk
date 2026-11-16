@@ -70,7 +70,6 @@ const PURGE_REASON = 'Simulasi diganti oleh skrip simulasi baru';
 const DOWNLOADS = join(homedir(), 'Downloads');
 const PDF_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report.pdf');
 const XLSX_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report.xlsx');
-const RAW_XLSX_PATH = join(DOWNLOADS, 'CSI HC 2026 - SIMULASI report - DATA MENTAH (RAHASIA).xlsx');
 /** Suffix of the output name when the target file is open (locked) on Windows. */
 const LOCKED_SUFFIX = ' (baru)';
 
@@ -338,7 +337,6 @@ function writeOutput(path: string, buffer: Buffer) {
 async function exportReport(s: Services, periodId: string) {
     writeOutput(PDF_PATH, (await s.exporter.buildPdf(HC, periodId)).buffer);
     writeOutput(XLSX_PATH, (await s.exporter.buildWorkbook(HC, periodId)).buffer);
-    writeOutput(RAW_XLSX_PATH, (await s.exporter.buildRawWorkbook(HC, periodId)).buffer);
 }
 
 async function main() {

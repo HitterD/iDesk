@@ -81,11 +81,6 @@ export const CsiHcApi = {
         const response = await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export`, { responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
-    /** Raw ratings of the owner's own service (rater names; ratings about the owner stay anonymous). */
-    async myServiceReportRawExport(scope: CsiScopeParam, periodId: string, serviceCode: string): Promise<{ blob: Blob; filename: string }> {
-        const response = await api.get<Blob>(`${serviceReportPath(scope, periodId, serviceCode)}/export-raw`, { responseType: 'blob', skipToast: true });
-        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
-    },
     async reportOwners(scope: CsiScopeParam): Promise<CsiServiceReportOwners[]> {
         return (await api.get<CsiServiceReportOwners[]>(`/csi/admin/${scope}/report-owners`)).data;
     },

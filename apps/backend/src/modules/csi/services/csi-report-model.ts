@@ -1,12 +1,12 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CSI_RANK_MIN_RATERS, CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
-import { CsiRaterMatrix } from './csi-rater-matrix.calc';
 import { CsiDepartmentParticipation, CsiSlaBlock, departmentParticipation, slaBlock } from './csi-report-participation';
 import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighlight } from './csi-report-ranking';
 import { CsiReportService } from './csi-report.service';
 import { bandsOf, CsiScoreBand, CsiScoreBands, CsiScoreWord, scoreBand, scoreWordFor } from './csi-score-bands';
 import { averageOfAverages } from './csi-score.util';
 import { CSI_NO_BAGIAN_LABEL, CSI_TEAM_ROW_PREFIX, type CsiHcRecap } from '../org/csi-hc-report.calc';
+import { commentOrder } from './csi-report-pdf-sections';
 
 /**
  * Everything the executive report shows (PDF and Excel read the same model, so both always carry every parameter).
@@ -39,7 +39,7 @@ export type CsiSiteParticipation = {
     respondenPct: number | null; reached: boolean; average: number | null;
 };
 /** Comments about one subject; `serviceCode` = its layanan (HC report groups the comments per layanan). */
-export type CsiCommentGroup = { name: string; kind: CsiRateeKind; serviceCode: string | null; comments: Array<{ text: string; department: string; date: Date }> };
+export type CsiCommentGroup = { name: string; kind: CsiRateeKind; serviceCode: string | null; comments: Array<{ text: string }> };
 
 export type CsiReportModel = {
     title: string; scopeLabel: string; startDate: string; endDate: string; siteLabel: string; modeLabel: string;
@@ -217,7 +217,6 @@ function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: Servic
 
 export type CsiReportModelInput = {
     report: CsiReportData;
-    matrix: CsiRaterMatrix;
     scopeLabel: string;
     scope: ServiceScope;
     /** Average per subject in the previous period (subjectKeyOf); empty when there is none. */
@@ -232,7 +231,7 @@ export type CsiReportModelInput = {
     templateRatersWithoutAccount?: number;
     /** HC: average per layanan (mean of every rating of its PICs, as the recap); empty for ICT. */
     serviceAverages: Array<{ serviceCode: string | null; average: number | null }>;
-    comments: Array<{ periodRateeId: string; text: string; department: string; date: Date }>;
+    comments: Array<{ periodRateeId: string; text: string }>;
     notes: string;
     /**
      * HC per-rating recap (with the same site filter). When set for HC, the overall score, predikat, indeks, its
@@ -285,9 +284,9 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     const byRatee = new Map<string, CsiCommentGroup>();
     const serviceOf = new Map(report.ratees.map((ratee) => [ratee.periodRateeId, ratee.serviceCode ?? null]));
     [...teams, ...people].forEach((row) => byRatee.set(row.periodRateeId, { name: row.name, kind: row.kind, serviceCode: serviceOf.get(row.periodRateeId) ?? null, comments: [] }));
-    input.comments.forEach((comment) => byRatee.get(comment.periodRateeId)?.comments.push({ text: comment.text, department: comment.department, date: comment.date }));
+    input.comments.forEach((comment) => byRatee.get(comment.periodRateeId)?.comments.push({ text: comment.text }));
     const commentGroups = [...byRatee.values()].filter((group) => group.comments.length)
-        .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => b.date.getTime() - a.date.getTime()) }));
+        .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => commentOrder(a.text, b.text)) }));
     const { average: overallAverage, previous: previousAverage } = overallBasis(input);
     const partial: Omit<CsiReportModel, 'highlights'> = {
         title: report.period.title, scopeLabel, startDate: report.period.startDate, endDate: report.period.endDate,

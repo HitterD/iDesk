@@ -2,7 +2,7 @@ import { BriefcaseBusiness, Star } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { questionTone, scoreTone, scoreWord, starTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
-import { formatDate, formatFixed2, formatPercent, formatScore } from '../../../lib/format';
+import { formatFixed2, formatPercent, formatScore } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
 import { titleCase } from '../hc/hcFormat';
@@ -15,6 +15,14 @@ const STARS_ASC = [1, 2, 3, 4, 5] as const;
 const SECTION_CARD = 'rounded-2xl border border-border/60 bg-card p-4';
 const SECTION_TITLE = 'mb-3 text-[13px] font-semibold';
 const TRACK = 'h-2 overflow-hidden rounded-full bg-[hsl(var(--muted))]';
+
+const hashComment = (text: string) => {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+    return h >>> 0;
+};
+const scrambleComments = (comments: CsiReportRatee['comments']) =>
+    comments.map((comment) => comment.text).sort((a, b) => hashComment(a) - hashComment(b) || a.localeCompare(b, 'id'));
 
 function QuestionBars({ ratee }: { ratee: CsiReportRatee }) {
     const columns = questionColumns([ratee]);
@@ -128,10 +136,9 @@ export function SubjectDetailSheet({ ratee, siteName, siteCode, bands, onClose }
                                 <h3 className={SECTION_TITLE}>{`Komentar (${ratee.comments.length})`}</h3>
                                 {ratee.comments.length ? (
                                     <ul className="grid gap-2">
-                                        {ratee.comments.map((comment, index) => (
-                                            <li key={`${comment.submittedAt}-${index}`} className="rounded-xl bg-[hsl(var(--muted)/.55)] px-3 py-2.5 text-[13px]">
-                                                <p className="whitespace-pre-line break-words">{`“${comment.text}”`}</p>
-                                                <p className={cn(MUTED_TEXT, 'mt-1 text-[12px]')}>{`${comment.departmentName} · ${formatDate(comment.submittedAt)}`}</p>
+                                        {scrambleComments(ratee.comments).map((text, index) => (
+                                            <li key={`${index}:${text.slice(0, 24)}`} className="rounded-xl bg-[hsl(var(--muted)/.55)] px-3 py-2.5 text-[13px]">
+                                                <p className="whitespace-pre-line break-words">{`“${text}”`}</p>
                                             </li>
                                         ))}
                                     </ul>

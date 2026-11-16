@@ -21,7 +21,6 @@ const REPORT: CsiServiceReport = {
         { level: 'pic', key: 'p:rara', label: 'RARA', serviceCode: 'HCD', bagian: 'HCD', jobTitle: 'Staff', serviceFunction: 'People & Organization Development', ...cells(5, 1), dimensions: { Knowledge: 5 } },
     ],
     respondentGroups: [],
-    respondents: [{ responseId: 'anonim-1', name: 'Anonim', division: null, department: null, bagian: null, location: null, average: 5, pics: [{ name: 'RARA', serviceCode: 'HCD', bagian: 'HCD', scores: { Knowledge: 5 }, average: 5 }] }],
     pending: [{ department: 'PRODUCTION RTD', pending: 3, total: 8 }],
 };
 
@@ -32,7 +31,6 @@ vi.mock('../../api/csiHc.api', () => ({
         myReportPeriods: vi.fn(async (scope: string) => ({ services: fx.access[scope] ?? [], periods: [REPORT.period] })),
         myServiceReport: vi.fn(async () => REPORT),
         myServiceReportExport: vi.fn(async () => ({ blob: new Blob(['x']), filename: 'csi-hc-HCD-p1.xlsx' })),
-        myServiceReportRawExport: vi.fn(async () => ({ blob: new Blob(['x']), filename: 'csi-hc-HCD-p1 - DATA MENTAH (RAHASIA).xlsx' })),
     },
 }));
 
@@ -53,10 +51,11 @@ describe('CsiServiceReportPage', () => {
         expect(screen.getByText('3 dari 8 belum menilai')).toBeInTheDocument();
     });
 
-    it('lists anonymous answers as Anonim', async () => {
+    it('never exposes per-respondent answer tabs or raw rater exports', async () => {
         renderPage();
-        await userEvent.click(await screen.findByRole('button', { name: /jawaban per responden/i }));
-        expect(screen.getByText('Anonim')).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: /report csi layanan/i })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /jawaban per responden/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /data mentah/i })).not.toBeInTheDocument();
     });
 
     it('explains when the account owns no service', async () => {
@@ -80,16 +79,13 @@ describe('CsiServiceReportPage', () => {
         expect(await screen.findByRole('combobox', { name: 'Unit' })).toBeInTheDocument();
     });
 
-    it('offers the anonymous Excel and, separately, the raw data of the own service', async () => {
+    it('offers only the anonymous Excel download for the service', async () => {
         const { CsiHcApi } = await import('../../api/csiHc.api');
         URL.createObjectURL = vi.fn(() => 'blob:x');
         URL.revokeObjectURL = vi.fn();
         renderPage();
         await screen.findByText(/People & Organization Development/);
-        const raw = screen.getByRole('button', { name: /Unduh data mentah \(rahasia\)/ });
-        expect(raw).toHaveAccessibleDescription(/nama penilai/);
-        await userEvent.click(raw);
-        expect(CsiHcApi.myServiceReportRawExport).toHaveBeenCalledWith('hc', 'p1', 'HCD');
+        expect(screen.queryByRole('button', { name: /data mentah/i })).not.toBeInTheDocument();
         await userEvent.click(screen.getByRole('button', { name: /^Unduh Excel/ }));
         expect(CsiHcApi.myServiceReportExport).toHaveBeenCalledWith('hc', 'p1', 'HCD');
     });

@@ -4,7 +4,7 @@ import type {
     ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
     CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
-    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiRaterMatrix, CsiResponseDetail, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiTicketRaterFilter, CsiTicketRaterPreview, CsiUserIds, CsiUserSearchResult,
+    CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiTicketRaterFilter, CsiTicketRaterPreview, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiTeamDeleteImpact, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     CsiServerDraft, SaveCsiDraft,
@@ -246,9 +246,6 @@ export const CsiApi = {
     async report(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiReport> {
         return (await api.get<CsiReport>(`${periodPath(scope, id)}/report`, { params: { siteId } })).data;
     },
-    async raterMatrix(scope: CsiScopeParam, id: string, siteId?: string): Promise<CsiRaterMatrix> {
-        return (await api.get<CsiRaterMatrix>(`${periodPath(scope, id)}/rater-matrix`, { params: { siteId } })).data;
-    },
     async exportPdf(scope: CsiScopeParam, id: string, options: CsiReportExportOptions = {}): Promise<{ blob: Blob; filename: string }> {
         const params = { siteId: options.siteId, notes: options.notes || undefined, signoff: options.signoff ? JSON.stringify(options.signoff) : undefined };
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
@@ -264,20 +261,12 @@ export const CsiApi = {
     async respondents(scope: CsiScopeParam, id: string): Promise<CsiRespondents> {
         return (await api.get<CsiRespondents>(`${periodPath(scope, id)}/respondents`)).data;
     },
-    async responseDetail(scope: CsiScopeParam, id: string, responseId: string): Promise<CsiResponseDetail> {
-        return (await api.get<CsiResponseDetail>(`${periodPath(scope, id)}/responses/${encodeURIComponent(responseId)}`)).data;
-    },
     async resetResponse(scope: CsiScopeParam, id: string, responseId: string, payload: ResetCsiResponse): Promise<CsiResetResult> {
         return (await api.delete<CsiResetResult>(`${periodPath(scope, id)}/responses/${encodeURIComponent(responseId)}`, { data: payload })).data;
     },
     async exportPeriod(scope: CsiScopeParam, id: string, notes?: string, siteId?: string): Promise<{ blob: Blob; filename: string }> {
         // A blob error body hides the server message from the interceptor; the caller shows one toast instead.
         const response = await api.get<Blob>(`${periodPath(scope, id)}/export`, { params: { notes: notes || undefined, siteId }, responseType: 'blob', skipToast: true });
-        return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
-    },
-    /** Raw data (names the raters): a separate, confidential file. */
-    async exportPeriodRaw(scope: CsiScopeParam, id: string): Promise<{ blob: Blob; filename: string }> {
-        const response = await api.get<Blob>(`${periodPath(scope, id)}/export-raw`, { responseType: 'blob', skipToast: true });
         return { blob: response.data, filename: exportFilename(response.headers['content-disposition'], scope) };
     },
     async reportSignoff(scope: CsiScopeParam): Promise<SignoffLayout> {

@@ -193,10 +193,10 @@ describe('CsiReportService', () => {
         items.rows.push(item('ra', 'h1', 5), item('ra', 'h2', 3), item('rb', 'h1', 3), item('rb', 'h2', 4));
         sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
         const loads = jest.spyOn(service, 'hcRecapInput');
-        const all = await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any });
+        const all = await service.getExecutiveModel(HC, 'p-hc', {});
         expect(all.serviceHighlight).toMatchObject({ best: { code: 'HCD', average: 4 }, worst: { code: 'HCS', average: 3.5 } });
         expect(loads).toHaveBeenCalledTimes(1);
-        const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b', matrix: {} as any });
+        const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b' });
         expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
         expect(siteB.overall).toMatchObject({ average: 3.5 });
         expect(siteB.hcRecap?.overall.respondents).toBe(1);
@@ -239,7 +239,7 @@ describe('CsiReportService', () => {
         expect((await service.siteStats(HC, period, ['site-a'])).get('site-a')).toMatchObject({ average: 3, scoreWeight: 3, responses: 2 });
         // Executive model (PDF page 1, Excel Ringkasan / Rekap) reads the same number.
         sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
-        expect((await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any })).overall.average).toBe(3);
+        expect((await service.getExecutiveModel(HC, 'p-hc', {})).overall.average).toBe(3);
         // ICT unchanged: resp1 3.5, resp2 3 -> 3.25.
         expect((await service.getReport(ICT, 'p1')).overall.average).toBe(3.25);
     });
@@ -257,8 +257,8 @@ describe('CsiReportService', () => {
             rater('e', 'tp2', 'LINKED', 'u-elvi'), rater('f', 'tp3', 'ONLY KRW'),
         );
         // SMG only: Budi (two PICs, one person) and Tono have no account; Elvi matches, Linked is linked, KRW is not a survey site.
-        expect((await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any })).templateRatersWithoutAccount).toBe(2);
-        expect((await service.getExecutiveModel(ICT, 'p1', { matrix: {} as any })).templateRatersWithoutAccount).toBe(0);
+        expect((await service.getExecutiveModel(HC, 'p-hc', {})).templateRatersWithoutAccount).toBe(2);
+        expect((await service.getExecutiveModel(ICT, 'p1', {})).templateRatersWithoutAccount).toBe(0);
     });
 
     it('HC executive model carries the previous period average per layanan / PIC for the Selisih column', async () => {
@@ -281,7 +281,7 @@ describe('CsiReportService', () => {
             { id: 'io', responseId: 'ro', periodRateeId: 'o1', periodRateeDimensionId: 'od1', score: 3 },
         );
         sla.compute.mockResolvedValue({ basis: 0, target: 0, responses: 0, pengisiPct: null, reporters: [] });
-        const model = await service.getExecutiveModel(HC, 'p-hc', { matrix: {} as any });
+        const model = await service.getExecutiveModel(HC, 'p-hc', {});
         expect(model.hasPrevious).toBe(true);
         expect(model.hcRecap?.previous).toMatchObject({ 's:HCD': 3, 'p:HCD:dewi': 3 });
         // Page 1 (overall + Selisih) uses the same per-rating basis as the recap.
@@ -316,11 +316,12 @@ describe('CsiReportService', () => {
         expect((await service.getReport(ICT, 'p1')).ratees.map((row) => row.displayName)).toEqual(['Tim IT Support']);
     });
 
-    it('reset audit log keeps choice and text answers, not only scores', async () => {
+    it('reset audit log omits all scores, choice answers, and text answers to preserve rater anonymity', async () => {
         items.rows.push({ id: 'tx', responseId: 'resp1', periodRateeId: 'r1', periodRateeDimensionId: 'rd1b', score: null, answerLabel: null, answerText: 'Ramah sekali', periodRatee: ratee1, periodRateeDimension: dimB });
         await service.resetResponse(ICT, 'p1', 'resp1', 'Salah input', { id: 'admin' });
-        const logged = audit.log.mock.calls[0][0].oldValue.scores;
-        expect(logged).toContainEqual(expect.objectContaining({ dimension: 'Ramah', score: null, answerText: 'Ramah sekali' }));
+        const oldValue = audit.log.mock.calls[0][0].oldValue;
+        expect(oldValue).not.toHaveProperty('scores');
+        expect(JSON.stringify(oldValue)).not.toContain('Ramah sekali');
     });
 
     it('report reads legacy STAR answers', async () => {
@@ -359,11 +360,6 @@ describe('CsiReportService', () => {
         expect(channel).toEqual({ name: 'Channel', shortLabel: null, description: null, type: 'CHOICE', average: null, count: 0, distribution: [{ label: 'Telepon', count: 0 }, { label: 'Email', count: 1 }] });
         expect(saran).toEqual({ name: 'Saran', shortLabel: null, description: null, type: 'TEXT', average: null, count: 0, distribution: [{ label: 'Mantap', count: 1 }] });
         expect(report.ratees[0].average).toBe(3.25);
-        const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
-        expect(detail.ratees[0].scores.slice(2)).toEqual([
-            { dimension: 'Channel', type: 'CHOICE', score: null, answerLabel: 'Email', answerText: null },
-            { dimension: 'Saran', type: 'TEXT', score: null, answerLabel: null, answerText: 'Mantap' },
-        ]);
     });
 
     it('ratee without responses has null average', async () => {
@@ -480,17 +476,6 @@ describe('CsiReportService', () => {
         expect(result.pendingByDepartment).toBeNull();
     });
 
-    it('response detail lists scores and comments per ratee, 404 for other period', async () => {
-        const detail = await service.getResponseDetail(ICT, 'p1', 'resp1');
-        expect(detail).toMatchObject({ responseId: 'resp1', respondentName: 'Andi Nama', accountName: 'Andi', areaName: null, departmentName: 'Keuangan' });
-        expect(detail.ratees).toEqual([{
-            periodRateeId: 'r1', kind: 'PERSON', displayName: 'Budi', jobTitle: 'Teknisi', comment: 'Cepat tanggap',
-            scores: [{ dimension: 'Responsif', type: 'STAR', score: 5, answerLabel: null, answerText: null }, { dimension: 'Ramah', type: 'STAR', score: 2, answerLabel: null, answerText: null }],
-        }]);
-        await expect(service.getResponseDetail(ICT, 'p-hc', 'resp1')).rejects.toThrow(NotFoundException);
-        await expect(service.getResponseDetail(ICT, 'p1', 'nope')).rejects.toThrow(NotFoundException);
-    });
-
     it('reset requires reason ≥5 chars (400)', async () => {
         await expect(service.resetResponse(ICT, 'p1', 'resp1', '  abc  ', { id: 'admin' }, undefined))
             .rejects.toThrow(new BadRequestException('Alasan reset minimal 5 karakter'));
@@ -498,7 +483,7 @@ describe('CsiReportService', () => {
         expect(audit.log).not.toHaveBeenCalled();
     });
 
-    it('reset writes audit log and allows resubmit', async () => {
+    it('reset writes audit log without score snapshot and allows resubmit', async () => {
         const req = { headers: {} } as any;
         await expect(service.resetResponse(ICT, 'p1', 'resp1', '  Salah isi departemen ', { id: 'admin' }, req))
             .resolves.toEqual({ reset: true });
@@ -514,12 +499,9 @@ describe('CsiReportService', () => {
             oldValue: {
                 periodId: 'p1', respondentId: 'x1', respondentName: 'Andi Nama', departmentName: 'Keuangan',
                 submittedAt: new Date('2026-10-10T03:00:00Z'),
-                scores: [
-                    { ratee: 'Budi', dimension: 'Responsif', score: 5, answerLabel: null, answerText: null },
-                    { ratee: 'Budi', dimension: 'Ramah', score: 2, answerLabel: null, answerText: null },
-                ],
             },
         }));
+        expect(audit.log.mock.calls[0][0].oldValue).not.toHaveProperty('scores');
         expect(audit.log.mock.calls[0][0].description).toContain('Salah isi departemen');
     });
 
@@ -544,33 +526,27 @@ describe('CsiReportService', () => {
         });
         afterEach(() => (service as any).ratees.rows.forEach((row: any) => { delete row.siteId; }));
 
-        it('rater matrix uses the same site rule as the report: only respondents of the filtered site count', async () => {
-            const all = await service.getRaterMatrix(ICT, 'p1');
-            expect(all.rows.map((row) => row.responseId).sort()).toEqual(['resp1', 'resp2']);
-            const siteA = await service.getRaterMatrix(ICT, 'p1', 'site-a');
-            expect(siteA.rows.map((row) => row.responseId)).toEqual(['resp1']);
-            expect(siteA.totals[0]).toEqual({ raters: 1, average: 3.5 });
-        });
-
         it('report carries photoUrl, siteId and star distribution per ratee', async () => {
             const report = await service.getReport(ICT, 'p1');
             expect(report.ratees[0]).toMatchObject({ siteId: 'site-a', photoUrl: '/uploads/csi/budi.jpg', starDistribution: [0, 1, 1, 0, 1] });
             expect(report.previousAverage).toBeNull();
         });
 
-        it('report lists non-empty comments per ratee (newest first) from the narrowed responses', async () => {
+        it('report lists non-empty anonymous comments per ratee (no department or timestamp) from the narrowed responses', async () => {
             comments.rows.push(
                 { id: 'c2', responseId: 'resp2', periodRateeId: 'r1', comment: '  Ramah  ' },
                 { id: 'c3', responseId: 'resp2', periodRateeId: 'r2', comment: '   ' },
             );
             const report = await service.getReport(ICT, 'p1');
-            expect(report.ratees[0].comments).toEqual([
-                { text: 'Ramah', departmentName: 'Gudang', submittedAt: new Date('2026-10-12T03:00:00Z') },
-                { text: 'Cepat tanggap', departmentName: 'Keuangan', submittedAt: new Date('2026-10-10T03:00:00Z') },
-            ]);
+            expect(report.ratees[0].comments).toHaveLength(2);
+            expect(report.ratees[0].comments.map((row) => row.text).sort()).toEqual(['Cepat tanggap', 'Ramah']);
+            report.ratees[0].comments.forEach((row) => {
+                expect(row).not.toHaveProperty('departmentName');
+                expect(row).not.toHaveProperty('submittedAt');
+            });
             expect(report.ratees[1].comments).toEqual([]);
             const siteA = await service.getReport(ICT, 'p1', 'site-a');
-            expect(siteA.ratees[0].comments.map((row) => row.text)).toEqual(['Cepat tanggap']);
+            expect(siteA.ratees[0].comments).toEqual([{ text: 'Cepat tanggap' }]);
         });
 
         it('siteId keeps only that site ratees and answers of respondents from that site', async () => {

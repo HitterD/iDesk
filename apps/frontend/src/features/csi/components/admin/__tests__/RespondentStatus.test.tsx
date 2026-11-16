@@ -9,12 +9,14 @@ const fx = vi.hoisted(() => ({
     respondents: null as unknown as CsiRespondents,
     report: null as unknown as CsiReport,
     mutate: vi.fn(),
+    resetMutate: vi.fn(),
     toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiRespondents: () => ({ data: fx.respondents, isLoading: false, isError: false, refetch: vi.fn() }),
     useCsiReport: () => ({ data: fx.report }),
     useSendCsiReminders: () => ({ mutate: fx.mutate, isPending: false }),
+    useResetCsiResponse: () => ({ mutate: fx.resetMutate, isPending: false }),
 }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
 
@@ -32,7 +34,7 @@ const OPEN: CsiRespondents = { ...LISTED, mode: 'OPEN', pending: null, totals: {
 beforeEach(() => { vi.clearAllMocks(); fx.respondents = LISTED; fx.report = report(); });
 afterEach(cleanup);
 
-const renderStatus = () => render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} onOpenResponse={vi.fn()} />);
+const renderStatus = () => render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} />);
 const names = () => within(screen.getByRole('list', { name: 'Daftar responden' })).getAllByRole('listitem')
     .map((item) => item.querySelector('b')?.textContent);
 
@@ -90,7 +92,7 @@ describe('RespondentStatus', () => {
     it('ICT: the same department summary; names after "Tampilkan nama"', async () => {
         fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }] };
         const user = userEvent.setup();
-        render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} onOpenResponse={vi.fn()} />);
+        render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} />);
         expect(within(screen.getByRole('region', { name: 'Belum menilai per departemen' })).getByText('Gudang')).toBeInTheDocument();
         expect(screen.queryByRole('list', { name: 'Daftar responden' })).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Tampilkan nama' }));
@@ -100,7 +102,7 @@ describe('RespondentStatus', () => {
     it('HC: pending raters are summarised per department; names only after "Tampilkan nama"', async () => {
         fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }, { department: 'HRGA', pending: 1, total: 2 }] };
         const user = userEvent.setup();
-        render(<RespondentStatus scope="hc" periodId="p1" sites={PERIOD.sites} onOpenResponse={vi.fn()} />);
+        render(<RespondentStatus scope="hc" periodId="p1" sites={PERIOD.sites} />);
         const summary = screen.getByRole('region', { name: 'Belum menilai per departemen' });
         expect(within(summary).getByText('Gudang')).toBeInTheDocument();
         expect(within(summary).getByText('1 dari 2 belum menilai')).toBeInTheDocument();
@@ -108,5 +110,22 @@ describe('RespondentStatus', () => {
         expect(screen.queryByText('Andi')).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Tampilkan nama' }));
         expect(names()).toEqual(['Andi', 'Citra', 'Rina']);
+    });
+
+    it('allows resetting a submitted response with reason without ever exposing scores or "Lihat jawaban"', async () => {
+        const user = userEvent.setup();
+        fx.resetMutate.mockImplementation((_payload, opts) => opts?.onSuccess?.());
+        renderStatus();
+        expect(screen.queryByRole('button', { name: /Lihat jawaban/ })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Reset jawaban Rina' }));
+        const confirm = screen.getByRole('button', { name: 'Reset jawaban' });
+        expect(confirm).toBeDisabled();
+        await user.type(screen.getByLabelText('Alasan reset'), ' abc ');
+        expect(confirm).toBeDisabled();
+        await user.type(screen.getByLabelText('Alasan reset'), 'salah departemen');
+        expect(confirm).toBeEnabled();
+        await user.click(confirm);
+        expect(fx.resetMutate).toHaveBeenCalledWith({ responseId: 'a', reason: 'abc salah departemen' }, expect.anything());
+        expect(fx.toast.success).toHaveBeenCalledWith('Jawaban Rina direset');
     });
 });

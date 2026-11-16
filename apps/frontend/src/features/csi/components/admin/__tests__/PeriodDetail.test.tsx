@@ -38,10 +38,8 @@ vi.mock('../../../hooks/useCsi', () => ({
     useUpdateCsiPeriodRatee: () => ({ mutate: vi.fn(), isPending: false }),
     useCsiReport: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
     useCsiRespondents: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
-    useCsiResponseDetail: () => ({ data: undefined, isLoading: false, isError: false }),
     useSendCsiReminders: () => ({ mutate: vi.fn(), isPending: false }),
     useResetCsiResponse: () => ({ mutate: vi.fn(), isPending: false }),
-    useCsiRaterMatrix: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
 }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
 

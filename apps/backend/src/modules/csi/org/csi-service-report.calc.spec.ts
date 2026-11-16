@@ -1,7 +1,7 @@
 import { CSI_SMALL_GROUP_LABEL } from '../csi.constants';
 import { CsiHcPic, CsiHcRating } from './csi-hc-report.calc';
 import { CsiOrgLocation } from './csi-org.constants';
-import { ANONYMOUS_RESPONDENT, buildServiceReport, mergeSmallDepartments, pendingByDepartment } from './csi-service-report.calc';
+import { buildServiceReport, mergeSmallDepartments, pendingByDepartment } from './csi-service-report.calc';
 
 const DIMS = ['Knowledge'];
 const pics: CsiHcPic[] = [
@@ -24,15 +24,10 @@ describe('buildServiceReport', () => {
         expect(JSON.stringify(report)).not.toContain('MEGA');
     });
 
-    it('rates about the viewer themselves are anonymous: no name, no unit, separate row', () => {
+    it('ratings about the viewer themselves never leak rater identity or derivable totals', () => {
         const report = buildServiceReport({ pics, ratings, dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
-        const named = report.respondents.find((row) => row.name === 'Penilai r1')!;
-        expect(named.pics.map((pic) => pic.name)).toEqual(['PRISCILLA']);
-        const anonymous = report.respondents.filter((row) => row.name === ANONYMOUS_RESPONDENT);
-        expect(anonymous).toHaveLength(1);
-        expect(anonymous[0]).toMatchObject({ division: null, department: null, bagian: null, location: null });
-        expect(anonymous[0].pics.map((pic) => [pic.name, pic.average])).toEqual([['RARA', 5]]);
-        expect(anonymous[0].responseId).not.toBe('r1');
+        expect(report).not.toHaveProperty('respondents');
+        expect(JSON.stringify(report)).not.toMatch(/Penilai r1|Penilai r2/);
         // The unit breakdown cannot point at the rater either.
         // (2 respondents < CSI_ANON_MIN_GROUP: their unit only shows inside the merged small-department row.)
         expect(report.respondentGroups.map((row) => [row.label, row.all.ratings])).toEqual([[CSI_SMALL_GROUP_LABEL, 2]]);
@@ -70,16 +65,10 @@ describe('buildServiceReport', () => {
         expect(report.services.find((row) => row.key === 'p:rara')!.all).toEqual({ average: 2.67, ratings: 3 });
     });
 
-    it('anonymous rows with equal averages are not in answer order', () => {
-        const same = [rating('z9', 'rara', 4), rating('a1', 'rara', 4), rating('m5', 'rara', 4)].map((entry, index) => ({ ...entry, scores: { Knowledge: 4 - index, Extra: index } }));
-        const report = buildServiceReport({ pics, ratings: same, dimensions: ['Knowledge', 'Extra'], serviceCode: 'HCD', hiddenRateeIds: new Set(['rara']) });
-        const extras = report.respondents.filter((row) => row.name === ANONYMOUS_RESPONDENT).map((row) => row.pics[0].scores.Extra);
-        expect(extras).toEqual([2, 1, 0]);
-    });
-
-    it('admins (no hidden ratees) see every rater by name', () => {
+    it('even admins (no hidden ratees) never receive per-respondent answer lists or rater names', () => {
         const report = buildServiceReport({ pics, ratings, dimensions: DIMS, serviceCode: 'HCD', hiddenRateeIds: new Set() });
-        expect(report.respondents.map((row) => row.name)).toEqual(['Penilai r1', 'Penilai r2']);
+        expect(report).not.toHaveProperty('respondents');
+        expect(JSON.stringify(report)).not.toMatch(/Penilai r1|Penilai r2/);
     });
 });
 
