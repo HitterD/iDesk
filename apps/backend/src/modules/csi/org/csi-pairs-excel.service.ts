@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as ExcelJS from 'exceljs';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
@@ -15,6 +16,7 @@ import { addGuideSheet } from '../services/csi-excel-style';
 import { addStyledSheet, sanitizeCell } from '../services/csi-export.sheet';
 import { lockUnlockedPeriod } from '../services/csi-period-lock.util';
 import { assertPeriodInScope } from '../services/csi-scope.util';
+import { emitCsiUpdated } from '../csi.events';
 import { collapse, locationLabel, locationOfWorkLocation, normalizeBagian, normalizeNik } from './csi-org.constants';
 
 /**
@@ -57,6 +59,7 @@ export class CsiPairsExcelService {
         @InjectRepository(CsiOrgPerson) private readonly people: Repository<CsiOrgPerson>,
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectDataSource() private readonly dataSource: DataSource,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     async exportWorkbook(scope: ServiceScope, periodId: string): Promise<{ filename: string; buffer: Buffer }> {
@@ -159,6 +162,7 @@ export class CsiPairsExcelService {
                 respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false, unitRules: [],
             });
         });
+        emitCsiUpdated(this.eventEmitter, scope, period.id);
         return { ...report, committed: true };
     }
 

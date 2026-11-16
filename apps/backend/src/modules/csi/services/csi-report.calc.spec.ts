@@ -35,6 +35,23 @@ describe('CSI report extras', () => {
         expect(questionStat(dim('s', CsiQuestionType.STAR, 'Kecepatan'), []).shortLabel).toBe('Kecepatan');
     });
 
+    it('maps score-only answers onto SCALE option labels when question changed from STAR', () => {
+        const scaleDim = {
+            id: 'k',
+            periodRateeId: 'r1',
+            dimensionName: 'Skala 1-5',
+            shortLabel: null,
+            type: CsiQuestionType.SCALE,
+            options: [{ label: 'Sangat puas', points: 5 }, { label: 'Netral', points: 3 }, { label: 'Sangat tidak puas', points: 1 }],
+        } as unknown as CsiPeriodRateeDimension;
+        const result = questionStat(scaleDim, [item('a', 'k', 5), item('b', 'k', 3), item('c', 'k', 5)]);
+        expect(result.distribution).toEqual([
+            { label: 'Sangat puas', count: 2 },
+            { label: 'Netral', count: 1 },
+            { label: 'Sangat tidak puas', count: 0 },
+        ]);
+    });
+
     it('description comes from the master question, null when absent', () => {
         const withMaster = { ...dim('s', CsiQuestionType.STAR), dimension: { description: '[Kecepatan respon]' } } as unknown as CsiPeriodRateeDimension;
         expect(questionStat(withMaster, []).description).toBe('[Kecepatan respon]');

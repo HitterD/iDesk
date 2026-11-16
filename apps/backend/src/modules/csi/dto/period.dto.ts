@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, Equals, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
-import { CSI_CANCEL_REASON_MAX, CSI_CANCEL_REASON_MIN, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiPairMode, CsiRespondentMode } from '../csi.constants';
+import { CSI_CANCEL_REASON_MAX, CSI_CANCEL_REASON_MIN, CSI_OPTIONS_MAX, CSI_SCORE_MAX, CSI_SCORE_MIN, CsiPairMode, CsiQuestionType, CsiRespondentMode } from '../csi.constants';
+import { CsiOptionDto } from './master.dto';
 import { CSI_TAGLINE_MAX } from './subject.dto';
 
 const TITLE_MAX_LENGTH = 150;
@@ -240,4 +241,36 @@ export class ConfirmPeriodActionDto {
 export class SetPairModeDto {
     @IsEnum(CsiPairMode, { message: 'Mode penilaian tidak valid' })
     mode: CsiPairMode;
+}
+
+export class PeriodQuestionUpdateDto {
+    @IsUUID('all', { message: 'ID pertanyaan harus berupa UUID' })
+    dimensionId: string;
+
+    @IsEnum(CsiQuestionType, { message: 'Tipe pertanyaan tidak valid' })
+    type: CsiQuestionType;
+
+    @IsOptional()
+    @IsArray({ message: 'Pilihan harus berupa array' })
+    @ArrayMaxSize(CSI_OPTIONS_MAX, { message: `Maksimal ${CSI_OPTIONS_MAX} pilihan` })
+    @ValidateNested({ each: true })
+    @Type(() => CsiOptionDto)
+    options?: CsiOptionDto[];
+}
+
+export class UpdatePeriodQuestionsDto {
+    @IsOptional()
+    @IsBoolean({ message: 'syncFromMaster harus berupa boolean' })
+    syncFromMaster?: boolean;
+
+    @IsOptional()
+    @IsBoolean({ message: 'convertScaleToStar harus berupa boolean' })
+    convertScaleToStar?: boolean;
+
+    @IsOptional()
+    @IsArray({ message: 'Daftar pembaruan harus berupa array' })
+    @ArrayMaxSize(QUESTIONS_MAX, { message: 'Maksimal 50 pertanyaan' })
+    @ValidateNested({ each: true })
+    @Type(() => PeriodQuestionUpdateDto)
+    updates?: PeriodQuestionUpdateDto[];
 }

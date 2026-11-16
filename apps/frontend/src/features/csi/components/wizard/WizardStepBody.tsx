@@ -30,7 +30,7 @@ export function WizardStepBody(props: WizardStepBodyProps) {
         return <StepInfo scope={scope} period={period} formRef={props.formRef} onStatusChange={props.onInfoStatus} onSaved={props.onInfoSaved} copyFrom={props.copyFrom} />;
     }
     switch (step) {
-        case 'questions': return <StepQuestions scope={scope} />;
+        case 'questions': return <StepQuestions scope={scope} period={period} />;
         case 'team': return <StepTeam scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'ratees': return <StepRatees scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;
         case 'raters': return <StepRaters scope={scope} period={period} onDirtyChange={props.onDirtyChange} />;

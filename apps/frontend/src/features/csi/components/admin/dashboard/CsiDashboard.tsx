@@ -5,6 +5,7 @@ import { useCsiDashboard } from '../../../hooks/useCsi';
 import type { CsiScopeParam } from '../../../types';
 import { DashboardLive } from './DashboardLive';
 import { DashboardTrend } from './DashboardTrend';
+import { LiveStatusPill } from '../LiveStatusPill';
 
 type DashboardTab = 'live' | 'trend';
 const TABS = [
@@ -19,7 +20,10 @@ export function CsiDashboard({ scope, onOpenReport }: { scope: CsiScopeParam; on
     const today = useMemo(() => new Date(), []);
     return (
         <div className="grid gap-4">
-            <SegmentedControl aria-label="Tampilan dashboard CSI" className="w-fit" options={TABS} value={tab} onValueChange={setTab} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <SegmentedControl aria-label="Tampilan dashboard CSI" className="w-fit" options={TABS} value={tab} onValueChange={setTab} />
+                <LiveStatusPill />
+            </div>
             {isLoading && <div className="h-40 animate-pulse rounded-[18px] bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat dashboard" />}
             {isError && <ErrorState compact message="Gagal memuat dashboard CSI." onRetry={() => refetch()} />}
             {data && (tab === 'live' ? <DashboardLive scope={scope} data={data} today={today} onOpenReport={onOpenReport} /> : <DashboardTrend data={data} />)}

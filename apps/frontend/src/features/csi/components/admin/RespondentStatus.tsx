@@ -6,6 +6,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { useCsiReport, useCsiRespondents, useSendCsiReminders } from '../../hooks/useCsi';
 import type { CsiReminderResult, CsiRespondents, CsiScopeParam, CsiSiteSummary, CsiSla } from '../../types';
 import { AdminSection } from './AdminParts';
+import { LiveStatusPill } from './LiveStatusPill';
 import { PendingByDepartment } from './hc/PendingByDepartment';
 import { PersonList } from './respondents/PersonList';
 import { ResetResponseDialog, type ResetResponseTarget } from './ResetResponseDialog';
@@ -95,7 +96,7 @@ export function RespondentStatus({ scope, periodId, sites, hcTarget }: {
     const namesToggle = byDepartment && (
         <Button variant="soft" onClick={() => setShowNames((value) => !value)}>{showNames ? 'Sembunyikan nama' : 'Tampilkan nama'}</Button>
     );
-    const actions = (namesToggle || remindAll) ? <>{namesToggle}{remindAll}</> : undefined;
+    const actions = <div className="flex flex-wrap items-center gap-2"><LiveStatusPill />{namesToggle}{remindAll}</div>;
     return (
         <>
             <AdminSection title="Status responden" actions={actions}

@@ -4,7 +4,7 @@ import { AuditService } from '../../audit/audit.service';
 import { AuditAction, AuditSeverity } from '../../audit/entities/audit-log.entity';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { ConfirmPeriodActionDto, CreatePeriodDto, PeriodListQueryDto, PeriodOverlapQueryDto, SetPairModeDto, SetPeriodRatersDto, SetRateesDto, SetPeriodPicsDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
+import { ConfirmPeriodActionDto, CreatePeriodDto, PeriodListQueryDto, PeriodOverlapQueryDto, SetPairModeDto, SetPeriodRatersDto, SetRateesDto, SetPeriodPicsDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodQuestionsDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
 import { CsiPeriodService } from '../services/csi-period.service';
 
@@ -127,5 +127,10 @@ export class CsiAdminPeriodController {
     @Put(':id/raters')
     setRaters(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SetPeriodRatersDto) {
         return this.periods.setRaters(req.csiScope, id, dto.userIds);
+    }
+
+    @Put(':id/questions')
+    updateQuestions(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: UpdatePeriodQuestionsDto) {
+        return this.periods.updateQuestions(req.csiScope, id, dto);
     }
 }

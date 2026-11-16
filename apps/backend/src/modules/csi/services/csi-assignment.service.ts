@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -15,6 +16,7 @@ import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { LOCKED_MESSAGE, lockPeriodForRaterAdditions, lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { picSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
+import { emitCsiUpdated } from '../csi.events';
 
 const SELF_PAIR_MESSAGE = 'Penilai tidak bisa menilai dirinya sendiri';
 const FOREIGN_PAIR_MESSAGE = 'Penilai atau subjek tidak termasuk periode ini';
@@ -53,6 +55,7 @@ export class CsiAssignmentService {
         @InjectRepository(CsiRaterAssignment) private readonly templates: Repository<CsiRaterAssignment>,
         @InjectRepository(CsiSubjectProfile) private readonly profiles: Repository<CsiSubjectProfile>,
         @InjectDataSource() private readonly dataSource: DataSource,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     async get(scope: ServiceScope, periodId: string): Promise<CsiAssignmentView> {
@@ -93,6 +96,7 @@ export class CsiAssignmentService {
             });
             return pairs;
         }, externalManager, !externalManager);
+        if (!externalManager) emitCsiUpdated(this.eventEmitter, scope, periodId);
         return externalManager ? ({ raters: [], ratees: [], pairs } as CsiAssignmentView) : this.get(scope, periodId);
     }
 
@@ -110,6 +114,7 @@ export class CsiAssignmentService {
                     .map((ratee) => ({ periodRaterId: rater.id, periodRateeId: ratee.id }));
             });
         });
+        emitCsiUpdated(this.eventEmitter, scope, periodId);
         return this.get(scope, periodId);
     }
 
@@ -187,6 +192,7 @@ export class CsiAssignmentService {
             });
             return uniquePairs(pairs);
         });
+        emitCsiUpdated(this.eventEmitter, scope, periodId);
         return this.get(scope, periodId);
     }
 

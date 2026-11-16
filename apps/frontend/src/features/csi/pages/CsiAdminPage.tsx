@@ -17,6 +17,7 @@ import { scrollContainerOf } from '../lib/scrollWithin';
 import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
+import { CsiLiveProvider } from '../hooks/useCsiLiveUpdates';
 import type { CsiPeriodListItem, CsiScopeParam } from '../types';
 
 type AdminArea = 'dashboard' | 'surveys' | 'settings';
@@ -112,7 +113,9 @@ function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
                 <SegmentedControl aria-label="Bagian Admin CSI" className="res-tabs !mb-0" options={areas}
                     value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
             </div>
-            <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
+            <CsiLiveProvider scope={scope}>
+                <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
+            </CsiLiveProvider>
             <ScrollToTopButton />
         </div>
     );

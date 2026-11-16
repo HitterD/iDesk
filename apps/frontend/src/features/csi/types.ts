@@ -107,6 +107,7 @@ export interface CsiPeriodRateeDimension extends CsiTimestamps {
     periodRateeId: string;
     dimensionId: string;
     dimensionName: string;
+    shortLabel?: string | null;
     type: CsiQuestionType;
     required: boolean;
     options: CsiOption[];
@@ -492,4 +493,16 @@ export interface CsiSelfResult {
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
     /** Score colour bands of the survey. */
     scoreBands: CsiScoreBands;
+}
+
+export interface CsiPeriodQuestionUpdate {
+    dimensionId: string;
+    type: CsiQuestionType;
+    options?: CsiOption[];
+}
+
+export interface UpdateCsiPeriodQuestions {
+    syncFromMaster?: boolean;
+    convertScaleToStar?: boolean;
+    updates?: CsiPeriodQuestionUpdate[];
 }
