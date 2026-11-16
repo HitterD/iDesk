@@ -25,6 +25,39 @@ export interface MergedTeamSite {
  * Groups ICT period sites for "Penilaian tim" so any site handled by another site present in the period
  * (e.g. Sukodono -> Sepanjang) is merged into its handler site instead of requiring a separate team card.
  */
+export interface MergedSiteGroup {
+    id: string;
+    code: string | null;
+    name: string | null;
+    /** Display label used on site cards and summaries (e.g. "Sepanjang (+ SKD)"). */
+    displayName: string;
+    /** Compact tab label used in segmented site filters (e.g. "SPJ"). */
+    tabLabel: string;
+    sourceSiteIds: ReadonlySet<string>;
+}
+
+export function mergedSiteDisplayName(
+    name: string | null | undefined,
+    code: string | null | undefined,
+    handledSites: readonly CsiSiteSummary[],
+): string {
+    const base = name ?? code ?? '';
+    const suffix = handledSites.map((s) => s.code ?? s.name ?? '').filter(Boolean).join(', ');
+    if (!suffix) return base;
+    return base ? `${base} (+ ${suffix})` : `+ ${suffix}`;
+}
+
+export function mergedSiteGroups(scope: CsiScopeParam, sites: readonly CsiSiteSummary[]): MergedSiteGroup[] {
+    return mergedTeamSites(scope, sites).map(({ site, handledSites }) => ({
+        id: site.id,
+        code: site.code,
+        name: site.name,
+        displayName: mergedSiteDisplayName(site.name, site.code, handledSites),
+        tabLabel: site.code ?? site.name ?? site.id,
+        sourceSiteIds: new Set([site.id, ...handledSites.map((child) => child.id)]),
+    }));
+}
+
 export function mergedTeamSites(scope: CsiScopeParam, sites: readonly CsiSiteSummary[]): MergedTeamSite[] {
     if (scope !== 'ict') return sites.map((site) => ({ site, handledSites: [] }));
     const present = new Set(sites.map((site) => site.id));

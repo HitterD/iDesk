@@ -37,6 +37,7 @@ import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pi
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
 import { ratersWithoutAccount } from '../org/csi-template-view';
 import { emitCsiUpdated } from '../csi.events';
+import { mergeHandledSites } from './csi-site-merge.util';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -88,7 +89,12 @@ const toScore = (item: CsiResponseItem): CsiAnswerScore => ({
 });
 
 const siteSummaries = (period: CsiPeriod) =>
-    (period.sites ?? []).map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }))
+    (period.sites ?? []).map((row) => ({
+        id: row.siteId,
+        code: row.site?.code ?? null,
+        name: row.site?.name ?? null,
+        ...(row.site?.handledBySiteId ? { handledBySiteId: row.site.handledBySiteId } : {}),
+    }))
         .sort((a, b) => (a.code ?? SORT_LAST).localeCompare(b.code ?? SORT_LAST));
 
 type SiteScopeFilter = { rateeSites: Set<string>; respondentSites: Set<string>; slaSiteIds: Set<string> };
@@ -197,10 +203,10 @@ export class CsiReportService {
     }
 
     /** One load per period, then per-site stats in memory (each site keeps only its own respondents so counts sum to total). */
-    async siteStats(scope: ServiceScope, period: CsiPeriod, siteIds: string[]): Promise<Map<string, CsiSiteStats>> {
+    async siteStats(scope: ServiceScope, period: CsiPeriod, siteIds: string[], includeDelegated = false): Promise<Map<string, CsiSiteStats>> {
         const [data, handlers] = await Promise.all([this.loadPeriodData(scope, period), this.siteHandlerMap(scope, period)]);
         return new Map(siteIds.map((siteId) => {
-            const site = narrowToSites(data, resolveSiteFilter(scope, handlers, data, siteId, false), scope);
+            const site = narrowToSites(data, resolveSiteFilter(scope, handlers, data, siteId, includeDelegated), scope);
             const people = site.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM && ratee.userId).map((ratee) => ({
                 userId: ratee.userId!, displayName: ratee.displayName, photoUrl: site.views.get(ratee.id)?.photoUrl ?? null,
                 average: rateeStats(ratee, site.dimensions, site.items).average,
@@ -269,15 +275,23 @@ export class CsiReportService {
                 average: rateeStats(ratee, before.dimensions, before.items).average,
             })));
         }
-        // Participation per site (same SLA rules, one site at a time).
-        const siteStats = await this.siteStats(scope, period, sites.map((site) => site.id));
+        // Participation per site: ICT merges delegated sites (SKD -> SPJ) into their handler site row.
+        const includeDelegated = !siteId || (filter?.slaSiteIds.size ?? 0) > 1;
+        const periodSiteRefs = [...(period.sites ?? [])].sort((a, b) => (a.site?.code ?? SORT_LAST).localeCompare(b.site?.code ?? SORT_LAST));
+        const mergedGroups = mergeHandledSites(scope, periodSiteRefs, handlers);
+        const targetGroups = siteId
+            ? (filter && filter.slaSiteIds.size > 1
+                ? mergedGroups.filter((group) => group.id === siteId)
+                : sites.map((site) => ({ id: site.id, code: site.code, name: site.name, sourceSiteIds: [site.id], handledCodes: [] })))
+            : mergedGroups;
+        const siteStats = await this.siteStats(scope, period, targetGroups.map((group) => group.id), includeDelegated);
         const siteBasis = [];
         const reporters: CsiSlaReporter[] = [];
-        for (const site of sites) {
-            const stats = siteStats.get(site.id);
-            const sla = await this.sla.compute(period, [site], stats?.responses ?? 0);
-            reporters.push(...sla.reporters);
-            siteBasis.push({ siteId: site.id, basis: sla.basis, responses: stats?.responses ?? 0, average: stats?.average ?? null });
+        for (const group of targetGroups) {
+            const stats = siteStats.get(group.id);
+            const sla = await this.sla.compute(period, group.sourceSiteIds.map((id) => ({ id })), stats?.responses ?? 0);
+            reporters.push(...(sla.reporters ?? []));
+            siteBasis.push({ siteId: group.id, code: group.code, name: group.name, basis: sla.basis, responses: stats?.responses ?? 0, average: stats?.average ?? null });
         }
         const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
             periodRateeId: ratee.periodRateeId, text: comment.text,

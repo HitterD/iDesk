@@ -5,6 +5,8 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
 import { toneClasses } from '../../../lib/csiTone';
 import { formatDateTime } from '../../../lib/format';
+import { mergedSiteGroups } from '../../../lib/siteHandlers';
+import type { CsiScopeParam, CsiSiteSummary } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
 import { SiteBadge } from '../report/reportParts';
 import { RateeAvatar } from '../../respond/RateeAvatar';
@@ -15,8 +17,9 @@ const PILL = 'inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text
 const FILTER_LABELS: Readonly<Record<PersonFilter, string>> = { all: 'Semua', todo: 'Belum', done: 'Sudah' };
 
 export interface PersonListProps {
+    scope?: CsiScopeParam;
     rows: readonly PersonRow[];
-    sites: ReadonlyArray<{ id: string; code: string | null; name: string | null }>;
+    sites: readonly CsiSiteSummary[];
     /** False in OPEN mode: there is no rater list to remind. */
     canRemind: boolean;
     reminded: ReadonlySet<string>;
@@ -76,23 +79,25 @@ function PersonItem({ row, siteCode, canRemind, reminded, busy, onRemind, onRese
 }
 
 /** Tabs Semua | Belum | Sudah (with counts), site filter, search; not-yet first; per-row reminder & anonymous reset. */
-export function PersonList({ rows, sites, canRemind, reminded, remindingId, onRemind, onResetResponse }: PersonListProps) {
+export function PersonList({ scope, rows, sites, canRemind, reminded, remindingId, onRemind, onResetResponse }: PersonListProps) {
     const [filter, setFilter] = useState<PersonFilter>('all');
     const [site, setSite] = useState<string>(ALL_SITES);
     const [search, setSearch] = useState('');
-    const base = filterRows(rows, { site: site === ALL_SITES ? null : site, search });
+    const groups = mergedSiteGroups(scope ?? 'hc', sites);
+    const selectedGroup = site === ALL_SITES ? null : groups.find((group) => group.id === site) ?? null;
+    const base = filterRows(rows, { site: site === ALL_SITES ? null : site, siteIds: selectedGroup?.sourceSiteIds ?? null, search });
     const counts = countByFilter(base);
     const visible = base.filter(matchesFilter(filter));
     const codeOf = (siteId: string | null) => sites.find((row) => row.id === siteId)?.code ?? null;
     const filterOptions = (Object.keys(FILTER_LABELS) as PersonFilter[]).map((key) => ({
         value: key, label: <>{FILTER_LABELS[key]} <b className="tabular-nums">{counts[key]}</b></>, ariaLabel: `${FILTER_LABELS[key]} ${counts[key]}`,
     }));
-    const siteOptions = [{ value: ALL_SITES, label: 'Semua site' }, ...sites.map((row) => ({ value: row.id, label: row.code ?? row.name ?? row.id }))];
+    const siteOptions = [{ value: ALL_SITES, label: 'Semua site' }, ...groups.map((group) => ({ value: group.id, label: group.tabLabel }))];
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2.5">
                 <SegmentedControl aria-label="Status pengisian" className="dash-seg" options={filterOptions} value={filter} onValueChange={setFilter} />
-                {sites.length > 1 && <SegmentedControl aria-label="Filter site responden" className="dash-seg" options={siteOptions} value={site} onValueChange={setSite} />}
+                {groups.length > 1 && <SegmentedControl aria-label="Filter site responden" className="dash-seg" options={siteOptions} value={site} onValueChange={setSite} />}
                 <label className="flex h-9 min-w-[min(240px,100%)] flex-1 items-center gap-2 rounded-xl bg-[hsl(var(--muted)/.6)] px-3 focus-within:ring-2 focus-within:ring-ring">
                     <Search className="h-4 w-4 shrink-0 text-[hsl(var(--idesk-text-secondary))]" aria-hidden="true" />
                     <input type="search" aria-label="Cari responden" placeholder="Cari nama atau departemen…" value={search}

@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiReport } from '../../hooks/useCsi';
 import { CSI_SCORE_BANDS_DEFAULT, type CsiScoreBands } from '../../lib/csiTone';
+import { mergedSiteGroups, siteHandlerMapOf } from '../../lib/siteHandlers';
 import type { CsiReportRatee, CsiScopeParam, CsiSiteSummary } from '../../types';
 import { AdminSection, EmptyNote } from './AdminParts';
 import { byAverageDesc } from './report/reportModel';
@@ -36,7 +37,12 @@ function SubjectCards({ ratees, siteCodeOf, bands, onOpen }: {
 export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
     scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null;
 }) {
-    const [site, setSite] = useState<string>(initialSiteId && sites.some((row) => row.id === initialSiteId) ? initialSiteId : ALL_SITES);
+    const groups = mergedSiteGroups(scope, sites);
+    const handlers = siteHandlerMapOf(scope, sites);
+    const resolvedInitial = initialSiteId
+        ? groups.find((group) => group.sourceSiteIds.has(initialSiteId))?.id ?? ALL_SITES
+        : ALL_SITES;
+    const [site, setSite] = useState<string>(resolvedInitial);
     const siteParam = site === ALL_SITES ? undefined : site;
     const [view, setView] = useState<ReportView>('cards');
     const [openId, setOpenId] = useState<string | null>(null);
@@ -45,8 +51,8 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
     const siteOf = (siteId: string | null) => sites.find((row) => row.id === siteId) ?? null;
     const siteCodeOf = (siteId: string | null) => siteOf(siteId)?.code ?? null;
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' },
-        ...sites.map((row) => ({ value: row.id, label: row.code ?? row.name ?? row.id }))];
-    const ranked = report ? byAverageDesc(report.ratees, siteParam) : [];
+        ...groups.map((group) => ({ value: group.id, label: group.tabLabel }))];
+    const ranked = report ? byAverageDesc(report.ratees, siteParam, handlers) : [];
     const open = ranked.find((ratee) => ratee.periodRateeId === openId) ?? null;
     // The sheet stays mounted while the report loads; it needs bands before any report exists.
     const bands = report?.scoreBands ?? CSI_SCORE_BANDS_DEFAULT;
@@ -57,7 +63,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
                 <Button variant="soft" onClick={() => setExportOpen(true)}><FileText aria-hidden="true" />Laporan PDF & Excel</Button>
             )}>
             <div className="grid gap-4">
-                {sites.length > 1 && (
+                {groups.length > 1 && (
                     <SegmentedControl aria-label="Filter site laporan" className="dash-seg w-fit" options={siteOptions} value={site} onValueChange={setSite} />
                 )}
                 {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat laporan" />}

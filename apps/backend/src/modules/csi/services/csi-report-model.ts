@@ -224,7 +224,7 @@ export type CsiReportModelInput = {
     /** An earlier published period exists (even when nobody answered it). */
     hasPrevious: boolean;
     /** Per site: SLA basis (number of people), responses and average. */
-    siteBasis: Array<{ siteId: string; basis: number; responses: number; average: number | null }>;
+    siteBasis: Array<{ siteId: string; code?: string | null; name?: string | null; basis: number; responses: number; average: number | null }>;
     /** Every basis rater: department (directory, else account) and whether they answered; never a name. */
     raters: Array<{ department: string | null; answered: boolean }>;
     /** HC: template raters of the survey sites without an iDesk account (see CsiReportModel); 0 or absent for ICT. */
@@ -276,7 +276,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         const basis = row.basis;
         const target = Math.ceil((basis * targetPct) / PERCENT);
         return {
-            siteId: row.siteId, code: site?.code ?? null, name: site?.name ?? null, basis, target, responses: row.responses,
+            siteId: row.siteId, code: row.code ?? site?.code ?? null, name: row.name ?? site?.name ?? null, basis, target, responses: row.responses,
             respondenPct: respondenPct(row.responses, basis), reached: target > 0 && row.responses >= target, average: row.average,
         };
     });
@@ -288,9 +288,10 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
     const commentGroups = [...byRatee.values()].filter((group) => group.comments.length)
         .map((group) => ({ ...group, comments: [...group.comments].sort((a, b) => commentOrder(a.text, b.text)) }));
     const { average: overallAverage, previous: previousAverage } = overallBasis(input);
+    const siteNames = (sites.length ? sites : report.period.sites).map((site) => site.name ?? site.code).filter(Boolean).join(', ') || 'Semua site';
     const partial: Omit<CsiReportModel, 'highlights'> = {
         title: report.period.title, scopeLabel, startDate: report.period.startDate, endDate: report.period.endDate,
-        siteLabel: report.period.sites.map((site) => site.name ?? site.code).filter(Boolean).join(', ') || 'Semua site',
+        siteLabel: siteNames,
         modeLabel: sla.mode === CsiRespondentMode.LISTED ? 'Hanya penilai terdaftar' : 'Semua user di site',
         targetPct, docNo: `CSI-${scopeLabel}-${report.period.id.slice(0, 8).toUpperCase()}`, bands,
         simulation: report.period.title.startsWith(CSI_SIMULATION_TITLE_PREFIX),
@@ -311,7 +312,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         choices: choices(report.ratees),
         departments: departmentParticipation(input.raters, targetPct),
         comments: commentGroups, notes: input.notes.trim(),
-        counts: { teams: teams.length, people: people.length, sites: report.period.sites.length, comments: commentGroups.reduce((sum, group) => sum + group.comments.length, 0) },
+        counts: { teams: teams.length, people: people.length, sites: sites.length || report.period.sites.length, comments: commentGroups.reduce((sum, group) => sum + group.comments.length, 0) },
     };
     return { ...partial, highlights: highlightSentences(partial, input.scope) };
 }

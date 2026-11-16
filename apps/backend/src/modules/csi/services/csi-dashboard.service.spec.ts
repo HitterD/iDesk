@@ -197,4 +197,20 @@ describe('CsiDashboardService', () => {
         expect(result.comments.map((row) => row.text)).toEqual(['Komentar 0', 'Komentar 2', 'Komentar 3', 'Komentar 4', 'Komentar 5']);
         expect(result.comments[0]).toEqual({ text: 'Komentar 0', subjectName: 'Budi', siteId: SPJ.id, createdAt: NOW });
     });
+
+    it('merges ICT delegated sites (SKD -> SPJ) in active cards, SLA basis, trend and keeps SKD badge map', async () => {
+        const SPJ_WITH_HANDLER = { id: 'site-spj', code: 'SPJ', name: 'Sepanjang', handledBySiteId: null };
+        const SKD = { id: 'site-skd', code: 'SKD', name: 'Sukodono', handledBySiteId: SPJ_WITH_HANDLER.id };
+        rows.push(period('p-now', '2026-10-01', '2026-10-31', [KRW as any, SKD as any, SPJ_WITH_HANDLER as any]));
+        siteStats.set('p-now', { [SPJ.id]: stats(4.5, 15), [KRW.id]: stats(4.0, 5) });
+
+        const dashboard = await service.getDashboard(ICT, NOW);
+        expect(dashboard.active.map((row) => ({ siteId: row.siteId, siteCode: row.siteCode, siteName: row.siteName, responses: row.responses }))).toEqual([
+            { siteId: KRW.id, siteCode: 'KRW', siteName: 'Karawang', responses: 5 },
+            { siteId: SPJ.id, siteCode: 'SPJ', siteName: 'Sepanjang (+ SKD)', responses: 15 },
+        ]);
+        expect(dashboard.trend.map((row) => row.siteCode)).toEqual(['KRW', 'SPJ']);
+        expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p-now' }), [{ id: SPJ.id }, { id: SKD.id }], 15);
+        expect(dashboard.siteCodes).toEqual({ [SKD.id]: 'SKD' });
+    });
 });

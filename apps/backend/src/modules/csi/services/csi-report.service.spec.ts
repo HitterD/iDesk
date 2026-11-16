@@ -619,6 +619,12 @@ describe('CsiReportService', () => {
             expect(stats.get('site-c')?.responses).toBe(1);
             expect(stats.get('site-c')?.average).toBe(4);
             expect(stats.get('site-c')?.people).toEqual([{ userId: 'u1', displayName: 'Budi', photoUrl: '/uploads/csi/budi.jpg', average: 4 }]);
+
+            const exec = await service.getExecutiveModel(ICT, 'p1');
+            expect(exec.sites).toHaveLength(1);
+            expect(exec.sites[0]).toMatchObject({ siteId: 'site-a', code: 'SPJ', name: 'Sepanjang (+ SKD)', responses: 2, average: 3.75 });
+            expect(exec.counts.sites).toBe(1);
+            expect(sla.compute).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }), [{ id: 'site-a' }, { id: 'site-c' }], 2);
         });
 
         it('excludes 0-pair ratees from mapped reports while keeping assigned ratees that have 0 responses so far', async () => {

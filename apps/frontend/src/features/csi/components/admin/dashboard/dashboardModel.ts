@@ -22,6 +22,7 @@ export function remainingLabel(endDate: string, today: Date): string {
 /** Site code (or name) per site id from every row that carries one. */
 export function siteCodes(data: CsiDashboard): ReadonlyMap<string, string | null> {
     const codes = new Map<string, string | null>();
+    Object.entries(data.siteCodes ?? {}).forEach(([siteId, code]) => codes.set(siteId, code));
     data.trend.forEach((row) => codes.set(row.siteId, row.siteCode));
     data.active.forEach((row) => codes.set(row.siteId, row.siteCode));
     return codes;
