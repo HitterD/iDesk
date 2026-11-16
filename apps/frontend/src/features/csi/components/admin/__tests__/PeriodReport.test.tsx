@@ -100,4 +100,14 @@ describe('PeriodReport', () => {
         const cards = screen.getAllByRole('button', { name: /^Rincian / });
         expect(cards.map((card) => card.getAttribute('aria-label'))).toEqual(['Rincian Novitasari', 'Rincian Esterlita']);
     });
+
+    it('merges SKD into SPJ tab on ICT report filter and resolves SKD initialSiteId to SPJ', () => {
+        const SPJ = { id: 's1', code: 'SPJ', name: 'Sepanjang', handledBySiteId: null };
+        const KRW = { id: 's2', code: 'KRW', name: 'Karawang', handledBySiteId: null };
+        const SKD = { id: 's3', code: 'SKD', name: 'Sukodono', handledBySiteId: 's1' };
+        render(<PeriodReport scope="ict" periodId="p1" sites={[SPJ, KRW, SKD]} initialSiteId="s3" />);
+        const filter = screen.getByRole('group', { name: 'Filter site laporan' });
+        expect(within(filter).getAllByRole('button').map((btn) => btn.textContent)).toEqual(['Semua site', 'SPJ', 'KRW']);
+        expect(fx.useCsiReport).toHaveBeenLastCalledWith('ict', 'p1', 's1');
+    });
 });

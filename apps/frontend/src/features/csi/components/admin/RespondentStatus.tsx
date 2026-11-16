@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useCsiReport, useCsiRespondents, useSendCsiReminders } from '../../hooks/useCsi';
+import { mergedSiteGroups } from '../../lib/siteHandlers';
 import type { CsiReminderResult, CsiRespondents, CsiScopeParam, CsiSiteSummary, CsiSla } from '../../types';
 import { AdminSection } from './AdminParts';
 import { LiveStatusPill } from './LiveStatusPill';
@@ -24,11 +25,16 @@ const openDescription = (hcTarget: boolean) => (hcTarget
 const reminderToast = ({ sent, skipped }: CsiReminderResult) =>
     `Pengingat terkirim ke ${sent} orang${skipped > 0 ? `, ${skipped} dilewati` : ''}`;
 
-/** LISTED only: per-site progress of every period site against the period target. */
-function siteProgress(rows: readonly PersonRow[], sites: readonly CsiSiteSummary[], targetPct: number): SiteProgress[] {
-    return sites.map((site) => {
-        const own = rows.filter((row) => row.siteId === site.id);
-        return { siteId: site.id, code: site.code, name: site.name, progress: progressOf(own.filter((row) => row.done).length, own.length, targetPct) };
+/** LISTED only: per-site progress against the period target (ICT merges delegated sites like SKD -> SPJ). */
+function siteProgress(scope: CsiScopeParam, rows: readonly PersonRow[], sites: readonly CsiSiteSummary[], targetPct: number): SiteProgress[] {
+    return mergedSiteGroups(scope, sites).map((group) => {
+        const own = rows.filter((row) => row.siteId !== null && group.sourceSiteIds.has(row.siteId));
+        return {
+            siteId: group.id,
+            code: group.code,
+            name: group.displayName,
+            progress: progressOf(own.filter((row) => row.done).length, own.length, targetPct),
+        };
     });
 }
 
@@ -48,8 +54,8 @@ function useReminders(scope: CsiScopeParam, periodId: string) {
     return { reminded, rowId, remindOne, remindAll, allPending: send.isPending && rowId === null };
 }
 
-function StatusBody({ data, rows, sites, targetPct, reminders, onResetResponse, basis, hcTarget, namesHidden }: {
-    data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
+function StatusBody({ scope, data, rows, sites, targetPct, reminders, onResetResponse, basis, hcTarget, namesHidden }: {
+    scope: CsiScopeParam; data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
     reminders: ReturnType<typeof useReminders>; onResetResponse: (target: ResetResponseTarget) => void;
     basis: CsiSla | undefined;
     hcTarget?: boolean;
@@ -58,15 +64,16 @@ function StatusBody({ data, rows, sites, targetPct, reminders, onResetResponse, 
 }) {
     const listed = data.mode === 'LISTED';
     const progress = basis ? overallProgress(data, basis) : null;
+    const siteCards = listed ? siteProgress(scope, rows, sites, targetPct) : [];
     return (
         <div className="grid gap-6">
             {progress && (
                 <RespondentHero progress={progress} targetPct={targetPct} basisLabel={hcTarget ? 'target responden (HC)' : BASIS_LABEL[data.mode]}
-                    sites={listed && sites.length > 1 ? siteProgress(rows, sites, targetPct) : []} />
+                    sites={siteCards.length > 1 ? siteCards : []} />
             )}
             {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
             {!(data.pendingByDepartment && namesHidden) && (
-                <PersonList rows={rows} sites={sites} canRemind={listed} reminded={reminders.reminded} remindingId={reminders.rowId}
+                <PersonList scope={scope} rows={rows} sites={sites} canRemind={listed} reminded={reminders.reminded} remindingId={reminders.rowId}
                     onRemind={reminders.remindOne} onResetResponse={onResetResponse} />
             )}
         </div>
@@ -104,7 +111,7 @@ export function RespondentStatus({ scope, periodId, sites, hcTarget }: {
                 {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat responden" />}
                 {isError && <ErrorState compact message="Gagal memuat status responden." onRetry={() => refetch()} />}
                 {data && (
-                    <StatusBody data={data} rows={rows} sites={sites} targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
+                    <StatusBody scope={scope} data={data} rows={rows} sites={sites} targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
                         onResetResponse={setResetTarget} basis={report?.sla} hcTarget={hcTarget} namesHidden={byDepartment && !showNames} />
                 )}
             </AdminSection>

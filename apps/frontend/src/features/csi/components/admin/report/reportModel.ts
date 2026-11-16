@@ -1,4 +1,5 @@
 import type { CsiQuestionStat, CsiReportRatee } from '../../../types';
+import { resolveEffectiveSite } from '../../../lib/siteHandlers';
 
 const SCORE_MAX = 5;
 const PERCENT = 100;
@@ -65,11 +66,11 @@ export function strongestAndWeakest(columns: readonly QuestionColumn[]) {
  * When filtering by one site, subjects based at that site precede cross-site subjects (so a 1-rater 5,00 from
  * another site never ranks first across non-home site tabs); ties break by respondent count, then displayName.
  */
-export const byAverageDesc = (ratees: readonly CsiReportRatee[], activeSiteId?: string) =>
+export const byAverageDesc = (ratees: readonly CsiReportRatee[], activeSiteId?: string, siteHandlers?: Record<string, string>) =>
     [...ratees].sort((a, b) => {
         if (activeSiteId) {
-            const aOwn = a.siteId === activeSiteId ? 1 : 0;
-            const bOwn = b.siteId === activeSiteId ? 1 : 0;
+            const aOwn = (resolveEffectiveSite(a.siteId, siteHandlers) ?? a.siteId) === activeSiteId ? 1 : 0;
+            const bOwn = (resolveEffectiveSite(b.siteId, siteHandlers) ?? b.siteId) === activeSiteId ? 1 : 0;
             if (bOwn !== aOwn) return bOwn - aOwn;
         }
         const avgDiff = (b.average ?? -1) - (a.average ?? -1);

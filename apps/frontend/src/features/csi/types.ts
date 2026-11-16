@@ -475,6 +475,7 @@ export interface CsiDashboard {
     peopleDelta: CsiDashboardPersonDelta[];
     pending: CsiDashboardPending[];
     comments: CsiDashboardComment[];
+    siteCodes?: Record<string, string>;
 }
 
 export interface CsiSelfPendingRater {

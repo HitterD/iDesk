@@ -128,4 +128,37 @@ describe('RespondentStatus', () => {
         expect(fx.resetMutate).toHaveBeenCalledWith({ responseId: 'a', reason: 'abc salah departemen' }, expect.anything());
         expect(fx.toast.success).toHaveBeenCalledWith('Jawaban Rina direset');
     });
+
+    it('merges ICT delegated sites (SKD -> SPJ) into one card & SPJ filter while keeping SKD row badge', async () => {
+        const user = userEvent.setup();
+        const SPJ = { id: 's1', code: 'SPJ', name: 'Sepanjang', handledBySiteId: null };
+        const KRW = { id: 's2', code: 'KRW', name: 'Karawang', handledBySiteId: null };
+        const SKD = { id: 's3', code: 'SKD', name: 'Sukodono', handledBySiteId: 's1' };
+        fx.respondents = {
+            mode: 'LISTED',
+            submitted: [
+                { responseId: 'a', userId: 'u9', respondentName: 'Rina', accountName: 'User SPJ', departmentName: 'Finance', siteId: 's1', submittedAt: '2026-10-20T05:00:00Z' },
+            ],
+            pending: [
+                { userId: 'u1', fullName: 'Andi', department: 'Gudang', siteId: 's2' },
+                { userId: 'u3', fullName: 'Dina', department: 'QA', siteId: 's3' },
+            ],
+            totals: { submitted: 1, pending: 2 },
+        };
+
+        render(<RespondentStatus scope="ict" periodId="p1" sites={[SPJ, KRW, SKD]} />);
+
+        expect(screen.queryByLabelText('Progres SKD')).not.toBeInTheDocument();
+        const spjCard = screen.getByLabelText('Progres SPJ');
+        expect(spjCard).toHaveTextContent('Sepanjang (+ SKD)');
+        expect(spjCard).toHaveTextContent('1/2');
+
+        const filter = screen.getByRole('group', { name: 'Filter site responden' });
+        expect(within(filter).getAllByRole('button').map((btn) => btn.textContent)).toEqual(['Semua site', 'SPJ', 'KRW']);
+
+        await user.click(within(filter).getByRole('button', { name: 'SPJ' }));
+        expect(names()).toEqual(['Dina', 'Rina']);
+        const list = screen.getByRole('list', { name: 'Daftar responden' });
+        expect(within(list).getByText('SKD')).toBeInTheDocument();
+    });
 });

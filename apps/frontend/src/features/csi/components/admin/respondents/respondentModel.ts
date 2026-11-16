@@ -51,9 +51,9 @@ export function personRows(data: CsiRespondents): PersonRow[] {
     return [...pending, ...submitted];
 }
 
-export function filterRows(rows: readonly PersonRow[], { site, search }: { site: string | null; search: string }) {
+export function filterRows(rows: readonly PersonRow[], { site, siteIds, search }: { site: string | null; siteIds?: ReadonlySet<string> | null; search: string }) {
     const term = search.trim().toLowerCase();
-    return rows.filter((row) => (site === null || row.siteId === site)
+    return rows.filter((row) => (siteIds ? (row.siteId !== null && siteIds.has(row.siteId)) : (site === null || row.siteId === site))
         && (!term || row.name.toLowerCase().includes(term) || row.detail.toLowerCase().includes(term)));
 }
 

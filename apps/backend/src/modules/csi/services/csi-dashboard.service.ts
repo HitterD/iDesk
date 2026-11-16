@@ -14,6 +14,7 @@ import { bandsOf, CsiScoreBands } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 import { CsiSlaService } from './csi-sla.service';
 import { isRaterInAudience } from './csi-rater-audience.util';
+import { delegatedSiteCodeMap, mergeHandledSites, MergedSiteGroup } from './csi-site-merge.util';
 
 const TREND_POINTS = 5;
 const PENDING_MAX = 10;
@@ -38,8 +39,9 @@ export type CsiDashboardComment = { text: string; subjectName: string; siteId: s
 export type CsiDashboard = {
     active: CsiDashboardActive[]; trend: CsiDashboardTrend[]; peopleDelta: CsiDashboardPersonDelta[];
     pending: CsiDashboardPending[]; comments: CsiDashboardComment[];
+    /** Code map for delegated child sites merged into `active` (e.g. SKD -> 'SKD' badge in pending list). */
+    siteCodes?: Record<string, string>;
 };
-type SiteRef = { id: string; code: string | null; name: string | null };
 
 /** "Q<quarter> <yy>" of a 'YYYY-MM-DD' end date, e.g. 2026-10-31 -> "Q4 26". */
 export function quarterLabel(endDate: string): string {
@@ -47,8 +49,9 @@ export function quarterLabel(endDate: string): string {
     return `Q${Math.ceil(Number(month) / MONTHS_PER_QUARTER)} ${year.slice(-2)}`;
 }
 
-const sitesOf = (period: CsiPeriod): SiteRef[] =>
-    (period.sites ?? []).map((row) => ({ id: row.siteId, code: row.site?.code ?? null, name: row.site?.name ?? null }));
+const sitesOf = (period: CsiPeriod, scope: ServiceScope): MergedSiteGroup[] =>
+    mergeHandledSites(scope, period.sites ?? []);
+const rawSiteIdsOf = (period: CsiPeriod): string[] => (period.sites ?? []).map((row) => row.siteId);
 const byEndDate = (a: CsiPeriod, b: CsiPeriod) => a.endDate.localeCompare(b.endDate);
 const byCode = (a: { siteCode: string | null }, b: { siteCode: string | null }) => (a.siteCode ?? SORT_LAST).localeCompare(b.siteCode ?? SORT_LAST);
 
@@ -72,20 +75,22 @@ export class CsiDashboardService {
             relations: { sites: { site: true } },
         })).filter((period) => !isSimulation(period)).sort(byEndDate);
         const active = started.filter((period) => period.endDate >= today);
-        const stats = new StatsCache((period) => this.reports.siteStats(scope, period, sitesOf(period).map((site) => site.id)));
+        const stats = new StatsCache((period) => this.reports.siteStats(scope, period, sitesOf(period, scope).map((site) => site.id), true));
+        const extraSiteCodes = Object.assign({}, ...started.map((period) => delegatedSiteCodeMap(scope, period.sites ?? [])));
         return {
-            active: await this.activeRows(active, stats),
-            trend: await trendOf(started, stats),
-            peopleDelta: await peopleDeltaOf(active, started, stats),
+            active: await this.activeRows(scope, active, stats),
+            trend: await trendOf(scope, started, stats),
+            peopleDelta: await peopleDeltaOf(scope, active, started, stats),
             pending: await this.pendingOf(active),
             comments: await this.latestComments(active),
+            ...(Object.keys(extraSiteCodes).length ? { siteCodes: extraSiteCodes } : {}),
         };
     }
 
-    private async activeRows(active: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardActive[]> {
-        const rows = await Promise.all(active.flatMap((period) => sitesOf(period).map(async (site) => {
+    private async activeRows(scope: ServiceScope, active: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardActive[]> {
+        const rows = await Promise.all(active.flatMap((period) => sitesOf(period, scope).map(async (site) => {
             const siteStats = await stats.of(period, site.id);
-            const sla = await this.sla.compute(period, [{ id: site.id }], siteStats.responses);
+            const sla = await this.sla.compute(period, site.sourceSiteIds.map((id) => ({ id })), siteStats.responses);
             return {
                 periodId: period.id, title: period.title, siteId: site.id, siteCode: site.code, siteName: site.name,
                 responses: siteStats.responses, basis: sla.basis, target: sla.target, targetPct: sla.targetPct,
@@ -110,7 +115,7 @@ export class CsiDashboardService {
         ]);
         const answered = new Set(responses.map((row) => `${row.periodId}:${row.respondentId}`));
         const pairedBy = new Map(paired);
-        const sitesBy = new Map(listed.map((period) => [period.id, sitesOf(period).map((site) => site.id)]));
+        const sitesBy = new Map(listed.map((period) => [period.id, rawSiteIdsOf(period)]));
         const inAudience = (rater: CsiPeriodRater) => isRaterInAudience(rater, sitesBy.get(rater.periodId) ?? [], pairedBy.get(rater.periodId) ?? null);
         const order = new Map(listed.map((period, index) => [period.id, index]));
         return raters
@@ -152,11 +157,11 @@ class StatsCache {
 }
 
 /** Per site: the last TREND_POINTS started periods (ended ones plus the running one), oldest first. */
-async function trendOf(started: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardTrend[]> {
-    const sites = new Map<string, SiteRef>();
-    started.forEach((period) => sitesOf(period).forEach((site) => sites.set(site.id, site)));
+async function trendOf(scope: ServiceScope, started: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardTrend[]> {
+    const sites = new Map<string, MergedSiteGroup>();
+    started.forEach((period) => sitesOf(period, scope).forEach((site) => sites.set(site.id, site)));
     const trend = await Promise.all([...sites.values()].map(async (site) => {
-        const periods = started.filter((period) => sitesOf(period).some((row) => row.id === site.id)).slice(-TREND_POINTS);
+        const periods = started.filter((period) => sitesOf(period, scope).some((row) => row.id === site.id)).slice(-TREND_POINTS);
         const points = await Promise.all(periods.map(async (period) => ({
             periodId: period.id, label: quarterLabel(period.endDate), average: (await stats.of(period, site.id)).average,
         })));
@@ -166,9 +171,9 @@ async function trendOf(started: CsiPeriod[], stats: StatsCache): Promise<CsiDash
 }
 
 /** Per active period and site: each person's average vs the latest earlier period of that site, by delta desc. */
-async function peopleDeltaOf(active: CsiPeriod[], started: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardPersonDelta[]> {
-    const deltas = await Promise.all(active.flatMap((period) => sitesOf(period).map(async (site) => {
-        const previous = started.filter((row) => row.endDate < period.startDate && sitesOf(row).some((ref) => ref.id === site.id)).pop();
+async function peopleDeltaOf(scope: ServiceScope, active: CsiPeriod[], started: CsiPeriod[], stats: StatsCache): Promise<CsiDashboardPersonDelta[]> {
+    const deltas = await Promise.all(active.flatMap((period) => sitesOf(period, scope).map(async (site) => {
+        const previous = started.filter((row) => row.endDate < period.startDate && sitesOf(row, scope).some((ref) => ref.id === site.id)).pop();
         if (!previous) return [];
         const before = new Map((await stats.of(previous, site.id)).people.map((row) => [row.userId, row.average]));
         return (await stats.of(period, site.id)).people.flatMap((row) => {
