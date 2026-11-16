@@ -90,6 +90,7 @@ export interface CsiUnitOption { division: string; department: string | null; ba
 export interface CsiHcRater {
     userId: string; nik: string | null; fullName: string; siteCode: string | null;
     division: string | null; department: string | null; bagian: string | null; periodRateeIds: string[];
+    answered?: boolean;
 }
 export interface CsiPairsImportReport {
     rows: number; pairs: number; raters: number; problems: Array<{ row: number; message: string }>; problemCount: number; committed: boolean;

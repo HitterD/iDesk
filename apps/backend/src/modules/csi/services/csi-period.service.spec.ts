@@ -695,12 +695,22 @@ describe('CsiPeriodService', () => {
             await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: [] }])).rejects.toBeInstanceOf(BadRequestException);
         });
 
-        it('setRatees throws 409 when locked', async () => {
+        it('setRatees throws 409 when locked, while setRaters allows additions on active surveys and blocks removals or ended surveys', async () => {
             responses.rows.push({ id: 'resp', periodId: 'p1' });
             await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
+            // p1 in basePeriod ended in 2026-09-30 -> still locked.
             await expect(service.setRaters(ICT, 'p1', ['u2'])).rejects.toBeInstanceOf(ConflictException);
             await expect(service.remove(ICT, 'p1')).rejects.toBeInstanceOf(ConflictException);
             expect(periods.delete).not.toHaveBeenCalled();
+
+            // Active survey with answers: adding a new rater succeeds; removing an existing one throws 409.
+            periods.rows[0] = basePeriod({ startDate: '2026-11-01', endDate: '2099-12-31' });
+            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
+            await expect(service.setRaters(ICT, 'p1', ['u2'])).rejects.toThrow(new ConflictException('Penilai yang sudah terdaftar tidak dapat dihapus setelah ada jawaban'));
+
+            manager.repositories.get(CsiPeriodRater); // same manager repositories
+            await service.setRaters(ICT, 'p1', ['u1', 'u2']);
+            expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value).toEqual([expect.objectContaining({ periodId: 'p1', userId: 'u2' })]);
         });
 
         it('setRaters diffs by userId (keeps, removes, adds) and rejects inactive users', async () => {

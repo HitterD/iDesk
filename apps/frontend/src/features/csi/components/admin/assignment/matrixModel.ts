@@ -47,24 +47,27 @@ export function toggleCells(pairs: ReadonlySet<PairKey>, cells: readonly PairKey
     return next;
 }
 
-function cellsOf(raters: readonly Rater[], ratees: readonly Ratee[]): PairKey[] {
-    return raters.flatMap((rater) => ratees.filter((ratee) => !isSelf(rater, ratee)).map((ratee) => pairKey(rater.periodRaterId, ratee.periodRateeId)));
+function cellsOf(raters: readonly Rater[], ratees: readonly Ratee[], lockedRaterIds?: ReadonlySet<string>): PairKey[] {
+    return raters
+        .filter((rater) => !lockedRaterIds?.has(rater.periodRaterId))
+        .flatMap((rater) => ratees.filter((ratee) => !isSelf(rater, ratee)).map((ratee) => pairKey(rater.periodRaterId, ratee.periodRateeId)));
 }
 
-export function rowCells(a: MatrixData, raterId: string): PairKey[] {
-    return cellsOf(a.raters.filter((rater) => rater.periodRaterId === raterId), a.ratees);
+export function rowCells(a: MatrixData, raterId: string, lockedRaterIds?: ReadonlySet<string>): PairKey[] {
+    return cellsOf(a.raters.filter((rater) => rater.periodRaterId === raterId), a.ratees, lockedRaterIds);
 }
 
-export function colCells(a: MatrixData, rateeId: string): PairKey[] {
-    return cellsOf(a.raters, a.ratees.filter((ratee) => ratee.periodRateeId === rateeId));
+export function colCells(a: MatrixData, rateeId: string, lockedRaterIds?: ReadonlySet<string>): PairKey[] {
+    return cellsOf(a.raters, a.ratees.filter((ratee) => ratee.periodRateeId === rateeId), lockedRaterIds);
 }
 
 /** Raters of the effective site × subjects of the same effective site ("✓ Penilai <site>", merges SKD -> SPJ). */
-export function siteCells(a: MatrixData, siteId: string): PairKey[] {
+export function siteCells(a: MatrixData, siteId: string, lockedRaterIds?: ReadonlySet<string>): PairKey[] {
     const target = effectiveSiteId(siteId, a.siteHandlers);
     return cellsOf(
         a.raters.filter((rater) => effectiveSiteId(rater.siteId, a.siteHandlers) === target),
         a.ratees.filter((ratee) => effectiveSiteId(ratee.siteId, a.siteHandlers) === target),
+        lockedRaterIds,
     );
 }
 

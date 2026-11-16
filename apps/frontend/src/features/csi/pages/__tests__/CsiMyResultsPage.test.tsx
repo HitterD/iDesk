@@ -100,4 +100,63 @@ describe('CsiMyResultsPage', () => {
         expect(fx.remind).toHaveBeenCalledWith('pr-ready');
         expect(await screen.findByText(/semua penilai yang belum mengisi sudah diingatkan dalam 24 jam terakhir/i)).toBeInTheDocument();
     });
+
+    it('renders pending raters auto-open for <= 10 on ACTIVE & ENDED, collapses > 10 with search, and hides UPCOMING', async () => {
+        const user = userEvent.setup();
+        const many = Array.from({ length: 12 }, (_, idx) => ({
+            userId: `u-${idx}`,
+            fullName: `Penilai ${String(idx + 1).padStart(2, '0')}`,
+            department: idx === 11 ? 'Finance' : 'Purchasing',
+            siteCode: 'SPJ',
+        }));
+        fx.results = [
+            {
+                ...base,
+                periodRateeId: 'pr-few',
+                status: 'ENDED',
+                expectedRaters: 5,
+                raters: 3,
+                pendingRaters: [
+                    { userId: 'u-a', fullName: 'Budi Santoso', department: 'HRGA', siteCode: 'KRW' },
+                    { userId: 'u-b', fullName: 'Citra Lestari', department: null, siteCode: 'SPJ' },
+                ],
+            },
+            {
+                ...base,
+                periodRateeId: 'pr-many',
+                status: 'ACTIVE',
+                expectedRaters: 20,
+                raters: 8,
+                pendingRaters: many,
+            },
+            {
+                ...base,
+                periodRateeId: 'pr-upcoming',
+                status: 'UPCOMING',
+                expectedRaters: 3,
+                raters: 0,
+                pendingRaters: [{ userId: 'u-x', fullName: 'Harusnya Tersembunyi', department: 'IT', siteCode: 'SPJ' }],
+            },
+        ];
+        renderPage();
+
+        // <= 10 auto-opened
+        expect(await screen.findByText('Belum menilai (2)')).toBeInTheDocument();
+        expect(screen.getByText('Budi Santoso')).toBeInTheDocument();
+        expect(screen.getByText('HRGA · KRW')).toBeInTheDocument();
+        expect(screen.getByText('Citra Lestari')).toBeInTheDocument();
+
+        // UPCOMING hidden
+        expect(screen.queryByText('Harusnya Tersembunyi')).not.toBeInTheDocument();
+
+        // > 10 collapsed by default until clicked, then searchable
+        expect(screen.queryByText('Penilai 12')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /Belum menilai \(12\)/i }));
+        expect(await screen.findByText('Penilai 12')).toBeInTheDocument();
+
+        const searchBoxes = screen.getAllByRole('textbox', { name: 'Cari penilai yang belum menilai' });
+        await user.type(searchBoxes[searchBoxes.length - 1], 'finance');
+        expect(screen.getByText('Penilai 12')).toBeInTheDocument();
+        expect(screen.queryByText('Penilai 01')).not.toBeInTheDocument();
+    });
 });

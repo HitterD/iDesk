@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { User } from '../../users/entities/user.entity';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
@@ -411,5 +411,57 @@ describe('CsiAssignmentService', () => {
         const ratees = await service.pairsFor('p1', 'u-spj1');
         expect(ratees?.has('re-spj2') ?? false).toBe(false);
         expect(db.table(CsiPeriodRatee).some((row) => row.id === 're-spj2')).toBe(false);
+    });
+
+    describe('partial edits after responses exist', () => {
+        beforeEach(async () => {
+            db.table(CsiPeriod)[0] = period({ startDate: '2026-11-01', endDate: '2099-12-31', pairMode: CsiPairMode.CUSTOM });
+            await service.setPairs(ICT, 'p1', [
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+                { periodRaterId: 'pr-krw', periodRateeId: 're-team-krw' },
+            ]);
+            db.table(CsiResponse).push({ id: 'resp-1', periodId: 'p1', respondentId: 'u-spj1' });
+        });
+
+        it('marks answered raters in get() and rejects editing pairs of an answered rater', async () => {
+            const view = await service.get(ICT, 'p1');
+            expect(view.raters.find((r) => r.periodRaterId === 'pr-spj1')?.answered).toBe(true);
+            expect(view.raters.find((r) => r.periodRaterId === 'pr-spj2')?.answered).toBe(false);
+
+            await expect(service.setPairs(ICT, 'p1', [
+                { periodRaterId: 'pr-krw', periodRateeId: 're-team-krw' },
+            ])).rejects.toThrow(new ConflictException('Pemetaan penilai yang sudah mengisi survei tidak dapat diubah'));
+
+            await expect(service.setPairs(ICT, 'p1', [
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-team-spj' },
+            ])).rejects.toThrow(new ConflictException('Pemetaan penilai yang sudah mengisi survei tidak dapat diubah'));
+        });
+
+        it('allows updating pairs of unanswered raters while preserving answered raters pairs', async () => {
+            const view = await service.setPairs(ICT, 'p1', [
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+                { periodRaterId: 'pr-spj2', periodRateeId: 're-team-spj' },
+            ]);
+            expect(view.pairs).toEqual(expect.arrayContaining([
+                { periodRaterId: 'pr-spj1', periodRateeId: 're-spj2' },
+                { periodRaterId: 'pr-spj2', periodRateeId: 're-team-spj' },
+            ]));
+            expect(view.pairs.some((p) => p.periodRaterId === 'pr-krw')).toBe(false);
+        });
+
+        it('allows syncNewMembersSameSite for newly added raters on an active locked period', async () => {
+            db.table(CsiPeriodRater).push(rater('pr-new', 'p1', 'u-new', SPJ));
+            const periods = new CsiPeriodService(
+                db.repo(CsiPeriod) as any, db.repo(CsiPeriodRatee) as any, db.repo(CsiPeriodRateeDimension) as any,
+                db.repo(CsiPeriodRater) as any, db.repo(CsiResponse) as any, db.repo(CsiDimension) as any, db.repo(User) as any,
+                {} as any, {} as any, db.dataSource as any, service, NO_SUBJECTS as any, ORG as any,
+            );
+            db.table(User).push(user('u-spj1', SPJ), user('u-spj2', SPJ), user('u-krw', KRW), user('u-new', SPJ));
+            jest.spyOn(periods, 'get').mockResolvedValue({} as any);
+            await service.syncNewMembersSameSite(ICT, 'p1', { raterUserIds: new Set(['u-spj1', 'u-spj2', 'u-krw']) });
+            expect(pairKeys()).toContain('pr-new>re-team-spj');
+            expect(pairKeys()).toContain('pr-new>re-spj1');
+        });
     });
 });

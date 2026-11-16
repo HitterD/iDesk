@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -10,17 +10,19 @@ import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiRaterAssignment } from '../entities/csi-rater-assignment.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
-import { lockUnlockedPeriod } from './csi-period-lock.util';
+import { LOCKED_MESSAGE, lockPeriodForRaterAdditions, lockUnlockedPeriod } from './csi-period-lock.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { picSubjectKey, teamSubjectKey, userSubjectKey } from './csi-subject-key.util';
 
 const SELF_PAIR_MESSAGE = 'Penilai tidak bisa menilai dirinya sendiri';
 const FOREIGN_PAIR_MESSAGE = 'Penilai atau subjek tidak termasuk periode ini';
+const ANSWERED_RATER_PAIRS_LOCKED_MESSAGE = 'Pemetaan penilai yang sudah mengisi survei tidak dapat diubah';
 
 export type CsiAssignmentPair = { periodRaterId: string; periodRateeId: string };
 export type CsiAssignmentView = {
-    raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null }>;
+    raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null; answered?: boolean }>;
     ratees: Array<{ periodRateeId: string; kind: CsiRateeKind; name: string; siteId: string | null; photoUrl: string | null }>;
     pairs: CsiAssignmentPair[];
     siteHandlers?: Record<string, string>;
@@ -59,10 +61,12 @@ export class CsiAssignmentService {
         const pairs = await this.pairs.find({ where: { periodId } });
         const photos = await this.profilePhotos(scope, ratees);
         const siteHandlers = await this.loadSiteHandlers(scope);
+        const answered = await this.answeredUserIds(periodId);
         return {
             raters: raters.map((rater) => ({
                 periodRaterId: rater.id, userId: rater.userId, fullName: rater.user?.fullName ?? '',
                 department: rater.user?.department?.name ?? null, siteId: rater.user?.siteId ?? null,
+                answered: answered.has(rater.userId),
             })),
             ratees: ratees.map((ratee) => ({
                 periodRateeId: ratee.id, kind: ratee.kind, name: ratee.displayName, siteId: ratee.siteId,
@@ -73,7 +77,7 @@ export class CsiAssignmentService {
         };
     }
 
-    /** Replaces every pair of the period in one locked transaction (400 on a self pair or a foreign rater/ratee). */
+    /** Replaces pairs in one locked transaction (400 on self/foreign pair; when answered, only unanswered raters may change). */
     async setPairs(scope: ServiceScope, periodId: string, requested: AssignmentPairDto[], externalManager?: EntityManager) {
         await this.findInScope(scope, periodId, externalManager);
         const pairs = uniquePairs(requested);
@@ -88,7 +92,7 @@ export class CsiAssignmentService {
                 if (ratee.userId !== null && rater.userId === ratee.userId) throw new BadRequestException(SELF_PAIR_MESSAGE);
             });
             return pairs;
-        }, externalManager);
+        }, externalManager, !externalManager);
         return externalManager ? ({ raters: [], ratees: [], pairs } as CsiAssignmentView) : this.get(scope, periodId);
     }
 
@@ -138,7 +142,7 @@ export class CsiAssignmentService {
         newRatees.forEach((ratee) => raters.forEach((rater) => addIfMatch(rater, ratee)));
         if (!added.length) return;
         await this.dataSource.transaction(async (manager: EntityManager) => {
-            await lockUnlockedPeriod(manager, periodId);
+            await lockPeriodForRaterAdditions(manager, periodId);
             await manager.save(CsiPeriodRaterRatee, added.map((pair) => ({ periodId, ...pair })));
         });
     }
@@ -290,14 +294,28 @@ export class CsiAssignmentService {
         return new Map(rows.flatMap((row) => (row.photoUrl ? [[row.userId, row.photoUrl] as const] : [])));
     }
 
+    private async answeredUserIds(periodId: string): Promise<Set<string>> {
+        const repo = this.dataSource.getRepository?.(CsiResponse);
+        if (!repo) return new Set();
+        const rows = await repo.find({ where: { periodId }, select: { respondentId: true } });
+        return new Set(rows.map((row) => row.respondentId));
+    }
+
     private async replacePairs(
         periodId: string,
         buildPairs: (manager: EntityManager) => Promise<CsiAssignmentPair[]>,
         externalManager?: EntityManager,
+        preserveAnswered = false,
     ) {
         const run = async (manager: EntityManager) => {
-            await lockUnlockedPeriod(manager, periodId);
+            const responseCount = preserveAnswered
+                ? (await lockPeriodForRaterAdditions(manager, periodId)).responseCount
+                : (await lockUnlockedPeriod(manager, periodId), 0);
             const pairs = await buildPairs(manager);
+            if (responseCount > 0) {
+                await this.replaceUnlockedRaterPairs(manager, periodId, pairs);
+                return;
+            }
             await manager.delete(CsiPeriodRaterRatee, { periodId });
             if (pairs.length) {
                 await manager.save(CsiPeriodRaterRatee, pairs.map((pair) => ({ periodId, ...pair })));
@@ -312,6 +330,37 @@ export class CsiAssignmentService {
             await run(externalManager);
         } else {
             await this.dataSource.transaction(run);
+        }
+    }
+
+    /**
+     * When answers already exist, preserves every pair of raters who have already submitted and applies edits
+     * only for unanswered raters on an already-mapped period.
+     */
+    private async replaceUnlockedRaterPairs(manager: EntityManager, periodId: string, requested: CsiAssignmentPair[]) {
+        const period = await manager.getRepository(CsiPeriod).findOne({ where: { id: periodId }, select: { id: true, pairMode: true } });
+        const existingPairs = await manager.getRepository(CsiPeriodRaterRatee).find({ where: { periodId } });
+        const isMapped = period?.pairMode === CsiPairMode.CUSTOM || existingPairs.length > 0;
+        if (!isMapped) throw new ConflictException(LOCKED_MESSAGE);
+
+        const raters = await manager.getRepository(CsiPeriodRater).find({ where: { periodId }, select: { id: true, userId: true } });
+        const responses = await manager.getRepository(CsiResponse).find({ where: { periodId }, select: { respondentId: true } });
+        const answeredUsers = new Set(responses.map((row) => row.respondentId));
+        const lockedRaterIds = new Set(raters.filter((rater) => answeredUsers.has(rater.userId)).map((rater) => rater.id));
+
+        const existingLocked = new Set(existingPairs.filter((pair) => lockedRaterIds.has(pair.periodRaterId)).map(pairKey));
+        const requestedLocked = new Set(requested.filter((pair) => lockedRaterIds.has(pair.periodRaterId)).map(pairKey));
+        if (existingLocked.size !== requestedLocked.size || ![...existingLocked].every((key) => requestedLocked.has(key))) {
+            throw new ConflictException(ANSWERED_RATER_PAIRS_LOCKED_MESSAGE);
+        }
+
+        const unlockedWithPairs = [...new Set(existingPairs.filter((pair) => !lockedRaterIds.has(pair.periodRaterId)).map((pair) => pair.periodRaterId))];
+        if (unlockedWithPairs.length) {
+            await manager.delete(CsiPeriodRaterRatee, { periodId, periodRaterId: In(unlockedWithPairs) });
+        }
+        const toSave = requested.filter((pair) => !lockedRaterIds.has(pair.periodRaterId));
+        if (toSave.length) {
+            await manager.save(CsiPeriodRaterRatee, toSave.map((pair) => ({ periodId, ...pair })));
         }
     }
 }

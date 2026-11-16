@@ -287,5 +287,52 @@ describe('CsiSelfResultService', () => {
             listedPeriod.respondentMode = CsiRespondentMode.OPEN;
             await expect(fullService.remindRaters('u-sri', 'r-sri', NOW)).rejects.toBeInstanceOf(BadRequestException);
         });
+
+        it('lists pending LISTED raters for ACTIVE and ENDED surveys (with directory dept & siteCode), hides UPCOMING and answered', async () => {
+            const activePeriod = {
+                ...period, id: 'p-active', startDate: '2026-11-01', endDate: '2026-11-30',
+                respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM,
+                sites: [{ siteId: 's1', site: { code: 'SPJ' } }],
+            };
+            const endedPeriod = { ...activePeriod, id: 'p-ended', startDate: '2026-10-01', endDate: '2026-10-31' };
+            const upcomingPeriod = { ...activePeriod, id: 'p-up', startDate: '2026-12-01', endDate: '2026-12-31' };
+            ratees = repo([
+                { id: 'r-act', periodId: 'p-active', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: activePeriod },
+                { id: 'r-end', periodId: 'p-ended', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: endedPeriod },
+                { id: 'r-up', periodId: 'p-up', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: upcomingPeriod },
+            ]);
+            const periodRaters = repo([
+                { id: 'pa-1', periodId: 'p-active', userId: 'u-zara', user: { isActive: true, siteId: 's1', fullName: 'Zara', employeeId: '123', department: { name: 'Fallback' }, site: { code: 'SPJ' } } },
+                { id: 'pa-2', periodId: 'p-active', userId: 'u-andi', user: { isActive: true, siteId: 's1', fullName: 'Andi', employeeId: null, department: { name: 'Purchasing' }, site: null } },
+                { id: 'pa-3', periodId: 'p-active', userId: 'u-done', user: { isActive: true, siteId: 's1', fullName: 'Done User', employeeId: null, department: null, site: { code: 'SPJ' } } },
+                { id: 'pe-1', periodId: 'p-ended', userId: 'u-andi', user: { isActive: true, siteId: 's1', fullName: 'Andi', employeeId: null, department: { name: 'Purchasing' }, site: { code: 'SPJ' } } },
+                { id: 'pu-1', periodId: 'p-up', userId: 'u-andi', user: { isActive: true, siteId: 's1', fullName: 'Andi', employeeId: null, department: { name: 'Purchasing' }, site: { code: 'SPJ' } } },
+            ]);
+            const pairs = repo([
+                { periodId: 'p-active', periodRateeId: 'r-act', periodRaterId: 'pa-1' },
+                { periodId: 'p-active', periodRateeId: 'r-act', periodRaterId: 'pa-2' },
+                { periodId: 'p-active', periodRateeId: 'r-act', periodRaterId: 'pa-3' },
+                { periodId: 'p-ended', periodRateeId: 'r-end', periodRaterId: 'pe-1' },
+                { periodId: 'p-up', periodRateeId: 'r-up', periodRaterId: 'pu-1' },
+            ]);
+            const responsesRepo = repo([{ periodId: 'p-active', respondentId: 'u-done' }]);
+            const orgPeopleRepo = repo([{ nik: '00000123', department: 'FINANCE HC' }]);
+            const fullService = new CsiSelfResultService(
+                ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any,
+                periodRaters as any, pairs as any, undefined, undefined, responsesRepo as any, orgPeopleRepo as any,
+            );
+
+            const results = await fullService.list('u-sri', NOW);
+            const byRatee = new Map(results.map((row) => [row.periodRateeId, row]));
+            expect(byRatee.get('r-act')?.pendingRaters).toEqual([
+                { userId: 'u-andi', fullName: 'Andi', department: 'Purchasing', siteCode: 'SPJ' },
+                { userId: 'u-zara', fullName: 'Zara', department: 'FINANCE HC', siteCode: 'SPJ' },
+            ]);
+            expect(byRatee.get('r-end')?.pendingRaters).toEqual([
+                { userId: 'u-andi', fullName: 'Andi', department: 'Purchasing', siteCode: 'SPJ' },
+            ]);
+            expect(byRatee.get('r-up')?.pendingRaters).toEqual([]);
+            expect(JSON.stringify(results)).not.toMatch(/u-done/);
+        });
     });
 });

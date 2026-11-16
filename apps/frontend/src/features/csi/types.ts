@@ -440,7 +440,7 @@ export interface SaveCsiQuestionSet { name: string; dimensionIds: string[] }
 // ─── Rater → subject mapping per period ──────────────────────────────────────
 export interface CsiPair { periodRaterId: string; periodRateeId: string }
 export interface CsiAssignments {
-    raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null }>;
+    raters: Array<{ periodRaterId: string; userId: string; fullName: string; department: string | null; siteId: string | null; answered?: boolean }>;
     ratees: Array<{ periodRateeId: string; kind: CsiRateeKind; name: string; siteId: string | null; photoUrl: string | null }>;
     pairs: CsiPair[];
     siteHandlers?: Record<string, string>;
@@ -476,11 +476,19 @@ export interface CsiDashboard {
     comments: CsiDashboardComment[];
 }
 
+export interface CsiSelfPendingRater {
+    userId?: string;
+    fullName: string;
+    department: string | null;
+    siteCode: string | null;
+}
+
 /** "Hasil penilaian saya": anonymous results about the signed-in account (scores only from `minRaters` raters on). */
 export interface CsiSelfResult {
     periodRateeId: string;
     periodId: string; title: string; startDate: string; endDate: string; status: 'UPCOMING' | 'ACTIVE' | 'ENDED';
     serviceFunction: string | null; teamName: string | null; raters: number; expectedRaters: number | null; minRaters: number; ready: boolean;
+    pendingRaters?: CsiSelfPendingRater[];
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
     /** Score colour bands of the survey. */
     scoreBands: CsiScoreBands;

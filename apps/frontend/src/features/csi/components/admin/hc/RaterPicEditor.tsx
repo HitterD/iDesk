@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Check, Pencil, Search, Trash2 } from 'lucide-react';
+import { Check, Lock, Pencil, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useCsiHcRaters, useSetCsiHcRater } from '../../../hooks/useCsiHc';
-import type { DraftUser } from '../../../lib/csiAdmin';
+import { isRaterAdditionOpen, type DraftUser } from '../../../lib/csiAdmin';
+import { toneClasses } from '../../../lib/csiTone';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import { MUTED_TEXT, UserMultiPicker } from '../AdminParts';
 import { titleCase } from './hcFormat';
@@ -70,7 +71,8 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
     const [editing, setEditing] = useState<{ userIds: string[]; label: string } | null>(null);
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [query, setQuery] = useState('');
-    const locked = period.locked;
+    const addOnlyLocked = period.locked && isRaterAdditionOpen(period);
+    const fullyLocked = period.locked && !addOnlyLocked;
     const subjects = ratees;
     const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
     const subjectName = new Map(subjects.map((subject) => [subject.id, subjectLabel(subject)]));
@@ -90,12 +92,14 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
     };
     const needle = query.trim().toLowerCase();
     const shown = raters.filter((rater) => !needle || [rater.fullName, rater.nik, rater.division, rater.department, rater.bagian].some((value) => (value ?? '').toLowerCase().includes(needle)));
+    const registeredIds = new Set(raters.map((rater) => rater.userId));
+    const mustPickOne = addOnlyLocked && selected.size === 0;
     return (
         <div className="grid gap-4">
-            {!locked && (
+            {!fullyLocked && (
                 <div className="grid gap-2 rounded-2xl bg-[hsl(var(--muted)/.45)] p-3">
                     <p className="text-[13px] font-semibold">1. Cari penilai dari master karyawan (nama, email atau NIK)</p>
-                    <UserMultiPicker scope={scope} label="Cari penilai" selected={people} onChange={setPeople} />
+                    <UserMultiPicker scope={scope} label="Cari penilai" selected={people} onChange={setPeople} excludeIds={addOnlyLocked ? registeredIds : undefined} />
                     <div><Button variant="primary" disabled={!people.length} onClick={() => open(people.map((person) => person.id), `${people.length} penilai baru`)}>2. Pilih PIC yang dinilai</Button></div>
                 </div>
             )}
@@ -104,10 +108,10 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
                     <p className="text-[13px] font-semibold">{`PIC yang dinilai oleh ${editing.label}`}</p>
                     <PicChecklist pics={subjects} selected={selected} onToggle={toggle} onToggleMany={toggleMany} />
                     <div className="flex items-center gap-2">
-                        <span className={MUTED_TEXT}>{`${selected.size} PIC dipilih`}</span>
+                        <span className={MUTED_TEXT}>{mustPickOne ? 'Pilih minimal 1 PIC saat survei sudah punya jawaban' : `${selected.size} PIC dipilih`}</span>
                         <span className="flex-1" />
                         <Button variant="subtle" onClick={() => setEditing(null)}>Batal</Button>
-                        <Button variant="primary" disabled={save.isPending} onClick={() => void commit()}><Check aria-hidden="true" />Simpan</Button>
+                        <Button variant="primary" disabled={save.isPending || mustPickOne} onClick={() => void commit()}><Check aria-hidden="true" />Simpan</Button>
                     </div>
                 </div>
             )}
@@ -120,23 +124,35 @@ export function RaterPicEditor({ scope, period, pics, ratees = pics }: { scope: 
                 </div>
                 {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
                 <ul className="grid max-h-[420px] gap-1 overflow-auto">
-                    {shown.map((rater) => (
-                        <li key={rater.userId} className={cn('grid items-center gap-2 rounded-xl px-3 py-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_auto]', 'bg-[hsl(var(--idesk-surface))] ring-1 ring-[hsl(var(--border)/.6)]')}>
-                            <span className="min-w-0">
-                                <span className="block text-[13px] font-semibold">{rater.fullName}</span>
-                                <span className="block text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[rater.nik, titleCase(rater.division ?? ''), titleCase(rater.department ?? ''), rater.siteCode].filter(Boolean).join(' · ')}</span>
-                            </span>
-                            <span className="min-w-0 text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">
-                                {`${rater.periodRateeIds.length} ${rater.periodRateeIds.some((id) => subjectById.get(id)?.kind === 'TEAM') ? 'subjek' : 'PIC'}: `}{rater.periodRateeIds.map((id) => subjectName.get(id) ?? '?').join(', ')}
-                            </span>
-                            {!locked && (
-                                <span className="flex gap-1">
-                                    <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Ubah PIC untuk ${rater.fullName}`} onClick={() => open([rater.userId], rater.fullName, rater.periodRateeIds)}><Pencil aria-hidden="true" /></Button>
-                                    <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Hapus ${rater.fullName}`} onClick={() => save.mutate({ userId: rater.userId, periodRateeIds: [] })}><Trash2 aria-hidden="true" /></Button>
+                    {shown.map((rater) => {
+                        const rowLocked = fullyLocked || (addOnlyLocked && Boolean(rater.answered));
+                        return (
+                            <li key={rater.userId} className={cn('grid items-center gap-2 rounded-xl px-3 py-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_auto]', 'bg-[hsl(var(--idesk-surface))] ring-1 ring-[hsl(var(--border)/.6)]')}>
+                                <span className="min-w-0">
+                                    <span className="flex flex-wrap items-center gap-1.5 text-[13px] font-semibold">
+                                        <span>{rater.fullName}</span>
+                                        {rater.answered && (
+                                            <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold', toneClasses('neutral').soft, MUTED_TEXT)}>
+                                                <Lock className="h-2.5 w-2.5" aria-hidden="true" />Sudah mengisi
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="block text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[rater.nik, titleCase(rater.division ?? ''), titleCase(rater.department ?? ''), rater.siteCode].filter(Boolean).join(' · ')}</span>
                                 </span>
-                            )}
-                        </li>
-                    ))}
+                                <span className="min-w-0 text-[12px] leading-snug text-[hsl(var(--idesk-text-secondary))]">
+                                    {`${rater.periodRateeIds.length} ${rater.periodRateeIds.some((id) => subjectById.get(id)?.kind === 'TEAM') ? 'subjek' : 'PIC'}: `}{rater.periodRateeIds.map((id) => subjectName.get(id) ?? '?').join(', ')}
+                                </span>
+                                {!rowLocked && (
+                                    <span className="flex gap-1">
+                                        <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Ubah PIC untuk ${rater.fullName}`} onClick={() => open([rater.userId], rater.fullName, rater.periodRateeIds)}><Pencil aria-hidden="true" /></Button>
+                                        {!addOnlyLocked && (
+                                            <Button variant="subtle" size="icon" disabled={save.isPending} aria-label={`Hapus ${rater.fullName}`} onClick={() => save.mutate({ userId: rater.userId, periodRateeIds: [] })}><Trash2 aria-hidden="true" /></Button>
+                                        )}
+                                    </span>
+                                )}
+                            </li>
+                        );
+                    })}
                     {!isLoading && !shown.length && <li className={cn(MUTED_TEXT, 'px-3 py-4')}>Belum ada penilai.</li>}
                 </ul>
             </div>
