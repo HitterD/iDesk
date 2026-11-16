@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useCsiRaters, useSetCsiRaters } from '../../hooks/useCsi';
-import { ratersSignature, sameIds } from '../../lib/csiAdmin';
+import { CSI_ADD_RATERS_LOCKED_NOTE, isRaterAdditionOpen, ratersSignature, sameIds } from '../../lib/csiAdmin';
 import { toneClasses } from '../../lib/csiTone';
 import { siteHandlerMapOf } from '../../lib/siteHandlers';
 import { useServerDraft } from '../../lib/useServerDraft';
@@ -15,17 +15,19 @@ import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from './AdminParts';
 const FILTER_ALL = 'ALL';
 const FILTER_OUTSIDE = 'OUTSIDE';
 
-/** LISTED periods only: choose which registered raters may fill this period, grouped & searchable by site. */
+/** LISTED periods only: choose which registered raters may fill this period (additive-only once responses exist). */
 export function PeriodRaters({ scope, period, onDirtyChange }: {
     scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void;
 }) {
     const { data: master = [], isLoading } = useCsiRaters(scope);
     const save = useSetCsiRaters(scope, period.id);
-    const saved = period.raters.map((rater) => rater.userId);
+    const saved = useMemo(() => period.raters.map((rater) => rater.userId), [period.raters]);
+    const savedSet = useMemo(() => new Set(saved), [saved]);
     const [selected, setSelected] = useServerDraft<string[]>(() => saved, ratersSignature(period));
     const [search, setSearch] = useState('');
     const [siteFilter, setSiteFilter] = useState<string>(FILTER_ALL);
-    const locked = period.locked;
+    const addOnlyMode = period.locked && isRaterAdditionOpen(period);
+    const fullyLocked = period.locked && !addOnlyMode;
     const dirty = !sameIds(selected, saved);
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
@@ -68,17 +70,29 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
     const visibleIds = visible.map((row) => row.rater.userId);
     const selectedSet = new Set(selected);
     const inPeriodIds = rows.filter((row) => row.inPeriod).map((row) => row.rater.userId);
+    const selectableVisibleIds = addOnlyMode ? visibleIds.filter((id) => !savedSet.has(id)) : visibleIds;
     const visibleChecked = visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id));
-    const toggle = (id: string, on: boolean) => setSelected((current) => (on ? (current.includes(id) ? current : [...current, id]) : current.filter((item) => item !== id)));
+    const toggle = (id: string, on: boolean) => {
+        if (addOnlyMode && savedSet.has(id) && !on) return;
+        setSelected((current) => (on ? (current.includes(id) ? current : [...current, id]) : current.filter((item) => item !== id)));
+    };
     const toggleVisible = (on: boolean) => setSelected((current) => {
         const next = new Set(current);
-        visibleIds.forEach((id) => (on ? next.add(id) : next.delete(id)));
+        selectableVisibleIds.forEach((id) => (on ? next.add(id) : next.delete(id)));
         return [...next];
     });
 
+    const headerActions = (
+        <>
+            {fullyLocked && <LockedNote />}
+            {addOnlyMode && <LockedNote>{CSI_ADD_RATERS_LOCKED_NOTE}</LockedNote>}
+            {dirty && <span role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">Ada perubahan yang belum disimpan</span>}
+        </>
+    );
+
     return (
         <AdminSection title="Penilai survei ini" description="Centang siapa saja dari Daftar penilai yang mengisi survei ini."
-            actions={locked ? <LockedNote /> : dirty ? <span role="status" className="text-[12.5px] font-medium text-[hsl(var(--ticket-amber-ink))]">Ada perubahan yang belum disimpan</span> : null}>
+            actions={fullyLocked || addOnlyMode || dirty ? headerActions : null}>
             {!isLoading && !master.length ? (
                 <EmptyNote>Daftar penilai masih kosong. Buka "Tambah orang ke Daftar penilai" di bawah.</EmptyNote>
             ) : (
@@ -90,8 +104,8 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                                 <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, jabatan, atau site…"
                                     aria-label="Cari penilai" className="h-9 rounded-xl pl-9" />
                             </div>
-                            {!locked && countBySite.outside > 0 && inPeriodIds.length > 0 && (
-                                <Button type="button" size="sm" variant="subtle" onClick={() => setSelected(inPeriodIds)}>
+                            {!fullyLocked && countBySite.outside > 0 && inPeriodIds.length > 0 && (
+                                <Button type="button" size="sm" variant="subtle" onClick={() => setSelected(addOnlyMode ? [...new Set([...saved, ...inPeriodIds])] : inPeriodIds)}>
                                     {`Pilih sesuai site survei (${inPeriodIds.length})`}
                                 </Button>
                             )}
@@ -119,7 +133,7 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                     )}
                     <div className="rounded-2xl border border-[hsl(var(--idesk-border)/.7)]">
                         <div className="flex items-center gap-2.5 border-b border-[hsl(var(--idesk-border)/.7)] px-4 py-2.5">
-                            <Checkbox id="raters-all" checked={visibleChecked} disabled={locked || !visibleIds.length}
+                            <Checkbox id="raters-all" checked={visibleChecked} disabled={fullyLocked || !selectableVisibleIds.length}
                                 onCheckedChange={(state) => toggleVisible(state === true)} />
                             <label htmlFor="raters-all" className="cursor-pointer text-[13px] font-medium">
                                 {siteFilter === FILTER_ALL && !term ? 'Pilih semua' : `Pilih semua yang tampil (${visibleIds.length})`}
@@ -130,13 +144,19 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                             {visible.length ? visible.map(({ rater, siteId, inPeriod, handlerCode }) => {
                                 const id = `rater-${rater.userId}`;
                                 const outsideSite = !inPeriod && period.sites.length > 0 && Boolean(rater.user.site?.code || siteId);
+                                const rowLocked = fullyLocked || (addOnlyMode && savedSet.has(rater.userId));
                                 return (
                                     <li key={rater.id} className="flex items-center gap-2.5 px-4 py-2.5">
-                                        <Checkbox id={id} checked={selectedSet.has(rater.userId)} disabled={locked}
+                                        <Checkbox id={id} checked={selectedSet.has(rater.userId)} disabled={rowLocked}
                                             onCheckedChange={(state) => toggle(rater.userId, state === true)} />
-                                        <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
+                                        <label htmlFor={id} className={cn('min-w-0 flex-1', !rowLocked && 'cursor-pointer')}>
                                             <span className="flex flex-wrap items-center gap-1.5 text-[13.5px] font-medium">
                                                 <span>{rater.user.fullName}</span>
+                                                {addOnlyMode && savedSet.has(rater.userId) && (
+                                                    <span className={cn('rounded-full px-2 py-px text-[11px] font-semibold', toneClasses('neutral').soft, MUTED_TEXT)}>
+                                                        Terdaftar
+                                                    </span>
+                                                )}
                                                 {handlerCode && (
                                                     <span className={cn('rounded-full px-2 py-px text-[11px] font-semibold', toneClasses('sky').soft, toneClasses('sky').ink)}>
                                                         {`Gabung ${handlerCode}`}
@@ -160,7 +180,7 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                 </div>
             )}
             <div className="mt-4 flex justify-end">
-                <Button variant="primary" onClick={() => save.mutate({ userIds: selected })} loading={save.isPending} disabled={locked || !dirty}>
+                <Button variant="primary" onClick={() => save.mutate({ userIds: selected })} loading={save.isPending} disabled={fullyLocked || !dirty}>
                     Simpan penilai
                 </Button>
             </div>

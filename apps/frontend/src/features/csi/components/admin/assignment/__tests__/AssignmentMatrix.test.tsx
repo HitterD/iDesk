@@ -146,4 +146,43 @@ describe('AssignmentMatrix', () => {
         expect(screen.queryByRole('button', { name: 'Tambah Budi sebagai penilai' })).not.toBeInTheDocument();
         expect(fx.setRaters).toHaveBeenCalledWith({ userIds: ['u1', 'u2', 'u3', 'u7'] });
     });
+
+    it('partial lock when answered: locks answered rater rows while keeping unanswered raters editable', async () => {
+        const actor = userEvent.setup();
+        fx.view = {
+            ...view(),
+            raters: [
+                { periodRaterId: 'r1', userId: 'u1', fullName: 'Andi', department: 'ICT', siteId: 's1', answered: false },
+                { periodRaterId: 'r2', userId: 'u2', fullName: 'Budi', department: 'Finance', siteId: 's1', answered: true },
+                { periodRaterId: 'r3', userId: 'u3', fullName: 'Citra', department: 'QC', siteId: 's2', answered: false },
+            ],
+        };
+        renderMatrix({ locked: true, publishStatus: 'PUBLISHED', status: 'ACTIVE' });
+
+        expect(screen.getByText('Sudah ada jawaban · baris penilai yang sudah mengisi terkunci')).toBeInTheDocument();
+        expect(screen.getByText('Sudah mengisi')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Isi otomatis/ })).not.toBeInTheDocument();
+
+        expect(cell('Budi', 'Andi')).toBeDisabled();
+        expect(cell('Budi', 'Tim SPJ')).toBeDisabled();
+        expect(screen.getByRole('button', { name: /^Pilih baris Budi/ })).toBeDisabled();
+
+        expect(cell('Citra', 'Andi')).toBeEnabled();
+        await actor.click(screen.getByRole('button', { name: 'Pilih kolom Andi' }));
+        expect(cell('Budi', 'Andi')).toHaveAttribute('aria-checked', 'true');
+        expect(cell('Citra', 'Andi')).toHaveAttribute('aria-checked', 'true');
+
+        await actor.click(screen.getByRole('button', { name: 'Simpan' }));
+        expect(fx.save).toHaveBeenCalledWith(
+            [{ periodRaterId: 'r2', periodRateeId: 'e1' }, { periodRaterId: 'r3', periodRateeId: 'e1' }],
+            expect.anything(),
+        );
+    });
+
+    it('ENDED + locked period keeps the matrix completely read-only', () => {
+        renderMatrix({ locked: true, publishStatus: 'PUBLISHED', status: 'ENDED' });
+        expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
+        expect(cell('Citra', 'Andi')).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'Simpan' })).not.toBeInTheDocument();
+    });
 });

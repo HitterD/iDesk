@@ -17,7 +17,7 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
-import { lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
+import { lockPeriodForRaterAdditions, lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
 import { CsiReadinessWarning, enableSectionsWithRatees, hiddenRateeWarnings } from './csi-period-sections.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
@@ -135,6 +135,7 @@ const assertSomeSection = (sections: { teamEnabled: boolean; individualEnabled: 
     if (!sections.teamEnabled && !sections.individualEnabled) throw new BadRequestException(NO_SECTION_MESSAGE);
 };
 const CANCELLED_MESSAGE = 'Survei ini sudah dibatalkan. Aktifkan lagi dulu.';
+const CANNOT_REMOVE_RATER_MESSAGE = 'Penilai yang sudah terdaftar tidak dapat dihapus setelah ada jawaban';
 const CONFIRM_TITLE_MESSAGE = 'Judul yang diketik tidak sama dengan judul survei';
 const collapse = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -563,24 +564,25 @@ export class CsiPeriodService {
         return this.get(scope, id);
     }
 
-    async setRaters(scope: ServiceScope, id: string, userIds: string[]) {
+    async setRaters(scope: ServiceScope, id: string, userIds: string[], now: Date = new Date()) {
         await this.findInScope(scope, id);
         const ids = [...new Set(userIds)];
         const active = await this.activeUsers(ids);
         if (active.size !== ids.length) throw new BadRequestException(INACTIVE_USER_MESSAGE);
         const { unmapped, beforeRaters } = await this.dataSource.transaction(async (manager) => {
-            await lockUnlockedPeriod(manager, id);
+            const { responseCount } = await lockPeriodForRaterAdditions(manager, id, now);
             const hasPairsBefore = await this.assignments.hasPairs(id, manager);
-            const existingRaterUsers = hasPairsBefore
-                ? new Set((await manager.getRepository(CsiPeriodRater).find({ where: { periodId: id }, select: { userId: true } })).map((row) => row.userId))
-                : undefined;
-            // Diff by userId: rows (and their pairs) of raters who stay are kept.
             const existing = await manager.getRepository(CsiPeriodRater).find({ where: { periodId: id } });
+            const existingRaterUsers = hasPairsBefore
+                ? new Set(existing.map((row) => row.userId))
+                : undefined;
+            // Diff by userId: rows (and their pairs) of raters who stay are kept; once responses exist only additions are allowed.
             const removed = existing.filter((row) => !ids.includes(row.userId)).map((row) => row.id);
+            if (responseCount > 0 && removed.length > 0) throw new ConflictException(CANNOT_REMOVE_RATER_MESSAGE);
             if (removed.length) await manager.delete(CsiPeriodRater, { id: In(removed) });
             const kept = new Set(existing.map((row) => row.userId));
             await this.writeRaters(manager, id, ids.filter((userId) => !kept.has(userId)));
-            return { unmapped: !hasPairsBefore, beforeRaters: existingRaterUsers };
+            return { unmapped: !hasPairsBefore && responseCount === 0, beforeRaters: existingRaterUsers };
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { raterUserIds: beforeRaters });
         return this.get(scope, id);

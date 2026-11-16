@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CsiHcApi } from '../../../api/csiHc.api';
 import { useImportCsiPairs } from '../../../hooks/useCsiHc';
+import { CSI_HC_ADD_RATERS_NOTE, isRaterAdditionOpen } from '../../../lib/csiAdmin';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import type { CsiPairsImportReport } from '../../../hcTypes';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from '../AdminParts';
@@ -90,7 +91,7 @@ export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: 
     }, [pics]);
     return (
         <AdminSection title="Siapa menilai siapa" description="HC menentukan karyawan mana menilai PIC mana. Responden hanya melihat PIC yang ditetapkan untuknya."
-            actions={period.locked ? <LockedNote /> : <span className={MUTED_TEXT}>{`${period.raters.length} penilai · ${pics.length} PIC`}</span>}>
+            actions={period.locked ? <LockedNote>{isRaterAdditionOpen(period) ? CSI_HC_ADD_RATERS_NOTE : undefined}</LockedNote> : <span className={MUTED_TEXT}>{`${period.raters.length} penilai · ${pics.length} PIC`}</span>}>
             {!pics.length ? (
                 <div className="grid gap-3">
                     <EmptyNote>Pilih PIC yang dinilai dulu (langkah "Orang yang dinilai"), atau ambil PIC dan penilainya dari template lokasi.</EmptyNote>

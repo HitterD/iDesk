@@ -1,18 +1,18 @@
 import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { CsiHcRater } from '../../../../hcTypes';
 import type { CsiPeriodDetail } from '../../../../types';
 import { renderWithQuery } from '../../__tests__/renderWithQuery';
 import { HcPairsPanel } from '../HcPairsPanel';
 
-const fx = vi.hoisted(() => ({ setRater: vi.fn() }));
+const fx = vi.hoisted(() => ({
+    setRater: vi.fn(),
+    raters: [] as CsiHcRater[],
+}));
 vi.mock('../../../../api/csiHc.api', () => ({
     CsiHcApi: {
-        raters: vi.fn(async () => [{
-            userId: 'u-1', nik: '00020767', fullName: 'ADITYA KURNIAWAN SUHARGO', siteCode: 'SPJ',
-            division: 'Human Capital', department: 'HC Development', bagian: null,
-            periodRateeIds: ['r-team', 'r-pic'],
-        }]),
+        raters: vi.fn(async () => fx.raters),
         setRater: fx.setRater,
     },
 }));
@@ -35,6 +35,11 @@ const PERIOD = {
 
 describe('HcPairsPanel & RaterPicEditor subjects', () => {
     it('renders team ratee names instead of "?" and preserves team selection when saving', async () => {
+        fx.raters = [{
+            userId: 'u-1', nik: '00020767', fullName: 'ADITYA KURNIAWAN SUHARGO', siteCode: 'SPJ',
+            division: 'Human Capital', department: 'HC Development', bagian: null,
+            periodRateeIds: ['r-team', 'r-pic'],
+        }];
         fx.setRater.mockResolvedValue([]);
         renderWithQuery(<HcPairsPanel scope="hc" period={PERIOD} />);
 
@@ -46,5 +51,25 @@ describe('HcPairsPanel & RaterPicEditor subjects', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Simpan' }));
 
         expect(fx.setRater).toHaveBeenCalledWith('hc', 'p-1', 'u-1', ['r-team', 'r-pic']);
+    });
+
+    it('when locked & active: keeps search-to-add open, locks answered raters, and allows editing unanswered raters without delete', async () => {
+        fx.raters = [
+            {
+                userId: 'u-done', nik: '0001', fullName: 'SUDAH ISI', siteCode: 'SPJ',
+                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], answered: true,
+            },
+            {
+                userId: 'u-wait', nik: '0002', fullName: 'BELUM ISI', siteCode: 'SPJ',
+                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], answered: false,
+            },
+        ];
+        renderWithQuery(<HcPairsPanel scope="hc" period={{ ...PERIOD, locked: true, publishStatus: 'PUBLISHED', status: 'ACTIVE' }} />);
+
+        expect(await screen.findByText('Sudah mengisi')).toBeInTheDocument();
+        expect(screen.getByText(/1\. Cari penilai dari master karyawan/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Ubah PIC untuk SUDAH ISI/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Hapus BELUM ISI/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Ubah PIC untuk BELUM ISI/i })).toBeEnabled();
     });
 });

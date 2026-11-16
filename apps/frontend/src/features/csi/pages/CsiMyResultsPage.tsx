@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { BellRing, CheckCircle2, Hourglass, MessageSquareQuote, ShieldCheck, Star } from 'lucide-react';
+import { BellRing, CheckCircle2, ChevronDown, ChevronUp, Hourglass, MessageSquareQuote, Search, ShieldCheck, Star, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { formatScore, scoreToneClass } from '../components/admin/hc/hcFormat';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 import { useCsiMyResults, useRemindMyResultRaters } from '../hooks/useCsi';
 import { formatDate } from '../lib/format';
-import type { CsiSelfResult } from '../types';
+import type { CsiSelfPendingRater, CsiSelfResult } from '../types';
 
 const MAX_SCORE = 5;
+const AUTO_OPEN_PENDING_MAX = 10;
 const STATUS_TEXT = { UPCOMING: 'Belum dimulai', ACTIVE: 'Sedang berjalan', ENDED: 'Selesai' } as const;
 const REMINDED_MESSAGE = 'Pengingat anonim telah dikirim ke penilai yang belum mengisi.';
 const ALREADY_REMINDED_MESSAGE = 'Semua penilai yang belum mengisi sudah diingatkan dalam 24 jam terakhir.';
@@ -37,6 +39,53 @@ function raterCountLabel(raters: number, expectedRaters: number | null): string 
     return expectedRaters !== null ? `${raters} / ${expectedRaters} penilai sudah mengisi` : `dari ${raters} penilai`;
 }
 
+function PendingRatersList({ pending }: { pending: readonly CsiSelfPendingRater[] }) {
+    const [open, setOpen] = useState(() => pending.length <= AUTO_OPEN_PENDING_MAX);
+    const [search, setSearch] = useState('');
+    if (!pending.length) return null;
+    const term = search.trim().toLowerCase();
+    const visible = term
+        ? pending.filter((rater) => `${rater.fullName} ${rater.department ?? ''} ${rater.siteCode ?? ''}`.toLowerCase().includes(term))
+        : pending;
+
+    return (
+        <div className="grid gap-2 border-t border-border/50 pt-2">
+            <button type="button" aria-expanded={open} onClick={() => setOpen((current) => !current)}
+                className="flex w-full items-center justify-between gap-2 text-left text-[12.5px] font-semibold text-foreground/90 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+                <span className="inline-flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                    {`Belum menilai (${pending.length})`}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[12px] font-medium text-[hsl(var(--idesk-sapphire))]">
+                    {open ? 'Tutup daftar' : `Lihat ${pending.length} nama`}
+                    {open ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+                </span>
+            </button>
+            {open && (
+                <div className="grid gap-2">
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, departemen, atau site…"
+                            aria-label="Cari penilai yang belum menilai" className="h-8 rounded-lg pl-8 text-[12.5px]" />
+                    </div>
+                    <ul className="max-h-56 divide-y divide-border/50 overflow-y-auto rounded-lg border border-border/50 bg-card/70">
+                        {visible.length ? visible.map((rater, index) => (
+                            <li key={rater.userId ?? `${rater.fullName}-${index}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2 text-[12.5px]">
+                                <span className="font-medium text-foreground">{rater.fullName}</span>
+                                <span className="text-[12px] text-muted-foreground">
+                                    {[rater.department, rater.siteCode].filter(Boolean).join(' · ') || '—'}
+                                </span>
+                            </li>
+                        )) : (
+                            <li className="px-3 py-3 text-center text-[12px] text-muted-foreground">Tidak ada nama yang cocok.</li>
+                        )}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function RaterProgressSection({ result }: { result: CsiSelfResult }) {
     const remind = useRemindMyResultRaters();
     const [feedback, setFeedback] = useState<RemindState>(null);
@@ -46,6 +95,7 @@ function RaterProgressSection({ result }: { result: CsiSelfResult }) {
     const complete = expected > 0 && result.raters >= expected;
     const pct = expected > 0 ? Math.min(100, Math.round((result.raters / expected) * 100)) : 100;
     const canRemind = result.status === 'ACTIVE' && expected > 0 && result.raters < expected && feedback?.kind !== 'sent' && feedback?.kind !== 'deduped';
+    const pending = (result.status === 'ACTIVE' || result.status === 'ENDED') ? (result.pendingRaters ?? []) : [];
 
     const sendReminder = () => {
         setFeedback(null);
@@ -81,6 +131,7 @@ function RaterProgressSection({ result }: { result: CsiSelfResult }) {
                     {feedback.message}
                 </p>
             )}
+            <PendingRatersList pending={pending} />
         </div>
     );
 }
@@ -137,7 +188,7 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
     );
 }
 
-/** "Hasil penilaian saya": what colleagues rated about the signed-in account; never shows who rated. */
+/** "Hasil penilaian saya": anonymous scores & comments for the signed-in account, plus pending raters for follow-up. */
 export function CsiMyResultsPage() {
     const { data: results, isLoading, isError, refetch } = useCsiMyResults();
     return (
@@ -146,7 +197,7 @@ export function CsiMyResultsPage() {
                 <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">Hasil penilaian saya</h1>
                 <p className="flex items-start gap-1.5 text-[14px] text-muted-foreground">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                    Nama penilai tidak pernah ditampilkan. Komentar diacak dan tanpa tanggal.
+                    Skor dan komentar tetap anonim (komentar diacak dan tanpa tanggal). Daftar penilai yang belum mengisi ditampilkan untuk kebutuhan follow-up SLA.
                 </p>
             </FadeIn>
             {isLoading && <div className={cn(CSI_CARD, 'h-40 animate-pulse')} aria-busy="true" />}

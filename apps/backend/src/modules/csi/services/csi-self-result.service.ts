@@ -11,6 +11,8 @@ import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiResponseComment } from '../entities/csi-response-comment.entity';
 import { CsiResponseItem } from '../entities/csi-response-item.entity';
+import { CsiResponse } from '../entities/csi-response.entity';
+import { CsiOrgPerson } from '../entities/csi-org-person.entity';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { normalizeName } from '../org/csi-name-match';
 import { normalizeNik } from '../org/csi-org.constants';
@@ -28,11 +30,15 @@ const NOT_FOUND_MESSAGE = 'Hasil penilaian tidak ditemukan';
 const NOT_ACTIVE_MESSAGE = 'Pengingat hanya dapat dikirim saat survei sedang berjalan';
 const LISTED_ONLY_MESSAGE = 'Pengingat hanya tersedia untuk survei dengan penilai terpilih';
 
+export type CsiSelfPendingRater = { userId: string; fullName: string; department: string | null; siteCode: string | null };
+
 export type CsiSelfResult = {
     periodRateeId: string;
     periodId: string; title: string; startDate: string; endDate: string; status: CsiPeriodStatus;
     serviceFunction: string | null; teamName: string | null;
     raters: number; expectedRaters: number | null; minRaters: number; ready: boolean;
+    /** Assigned LISTED raters who have not submitted yet (populated for ACTIVE and ENDED surveys). */
+    pendingRaters: CsiSelfPendingRater[];
     /** Colour bands of the survey (always sent, also before the results are ready). */
     scoreBands: CsiScoreBands;
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
@@ -53,8 +59,8 @@ function shuffled<T>(rows: T[], random: () => number): T[] {
 
 /**
  * "Hasil penilaian saya" (HC, and ICT surveys created with selfResults): what people rated about the
- * signed-in account, live while the survey runs. Never carries a rater's name, unit, answer id or date;
- * scores and comments only appear from CSI_SELF_RESULT_MIN_RATERS raters on.
+ * signed-in account, live while the survey runs. Submitted scores and comments stay anonymous (never carry
+ * respondent identity, answer id or date), while LISTED pending raters can be shown for SLA follow-up.
  */
 @Injectable()
 export class CsiSelfResultService {
@@ -70,12 +76,19 @@ export class CsiSelfResultService {
         @Optional() @InjectRepository(CsiPeriodRaterRatee) private readonly pairs?: Repository<CsiPeriodRaterRatee>,
         @Optional() @InjectRepository(User) private readonly users?: Repository<User>,
         @Optional() private readonly reminders?: CsiReminderService,
+        @Optional() @InjectRepository(CsiResponse) private readonly responses?: Repository<CsiResponse>,
+        @Optional() @InjectRepository(CsiOrgPerson) private readonly orgPeople?: Repository<CsiOrgPerson>,
     ) { }
 
     async list(userId: string, now: Date = new Date()): Promise<CsiSelfResult[]> {
         const { rows, linkedByPic } = await this.ownedRatees(userId);
-        const targetByRatee = await this.assignedRaterUserIdsByRatee(rows, linkedByPic, userId);
-        const results = await Promise.all(rows.map((row) => this.resultOf(row, targetByRatee.get(row.id) ?? null, now)));
+        const assignment = await this.assignedRatersByRatee(rows, linkedByPic, userId);
+        const results = await Promise.all(rows.map((row) => this.resultOf(
+            row,
+            assignment.targetsByRatee.get(row.id) ?? null,
+            assignment.answeredByPeriod.get(row.periodId) ?? new Set(),
+            now,
+        )));
         return results.sort((a, b) => b.startDate.localeCompare(a.startDate));
     }
 
@@ -86,8 +99,8 @@ export class CsiSelfResultService {
         if (!ratee) throw new NotFoundException(NOT_FOUND_MESSAGE);
         if (computeStatus(ratee.period, now) !== 'ACTIVE') throw new BadRequestException(NOT_ACTIVE_MESSAGE);
         if (ratee.period.respondentMode !== CsiRespondentMode.LISTED) throw new BadRequestException(LISTED_ONLY_MESSAGE);
-        const targetByRatee = await this.assignedRaterUserIdsByRatee([ratee], linkedByPic, userId);
-        const targets = targetByRatee.get(ratee.id) ?? [];
+        const assignment = await this.assignedRatersByRatee([ratee], linkedByPic, userId);
+        const targets = (assignment.targetsByRatee.get(ratee.id) ?? []).map((rater) => rater.userId);
         if (!targets.length || !this.reminders) return { reminded: false };
         const result = await this.reminders.send(ratee.period.scope, ratee.period.id, targets, now);
         return { reminded: result.sent > 0 };
@@ -109,7 +122,7 @@ export class CsiSelfResultService {
                 ...personFilters,
                 ...(teamIds.length ? [{ kind: CsiRateeKind.TEAM, teamId: In(teamIds) }] : []),
             ],
-            relations: { period: { sites: true }, team: true },
+            relations: { period: { sites: { site: true } }, team: true },
         }))
             .filter((row) => row.period?.publishStatus === CsiPeriodPublishStatus.PUBLISHED)
             .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true))
@@ -189,32 +202,61 @@ export class CsiSelfResultService {
         };
     }
 
-    /** Computes assigned active rater userIds per ratee (`null` for OPEN periods without fixed raters). */
-    private async assignedRaterUserIdsByRatee(
+    /** Computes assigned active raters per ratee (`null` for OPEN periods without fixed raters) and answered respondent ids per period. */
+    private async assignedRatersByRatee(
         rows: CsiPeriodRatee[],
         linkedByPic: ReadonlyMap<string, string | null>,
         viewerUserId?: string,
-    ): Promise<Map<string, string[] | null>> {
-        const result = new Map<string, string[] | null>();
+    ): Promise<{ targetsByRatee: Map<string, CsiSelfPendingRater[] | null>; answeredByPeriod: Map<string, Set<string>> }> {
+        const targetsByRatee = new Map<string, CsiSelfPendingRater[] | null>();
+        const answeredByPeriod = new Map<string, Set<string>>();
         const byPeriod = new Map<string, CsiPeriodRatee[]>();
         for (const row of rows) byPeriod.set(row.periodId, [...(byPeriod.get(row.periodId) ?? []), row]);
+
+        const listedPeriodIds = [...byPeriod.entries()]
+            .filter(([, group]) => group[0].period.respondentMode === CsiRespondentMode.LISTED && Boolean(this.periodRaters))
+            .map(([periodId]) => periodId);
+        if (listedPeriodIds.length && this.responses) {
+            const periodResponses = await this.responses.find({
+                where: { periodId: In(listedPeriodIds) },
+                select: { periodId: true, respondentId: true },
+            });
+            for (const response of periodResponses) {
+                const seen = answeredByPeriod.get(response.periodId) ?? new Set<string>();
+                seen.add(response.respondentId);
+                answeredByPeriod.set(response.periodId, seen);
+            }
+        }
 
         for (const [periodId, group] of byPeriod) {
             const period = group[0].period;
             if (period.respondentMode !== CsiRespondentMode.LISTED || !this.periodRaters) {
-                group.forEach((ratee) => result.set(ratee.id, null));
+                group.forEach((ratee) => targetsByRatee.set(ratee.id, null));
                 continue;
             }
-            const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: true } });
+            const raters = await this.periodRaters.find({
+                where: { periodId },
+                relations: { user: { department: true, site: true } },
+            });
             const hasSites = Array.isArray(period.sites);
             const siteIds = (period.sites ?? []).map((row) => row.siteId);
+            const siteCodeById = new Map((period.sites ?? []).flatMap((row) => (row.site?.code ? [[row.siteId, row.site.code] as const] : [])));
             const activeRaters = raters.filter((rater) => {
                 if (!rater.user) return !hasSites;
                 if (rater.user.isActive === false) return false;
                 return hasSites ? Boolean(rater.user.siteId && siteIds.includes(rater.user.siteId)) : true;
             });
-            const raterUserById = new Map(activeRaters.map((rater) => [rater.id, rater.userId]));
-            const allActiveUserIds = [...new Set(activeRaters.map((rater) => rater.userId))];
+
+            const departmentByNik = await this.directoryDepartments(activeRaters.map((rater) => rater.user?.employeeId));
+            const toPendingRater = (rater: CsiPeriodRater): CsiSelfPendingRater => {
+                const nik = normalizeNik(rater.user?.employeeId);
+                const department = (nik ? departmentByNik.get(nik) : undefined) ?? rater.user?.department?.name ?? null;
+                const siteCode = rater.user?.site?.code ?? siteCodeById.get(rater.user?.siteId ?? '') ?? null;
+                return { userId: rater.userId, fullName: rater.user?.fullName ?? '', department, siteCode };
+            };
+
+            const infoByRaterId = new Map(activeRaters.map((rater) => [rater.id, toPendingRater(rater)]));
+            const allActiveByUser = [...new Map(activeRaters.map((rater) => [rater.userId, toPendingRater(rater)])).values()];
 
             const pairs = this.pairs && period.pairMode !== CsiPairMode.ALL
                 ? await this.pairs.find({ where: { periodId } })
@@ -223,18 +265,34 @@ export class CsiSelfResultService {
 
             for (const ratee of group) {
                 const ownerId = ratee.kind === CsiRateeKind.PERSON ? ratedAccountOf(ratee, linkedByPic) : null;
-                const rawUserIds = isMapped
+                const rawRaters = isMapped
                     ? pairs.filter((pair) => pair.periodRateeId === ratee.id)
-                        .map((pair) => raterUserById.get(pair.periodRaterId))
-                        .filter((id): id is string => Boolean(id))
-                    : allActiveUserIds;
-                result.set(ratee.id, [...new Set(rawUserIds)].filter((id) => id !== ownerId && !(ratee.kind === CsiRateeKind.PERSON && id === viewerUserId)));
+                        .map((pair) => infoByRaterId.get(pair.periodRaterId))
+                        .filter((info): info is CsiSelfPendingRater => Boolean(info))
+                    : allActiveByUser;
+                const uniqueRaters = [...new Map(rawRaters.map((info) => [info.userId, info])).values()]
+                    .filter((info) => info.userId !== ownerId && !(ratee.kind === CsiRateeKind.PERSON && info.userId === viewerUserId))
+                    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'id'));
+                targetsByRatee.set(ratee.id, uniqueRaters);
             }
         }
-        return result;
+        return { targetsByRatee, answeredByPeriod };
     }
 
-    private async resultOf(ratee: CsiPeriodRatee, targetUserIds: string[] | null, now: Date): Promise<CsiSelfResult> {
+    private async directoryDepartments(niks: Array<string | null | undefined>): Promise<Map<string, string>> {
+        if (!this.orgPeople) return new Map();
+        const unique = [...new Set(niks.map((nik) => normalizeNik(nik)).filter((nik): nik is string => !!nik))];
+        if (!unique.length) return new Map();
+        const rows = await this.orgPeople.find({ where: { nik: In(unique) }, select: { nik: true, department: true } });
+        return new Map(rows.filter((row) => row.department).map((row) => [row.nik, row.department!]));
+    }
+
+    private async resultOf(
+        ratee: CsiPeriodRatee,
+        targetRaters: CsiSelfPendingRater[] | null,
+        answeredUsers: ReadonlySet<string>,
+        now: Date,
+    ): Promise<CsiSelfResult> {
         const questions = (await this.dimensions.find({ where: { periodRateeId: ratee.id } }))
             .filter((row) => !NOT_SCORED.has(row.type ?? CsiQuestionType.STAR))
             .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -245,16 +303,20 @@ export class CsiSelfResultService {
         const byResponse = new Map<string, number[]>();
         scored.forEach((item) => byResponse.set(item.responseId, [...(byResponse.get(item.responseId) ?? []), item.score!]));
         const raters = byResponse.size;
-        const expectedRaters = targetUserIds === null ? null : targetUserIds.length;
+        const expectedRaters = targetRaters === null ? null : targetRaters.length;
+        const status = computeStatus(ratee.period, now);
+        const pendingRaters = targetRaters !== null && (status === 'ACTIVE' || status === 'ENDED')
+            ? targetRaters.filter((rater) => !answeredUsers.has(rater.userId))
+            : [];
         const minRaters = ratee.kind === CsiRateeKind.TEAM ? CSI_TEAM_SELF_RESULT_MIN_RATERS : CSI_SELF_RESULT_MIN_RATERS;
         const ready = raters >= minRaters;
         const { period } = ratee;
         const base = {
             periodRateeId: ratee.id,
-            periodId: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate, status: computeStatus(period, now),
+            periodId: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate, status,
             serviceFunction: ratee.serviceFunction ?? null,
             teamName: ratee.kind === CsiRateeKind.TEAM ? ratee.team?.name ?? ratee.displayName : null,
-            raters, expectedRaters, minRaters, ready, scoreBands: bandsOf(period),
+            raters, expectedRaters, minRaters, ready, pendingRaters, scoreBands: bandsOf(period),
         };
         if (!ready) return { ...base, average: null, dimensions: [], comments: [] };
         const dimensions = questions.flatMap((question) => {

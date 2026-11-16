@@ -1,4 +1,4 @@
-import { Check, Pencil } from 'lucide-react';
+import { Check, Lock, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { siteTone, toneClasses } from '../../../lib/csiTone';
 import { SubjectAvatar } from '../../respond/RateeAvatar';
@@ -24,6 +24,7 @@ export interface MatrixTableProps {
     siteHandlers?: Record<string, string>;
     siteOf: (siteId: string | null) => SiteInfo;
     readOnly: boolean;
+    lockedRaterIds?: ReadonlySet<string>;
     overrides: ReadonlySet<string>;
     onToggle: (cells: 'row' | 'col' | 'site' | 'cell', id: string) => void;
     onEditSubject: (rateeId: string) => void;
@@ -86,17 +87,26 @@ function MatrixCell({ rater, ratee, on, cross, readOnly, onToggle }: { rater: Ra
     );
 }
 
-function RaterRow({ rater, columns, pairs, siteHandlers, readOnly, onToggle }: {
-    rater: Rater; columns: Array<{ ratee: Ratee; first: boolean }>; pairs: ReadonlySet<PairKey>; siteHandlers?: Record<string, string>; readOnly: boolean;
+function RaterRow({ rater, columns, pairs, siteHandlers, readOnly, answeredLocked, onToggle }: {
+    rater: Rater; columns: Array<{ ratee: Ratee; first: boolean }>; pairs: ReadonlySet<PairKey>; siteHandlers?: Record<string, string>;
+    readOnly: boolean; answeredLocked: boolean;
     onToggle: MatrixTableProps['onToggle'];
 }) {
+    const rowLocked = readOnly || answeredLocked;
     const count = columns.filter(({ ratee }) => pairs.has(pairKey(rater.periodRaterId, ratee.periodRateeId))).length;
     return (
         <tr className="group">
             <th scope="row" className="sticky left-0 z-[1] min-w-[min(230px,46vw)] border-b border-[hsl(var(--idesk-border)/.6)] bg-[hsl(var(--idesk-surface))] px-2.5 py-2 text-left font-medium group-hover:bg-[hsl(var(--muted))]">
-                <button type="button" onClick={() => onToggle('row', rater.periodRaterId)} disabled={readOnly} aria-label={`Pilih baris ${rater.fullName}`}
-                    title="Klik untuk satu baris" className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
-                    <span className="block text-[13px]">{rater.fullName}</span>
+                <button type="button" onClick={() => onToggle('row', rater.periodRaterId)} disabled={rowLocked} aria-label={`Pilih baris ${rater.fullName}`}
+                    title={answeredLocked ? 'Sudah mengisi survei (terkunci)' : 'Klik untuk satu baris'} className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
+                    <span className="flex items-center gap-1.5 text-[13px]">
+                        <span>{rater.fullName}</span>
+                        {answeredLocked && (
+                            <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-semibold', toneClasses('neutral').soft, MUTED_TEXT)}>
+                                <Lock className="h-2.5 w-2.5" aria-hidden="true" />Sudah mengisi
+                            </span>
+                        )}
+                    </span>
                     <span className={cn(MUTED_TEXT, 'block text-[11.5px]')}>{rater.department ?? '—'}</span>
                 </button>
             </th>
@@ -106,7 +116,7 @@ function RaterRow({ rater, columns, pairs, siteHandlers, readOnly, onToggle }: {
                 return (
                     <td key={ratee.periodRateeId} className={cn('border-b border-[hsl(var(--idesk-border)/.6)] px-2 py-2 group-hover:bg-[hsl(var(--muted))]',
                         first && GROUP_START, cross && toneClasses('amber').soft)}>
-                        <MatrixCell rater={rater} ratee={ratee} on={pairs.has(key)} cross={cross} readOnly={readOnly} onToggle={() => onToggle('cell', key)} />
+                        <MatrixCell rater={rater} ratee={ratee} on={pairs.has(key)} cross={cross} readOnly={rowLocked} onToggle={() => onToggle('cell', key)} />
                     </td>
                 );
             })}
@@ -116,7 +126,7 @@ function RaterRow({ rater, columns, pairs, siteHandlers, readOnly, onToggle }: {
 }
 
 /** Rater × subject grid: columns grouped per ICT site, rows per rater site; header and name column sticky. */
-export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteHandlers, siteOf, readOnly, overrides, onToggle, onEditSubject }: MatrixTableProps) {
+export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteHandlers, siteOf, readOnly, lockedRaterIds, overrides, onToggle, onEditSubject }: MatrixTableProps) {
     const columns = rateeGroups.flatMap((group) => group.items.map((ratee, index) => ({ ratee, first: index === 0 })));
     const span = columns.length + 2;
     return (
@@ -151,7 +161,8 @@ export function MatrixTable({ scopeLabel, rateeGroups, raterGroups, pairs, siteH
                                 </td>
                             </tr>,
                             ...group.items.map((rater) => (
-                                <RaterRow key={rater.periodRaterId} rater={rater} columns={columns} pairs={pairs} siteHandlers={siteHandlers} readOnly={readOnly} onToggle={onToggle} />
+                                <RaterRow key={rater.periodRaterId} rater={rater} columns={columns} pairs={pairs} siteHandlers={siteHandlers}
+                                    readOnly={readOnly} answeredLocked={Boolean(lockedRaterIds?.has(rater.periodRaterId))} onToggle={onToggle} />
                             )),
                         ];
                     }) : (

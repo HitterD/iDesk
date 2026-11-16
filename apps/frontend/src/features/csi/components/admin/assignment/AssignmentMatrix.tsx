@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useApplyCsiAssignmentTemplate, useCsiAssignments, useSaveCsiAssignments, useSaveCsiTemplate } from '../../../hooks/useCsi';
-import { CSI_SCOPE_OF } from '../../../lib/csiAdmin';
+import { CSI_ASSIGNMENT_PARTIAL_LOCK_NOTE, CSI_SCOPE_OF, isRaterAdditionOpen } from '../../../lib/csiAdmin';
 import { siteHandlerMapOf } from '../../../lib/siteHandlers';
 import { toneClasses } from '../../../lib/csiTone';
 import { useServerDraft } from '../../../lib/useServerDraft';
@@ -27,18 +27,23 @@ const SAVE_FIRST_HINT = 'Simpan atau batalkan perubahan dulu';
 
 type Toggle = Parameters<MatrixTableProps['onToggle']>;
 
-function cellsFor(data: MatrixData, kind: Toggle[0], id: string): PairKey[] {
-    if (kind === 'row') return rowCells(data, id);
-    if (kind === 'col') return colCells(data, id);
-    if (kind === 'site') return siteCells(data, id);
-    return [id as PairKey];
+function cellsFor(data: MatrixData, kind: Toggle[0], id: string, lockedRaterIds?: ReadonlySet<string>): PairKey[] {
+    if (kind === 'row') return rowCells(data, id, lockedRaterIds);
+    if (kind === 'col') return colCells(data, id, lockedRaterIds);
+    if (kind === 'site') return siteCells(data, id, lockedRaterIds);
+    const raterId = id.slice(0, id.indexOf('|'));
+    return lockedRaterIds?.has(raterId) ? [] : [id as PairKey];
 }
 
-/** Local pairs seeded from the server view; re-seeded when the saved pairs or members change. */
+/** Local pairs seeded from the server view; re-seeded when the saved pairs, members or answered locks change. */
 function useMatrixDraft(data: MatrixData | null) {
     const saved = useMemo(() => toPairSet(data?.pairs ?? []), [data]);
     const signature = data
-        ? [data.raters.map((rater) => rater.periodRaterId), data.ratees.map((ratee) => ratee.periodRateeId), [...saved].sort()].map((ids) => ids.join(',')).join(';')
+        ? [
+            data.raters.map((rater) => `${rater.periodRaterId}:${rater.answered ? '1' : '0'}`),
+            data.ratees.map((ratee) => ratee.periodRateeId),
+            [...saved].sort(),
+        ].map((ids) => ids.join(',')).join(';')
         : '';
     const [pairs, setPairs] = useServerDraft<Set<PairKey>>(() => new Set(saved), signature);
     return { pairs, setPairs, dirty: !samePairs(pairs, saved) };
@@ -49,8 +54,8 @@ function siteLookup(period: CsiPeriodDetail) {
     return (siteId: string | null): SiteInfo => (siteId && sites.get(siteId)) || NO_SITE;
 }
 
-function MatrixActions({ scope, periodId, data, dirty, onReplace, onSave, saving }: {
-    scope: CsiScopeParam; periodId: string; data: MatrixData; dirty: boolean; onReplace: (pairs: Set<PairKey>) => void; onSave: () => void; saving: boolean;
+function MatrixActions({ scope, periodId, data, dirty, allowBulk, onReplace, onSave, saving }: {
+    scope: CsiScopeParam; periodId: string; data: MatrixData; dirty: boolean; allowBulk: boolean; onReplace: (pairs: Set<PairKey>) => void; onSave: () => void; saving: boolean;
 }) {
     const saveTemplate = useSaveCsiTemplate(scope, periodId);
     const applyTemplate = useApplyCsiAssignmentTemplate(scope, periodId);
@@ -58,16 +63,20 @@ function MatrixActions({ scope, periodId, data, dirty, onReplace, onSave, saving
     const templateHint = dirty ? SAVE_FIRST_HINT : undefined;
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <Button variant="soft" onClick={() => onReplace(sameSiteCells(data))}><Zap aria-hidden="true" />Isi otomatis: sama site</Button>
-            <Button variant="soft" onClick={() => onReplace(new Set())}><Eraser aria-hidden="true" />Kosongkan</Button>
-            <Button variant="soft" disabled={dirty} title={templateHint} loading={applyTemplate.isPending}
-                onClick={() => applyTemplate.mutate(undefined, { onSuccess: () => toast.success(TEMPLATE_APPLIED_TOAST) })}>
-                <ClipboardCopy aria-hidden="true" />Salin dari template
-            </Button>
-            <Button variant="soft" disabled={dirty} title={templateHint} loading={saveTemplate.isPending}
-                onClick={() => saveTemplate.mutate(undefined, { onSuccess: () => toast.success(TEMPLATE_SAVED_TOAST) })}>
-                Simpan sebagai template
-            </Button>
+            {allowBulk && (
+                <>
+                    <Button variant="soft" onClick={() => onReplace(sameSiteCells(data))}><Zap aria-hidden="true" />Isi otomatis: sama site</Button>
+                    <Button variant="soft" onClick={() => onReplace(new Set())}><Eraser aria-hidden="true" />Kosongkan</Button>
+                    <Button variant="soft" disabled={dirty} title={templateHint} loading={applyTemplate.isPending}
+                        onClick={() => applyTemplate.mutate(undefined, { onSuccess: () => toast.success(TEMPLATE_APPLIED_TOAST) })}>
+                        <ClipboardCopy aria-hidden="true" />Salin dari template
+                    </Button>
+                    <Button variant="soft" disabled={dirty} title={templateHint} loading={saveTemplate.isPending}
+                        onClick={() => saveTemplate.mutate(undefined, { onSuccess: () => toast.success(TEMPLATE_SAVED_TOAST) })}>
+                        Simpan sebagai template
+                    </Button>
+                </>
+            )}
             <span className="flex-1" />
             {dirty && <span role="status" className={cn('text-[12.5px] font-medium', toneClasses('amber').ink)}>Ada perubahan yang belum disimpan</span>}
             <Button variant="primary" onClick={onSave} disabled={!dirty} loading={saving}><Save aria-hidden="true" />Simpan</Button>
@@ -137,7 +146,9 @@ export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMat
     if (isError || !data) return <ErrorState compact message="Gagal memuat pemetaan penilai." onRetry={() => refetch()} />;
 
     const open = period.respondentMode === 'OPEN';
-    const readOnly = open || period.locked;
+    const partialLocked = period.locked && !open && isRaterAdditionOpen(period);
+    const readOnly = open || (period.locked && !partialLocked);
+    const lockedRaterIds = new Set(partialLocked ? data.raters.filter((rater) => rater.answered).map((rater) => rater.periodRaterId) : []);
     const order = period.sites.map((item) => item.id);
     const term = search.trim().toLowerCase();
     const raters = data.raters.filter((rater) => (site === ALL_SITES || rater.siteId === site)
@@ -145,7 +156,7 @@ export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMat
     const overrides = new Set(period.ratees.filter((ratee) => ratee.tagline || ratee.photoUrl).map((ratee) => ratee.id));
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' },
         ...groupBySite(data.raters, order).flatMap((group) => (group.siteId ? [{ value: group.siteId, label: siteOf(group.siteId).code ?? siteOf(group.siteId).name }] : []))];
-    const onToggle = (kind: Toggle[0], id: string) => setPairs((current) => toggleCells(current, cellsFor(data, kind, id)));
+    const onToggle = (kind: Toggle[0], id: string) => setPairs((current) => toggleCells(current, cellsFor(data, kind, id, lockedRaterIds)));
     const submit = () => save.mutate(toPairs(data, pairs), { onSuccess: () => toast.success(SAVED_TOAST) });
     const unpaired = open ? 0 : unpairedRaterCount(data, pairs);
 
@@ -157,11 +168,11 @@ export function AssignmentMatrix({ scope, period, onDirtyChange }: AssignmentMat
             <section aria-label="Siapa menilai siapa" className={cn(ADMIN_PANEL, 'grid gap-3 p-4 sm:p-5')}>
                 <MatrixFilterBar scope={scope} periodId={period.id} search={search} onSearch={setSearch} site={site} onSite={setSite} siteOptions={siteOptions}
                     raterUserIds={data.raters.map((rater) => rater.userId)} canAdd={!readOnly && !dirty} />
-                {period.locked && !open && <LockedNote />}
-                {!readOnly && <MatrixActions scope={scope} periodId={period.id} data={data} dirty={dirty} onReplace={setPairs} onSave={submit} saving={save.isPending} />}
+                {period.locked && !open && <LockedNote>{partialLocked ? CSI_ASSIGNMENT_PARTIAL_LOCK_NOTE : undefined}</LockedNote>}
+                {!readOnly && <MatrixActions scope={scope} periodId={period.id} data={data} dirty={dirty} allowBulk={!period.locked} onReplace={setPairs} onSave={submit} saving={save.isPending} />}
                 {!readOnly && <p className={cn(MUTED_TEXT, 'text-[12px]')}>Klik nama penilai = satu baris · klik foto subjek = satu kolom · tombol di header site = semua penilai site itu</p>}
                 <MatrixTable scopeLabel={CSI_SCOPE_OF[scope]} rateeGroups={groupBySite(data.ratees, order)} raterGroups={groupBySite(raters, order)} pairs={pairs}
-                    siteHandlers={data.siteHandlers} siteOf={siteOf} readOnly={readOnly} overrides={overrides} onToggle={onToggle} onEditSubject={setEditing} />
+                    siteHandlers={data.siteHandlers} siteOf={siteOf} readOnly={readOnly} lockedRaterIds={lockedRaterIds} overrides={overrides} onToggle={onToggle} onEditSubject={setEditing} />
             </section>
             <SubjectEditSheet mode="period" periodId={period.id} scope={scope} scopeLabel={CSI_SCOPE_OF[scope]}
                 target={editing ? periodTarget(period, data, editing, siteOf) : null} onClose={() => setEditing(null)} />

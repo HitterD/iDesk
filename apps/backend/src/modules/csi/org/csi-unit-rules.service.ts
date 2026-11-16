@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -9,13 +9,16 @@ import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
-import { lockUnlockedPeriod } from '../services/csi-period-lock.util';
+import { CsiResponse } from '../entities/csi-response.entity';
+import { lockPeriodForRaterAdditions, lockUnlockedPeriod } from '../services/csi-period-lock.util';
 import { assertPeriodInScope } from '../services/csi-scope.util';
 import { normalizeNik } from './csi-org.constants';
 import { CsiUnitRule, expandRules } from './csi-unit-rules';
 
 const RULES_MAX = 200;
 const NO_RULES_MESSAGE = 'Tambahkan minimal satu aturan penilai';
+const RATER_ALREADY_ANSWERED_MESSAGE = 'Penilai ini sudah mengisi survei dan tidak dapat diubah';
+const CANNOT_REMOVE_RATER_MESSAGE = 'Penilai yang sudah terdaftar tidak dapat dihapus setelah ada jawaban';
 
 export type CsiUnitRulesResult = { rules: CsiUnitRule[]; raters: number; pairs: number; unmatched: number };
 
@@ -82,6 +85,8 @@ export class CsiUnitRulesService {
         const period = await this.find(scope, periodId);
         const raters = await this.dataSource.getRepository(CsiPeriodRater).find({ where: { periodId: period.id }, relations: { user: { site: true } } });
         const pairs = await this.dataSource.getRepository(CsiPeriodRaterRatee).find({ where: { periodId: period.id } });
+        const responses = (await this.dataSource.getRepository(CsiResponse)?.find({ where: { periodId: period.id }, select: { respondentId: true } })) ?? [];
+        const answered = new Set(responses.map((row) => row.respondentId));
         const niks = raters.map((rater) => normalizeNik(rater.user?.employeeId)).filter((nik): nik is string => !!nik);
         const org = new Map((niks.length ? await this.people.find({ where: { nik: In(niks) } }) : []).map((person) => [person.nik, person]));
         return raters.map((rater) => {
@@ -91,12 +96,13 @@ export class CsiUnitRulesService {
                 userId: rater.userId, nik: rater.user?.employeeId ?? null, fullName: rater.user?.fullName ?? '', siteCode: rater.user?.site?.code ?? null,
                 division: person?.division ?? null, department: person?.department ?? null, bagian: person?.bagian ?? null,
                 periodRateeIds: pairs.filter((pair) => pair.periodRaterId === rater.id).map((pair) => pair.periodRateeId),
+                answered: answered.has(rater.userId),
             };
         }).sort((a, b) => a.fullName.localeCompare(b.fullName, 'id'));
     }
 
-    /** Sets the PICs one rater rates (empty list removes the rater); other raters are untouched. */
-    async setRater(scope: ServiceScope, periodId: string, userId: string, periodRateeIds: string[]) {
+    /** Sets the PICs one rater rates (after answers exist, only unanswered/new raters may be added or updated). */
+    async setRater(scope: ServiceScope, periodId: string, userId: string, periodRateeIds: string[], now: Date = new Date()) {
         const period = await this.find(scope, periodId);
         const user = await this.users.findOne({ where: { id: userId, isActive: true }, select: { id: true } });
         if (!user) throw new BadRequestException('Pengguna tidak ditemukan atau tidak aktif');
@@ -105,8 +111,14 @@ export class CsiUnitRulesService {
         if (valid.length !== ids.length) throw new BadRequestException('Subjek tidak termasuk survei ini');
         if (valid.some((ratee) => ratee.userId === userId)) throw new BadRequestException('Penilai tidak boleh menilai dirinya sendiri');
         await this.dataSource.transaction(async (manager) => {
-            await lockUnlockedPeriod(manager, period.id);
+            const { responseCount } = await lockPeriodForRaterAdditions(manager, period.id, now);
             const existing = await manager.getRepository(CsiPeriodRater).findOne({ where: { periodId: period.id, userId } });
+            if (responseCount > 0) {
+                const hasResponse = (await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId: userId } })) > 0;
+                if (hasResponse) throw new ConflictException(RATER_ALREADY_ANSWERED_MESSAGE);
+                if (existing && !ids.length) throw new ConflictException(CANNOT_REMOVE_RATER_MESSAGE);
+                if (!existing && !ids.length) return;
+            }
             if (existing) await manager.delete(CsiPeriodRaterRatee, { periodRaterId: existing.id });
             if (!ids.length) {
                 if (existing) await manager.delete(CsiPeriodRater, { id: existing.id });
@@ -114,7 +126,9 @@ export class CsiUnitRulesService {
             }
             const rater = existing ?? await manager.save(CsiPeriodRater, { periodId: period.id, userId });
             await manager.save(CsiPeriodRaterRatee, ids.map((periodRateeId) => ({ periodId: period.id, periodRaterId: rater.id, periodRateeId })));
-            await manager.update(CsiPeriod, { id: period.id }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
+            if (period.respondentMode !== CsiRespondentMode.LISTED || period.pairMode !== CsiPairMode.CUSTOM || period.respondentPicks !== false) {
+                await manager.update(CsiPeriod, { id: period.id }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
+            }
         });
         return this.raterList(scope, periodId);
     }

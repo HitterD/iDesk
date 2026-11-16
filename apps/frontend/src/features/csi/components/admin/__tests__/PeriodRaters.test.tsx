@@ -71,4 +71,37 @@ describe('PeriodRaters', () => {
         await actor.click(screen.getByRole('button', { name: 'Simpan penilai' }));
         expect(fx.save).toHaveBeenCalledWith({ userIds: ['u-r1'] });
     });
+
+    it('when locked & active: keeps registered raters disabled while allowing new raters to be ticked and saved', async () => {
+        const actor = userEvent.setup();
+        const activeLocked: CsiPeriodDetail = {
+            ...period(),
+            locked: true,
+            publishStatus: 'PUBLISHED',
+            status: 'ACTIVE',
+            raters: [{ id: 'pr-1', periodId: 'p1', userId: 'u-r1', user: fx.raters[0].user }],
+        };
+        render(<PeriodRaters scope="ict" period={activeLocked} />);
+
+        expect(screen.getByText('Sudah ada jawaban · hanya bisa tambah penilai baru')).toBeInTheDocument();
+        expect(screen.getByText('Terdaftar')).toBeInTheDocument();
+
+        const registeredBox = screen.getByRole('checkbox', { name: /Budi Sepanjang/i });
+        const newBox = screen.getByRole('checkbox', { name: /Dina Sukodono/i });
+        expect(registeredBox).toBeDisabled();
+        expect(registeredBox).toBeChecked();
+        expect(newBox).toBeEnabled();
+
+        await actor.click(newBox);
+        await actor.click(screen.getByRole('button', { name: 'Simpan penilai' }));
+        expect(fx.save).toHaveBeenCalledWith({ userIds: ['u-r1', 'u-r2'] });
+    });
+
+    it('stays fully locked when period is ENDED even if locked', () => {
+        const endedLocked: CsiPeriodDetail = { ...period(), locked: true, publishStatus: 'PUBLISHED', status: 'ENDED' };
+        render(<PeriodRaters scope="ict" period={endedLocked} />);
+        expect(screen.getByText('Terkunci karena sudah ada jawaban')).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: /Dina Sukodono/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Simpan penilai' })).toBeDisabled();
+    });
 });
