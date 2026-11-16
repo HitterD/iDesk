@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsRelations, In, IsNull, LessThanOrEqual, MoreThanOrEqual, Not, QueryFailedError, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -17,7 +18,9 @@ import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
+import { emitCsiUpdated } from '../csi.events';
 import { lockPeriodForRaterAdditions, lockPeriodRow, lockUnlockedPeriod } from './csi-period-lock.util';
+import { applyPeriodQuestionUpdates, type UpdatePeriodQuestionsInput } from './csi-period-questions.util';
 import { CsiReadinessWarning, enableSectionsWithRatees, hiddenRateeWarnings } from './csi-period-sections.util';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
@@ -171,6 +174,7 @@ export class CsiPeriodService {
         private readonly assignments: CsiAssignmentService,
         private readonly subjects: CsiSubjectService,
         private readonly org: CsiOrgService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     async list(scope: ServiceScope, siteId?: string, now: Date = new Date()) {
@@ -244,6 +248,7 @@ export class CsiPeriodService {
             await this.assertNoOverlap(scope, siteIdsOf(current), current.startDate, current.endDate, current.title, id, manager);
             await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.PUBLISHED });
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -258,6 +263,7 @@ export class CsiPeriodService {
         await this.periods.update({ id, scope }, {
             publishStatus: CsiPeriodPublishStatus.CANCELLED, cancelledAt: new Date(), cancelledById: actorId, cancelReason: reason,
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return { detail: await this.get(scope, id), audit: { reason, previous: period.publishStatus, responses: await this.countOne(id) } };
     }
 
@@ -277,6 +283,7 @@ export class CsiPeriodService {
                 publishStatus: CsiPeriodPublishStatus.PUBLISHED, cancelledAt: null, cancelledById: null, cancelReason: null,
             });
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -294,6 +301,7 @@ export class CsiPeriodService {
             await manager.delete(CsiPeriod, { id, scope });
             return { period: current, audit: { reason, responses } };
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return result;
     }
 
@@ -307,6 +315,7 @@ export class CsiPeriodService {
                 await this.assignments.setPairs(scope, id, [], manager);
             }
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -317,6 +326,7 @@ export class CsiPeriodService {
             await lockUnlockedPeriod(manager, id);
             await manager.getRepository(CsiPeriod).update({ id, scope }, { publishStatus: CsiPeriodPublishStatus.DRAFT });
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -368,6 +378,7 @@ export class CsiPeriodService {
             if (source) await this.assignments.copyPairs(scope, source.id, saved.id, manager);
             return saved.id;
         });
+        emitCsiUpdated(this.eventEmitter, scope, periodId);
         return this.get(scope, periodId);
     }
 
@@ -411,6 +422,7 @@ export class CsiPeriodService {
             // teamLabel is kept for compatibility only: team ratees are named after their csi_teams master.
             await manager.getRepository(CsiPeriod).save(next);
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -437,6 +449,7 @@ export class CsiPeriodService {
             return { unmapped: !hasPairsBefore, beforeRatees: existingRatees };
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -492,6 +505,7 @@ export class CsiPeriodService {
                 dimensionRow(row.id, dimension, order))));
             await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
         });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -532,6 +546,7 @@ export class CsiPeriodService {
             return { unmapped: !hasPairsBefore, beforeRatees: existingRatees };
         }));
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { rateeIds: beforeRatees });
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 
@@ -585,6 +600,18 @@ export class CsiPeriodService {
             return { unmapped: !hasPairsBefore && responseCount === 0, beforeRaters: existingRaterUsers };
         });
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { raterUserIds: beforeRaters });
+        emitCsiUpdated(this.eventEmitter, scope, id);
+        return this.get(scope, id);
+    }
+
+    /**
+     * Updates question mode/options/wording snapshots of an existing period (e.g. syncing changes from master
+     * questions or switching SCALE <-> STAR) while converting in-progress respondent drafts safely.
+     */
+    async updateQuestions(scope: ServiceScope, id: string, input: UpdatePeriodQuestionsInput, now: Date = new Date()) {
+        await this.findInScope(scope, id);
+        await this.dataSource.transaction((manager) => applyPeriodQuestionUpdates(manager, scope, id, input, now));
+        emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
     }
 

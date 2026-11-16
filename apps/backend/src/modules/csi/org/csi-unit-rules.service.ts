@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Not, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -11,6 +12,7 @@ import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { lockPeriodForRaterAdditions, lockUnlockedPeriod } from '../services/csi-period-lock.util';
+import { emitCsiUpdated } from '../csi.events';
 import { assertPeriodInScope } from '../services/csi-scope.util';
 import { normalizeNik } from './csi-org.constants';
 import { CsiUnitRule, expandRules } from './csi-unit-rules';
@@ -34,6 +36,7 @@ export class CsiUnitRulesService {
         @InjectRepository(User) private readonly users: Repository<User>,
         @InjectRepository(CsiPeriodRatee) private readonly ratees: Repository<CsiPeriodRatee>,
         @InjectDataSource() private readonly dataSource: DataSource,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     /** Units known to the directory (division → department → bagian), with active iDesk accounts counted. */
@@ -75,6 +78,7 @@ export class CsiUnitRulesService {
                 unitRules: rules, respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false,
             });
         });
+        emitCsiUpdated(this.eventEmitter, scope, period.id);
         return { rules, raters: raters.length, pairs: pairs.length, unmatched };
     }
 
@@ -130,6 +134,7 @@ export class CsiUnitRulesService {
                 await manager.update(CsiPeriod, { id: period.id }, { respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false });
             }
         });
+        emitCsiUpdated(this.eventEmitter, scope, periodId);
         return this.raterList(scope, periodId);
     }
 

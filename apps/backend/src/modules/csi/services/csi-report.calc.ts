@@ -43,7 +43,13 @@ function distributionOf(dimension: CsiPeriodRateeDimension, items: CsiItemRow[])
             return { label, count: counts.get(label) ?? 0 };
         });
     }
-    const counts = countBy(items, (item) => item.answerLabel ?? '');
+    const counts = countBy(items, (item) => {
+        if (item.answerLabel) return item.answerLabel;
+        if (dimension.type === CsiQuestionType.SCALE && item.score !== null && item.score !== undefined) {
+            return (dimension.options ?? []).find((option) => option.points === item.score)?.label ?? '';
+        }
+        return '';
+    });
     return (dimension.options ?? []).map((option) => ({ label: option.label, count: counts.get(option.label) ?? 0 }));
 }
 

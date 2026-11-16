@@ -33,7 +33,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCreateCsiDimension: fx.idle, useUpdateCsiDimension: fx.idle, 
     useReorderCsiDimensions: fx.idle, useApplyCsiTemplate: fx.idle, useReorderCsiDepartments: fx.idle,
     useCreateCsiDepartment: fx.idle, useUpdateCsiDepartment: fx.idle, useAddCsiRaters: fx.idle,
-    useSetCsiRatees: fx.idle, useSetCsiTeamQuestions: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
+    useSetCsiRatees: fx.idle, useSetCsiTeamQuestions: fx.idle, useUpdateCsiPeriodQuestions: fx.idle, useSetCsiRaters: fx.idle, useDeleteCsiPeriod: fx.idle,
     useCsiSubjects: () => ({ data: [], isLoading: false }), useCsiQuestionSets: () => ({ data: [] }),
     useCreateCsiQuestionSet: fx.idle, useDeleteCsiQuestionSet: fx.idle,
 }));

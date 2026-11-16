@@ -38,6 +38,8 @@ vi.mock('../../../hooks/useCsi', () => ({
     useUpdateCsiPeriodRatee: () => ({ mutate: vi.fn(), isPending: false }),
     useCsiReport: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
     useCsiRespondents: () => ({ data: undefined, isLoading: true, isError: false, refetch: () => undefined }),
+    useCsiDimensions: () => ({ data: [], isLoading: false, isError: false }),
+    useUpdateCsiPeriodQuestions: () => ({ mutate: vi.fn(), isPending: false }),
     useSendCsiReminders: () => ({ mutate: vi.fn(), isPending: false }),
     useResetCsiResponse: () => ({ mutate: vi.fn(), isPending: false }),
 }));

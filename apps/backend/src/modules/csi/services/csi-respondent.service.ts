@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, GoneException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, GoneException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, LessThanOrEqual, MoreThanOrEqual, QueryFailedError, Repository } from 'typeorm';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
@@ -26,6 +27,7 @@ import { lockPeriodRow } from './csi-period-lock.util';
 import { computeStatus } from './csi-period.service';
 import { CsiRateeView, CsiSubjectService } from './csi-subject.service';
 import { CsiOrgService, CsiRespondentOrg } from '../org/csi-org.service';
+import { emitCsiUpdated } from '../csi.events';
 import { normalizeBagian, serviceName } from '../org/csi-org.constants';
 
 /** Only the user id is taken from the token; site and active flag are always re-read from the database. */
@@ -79,6 +81,7 @@ export class CsiRespondentService {
         private readonly assignments: CsiAssignmentService,
         private readonly subjects: CsiSubjectService,
         private readonly org: CsiOrgService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     private get readers(): AssignmentReaders {
@@ -192,6 +195,7 @@ export class CsiRespondentService {
             }
             throw error;
         }
+        emitCsiUpdated(this.eventEmitter, period.scope, period.id);
         return { submitted: true as const, thankYou: period.thankYou };
     }
 

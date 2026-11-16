@@ -76,6 +76,7 @@ import { CsiResponseDraft } from './entities/csi-response-draft.entity';
 import { CsiDraftService } from './services/csi-draft.service';
 import { SystemSettings } from '../settings/entities/system-settings.entity';
 import { ReportSignoffService } from '../reports/services/report-signoff.service';
+import { CsiGateway } from './presentation/csi.gateway';
 
 @Module({
     imports: [
@@ -97,6 +98,6 @@ import { ReportSignoffService } from '../reports/services/report-signoff.service
     providers: [CsiAdminGuard, CsiMasterService, CsiPeriodService, CsiRespondentService, CsiReportService, CsiSlaService, CsiExportService, CsiMemoService,
         CsiSubjectService, CsiAssignmentService, CsiReminderService, CsiDashboardService, CsiQuestionSetService, CsiRaterBulkService, ReportSignoffService, CsiOrgService, CsiUnitRulesService, CsiPairsExcelService,
         CsiAccessReader, CsiReportAccessService, CsiServiceReportService, CsiSelfResultService,
-        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService, CsiPicRenameService, CsiDraftService],
+        CsiAssignmentTemplateService, CsiTemplateApplyService, CsiTemplateImportService, CsiTeamService, CsiPicRenameService, CsiDraftService, CsiGateway],
 })
 export class CsiModule { }

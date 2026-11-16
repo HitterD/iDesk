@@ -4,6 +4,7 @@ import { CsiHcApi } from '../api/csiHc.api';
 import { CsiApi } from '../api/csi.api';
 import type { CreateCsiCustomTeam, CsiScopeParam, CsiTeamMemberInput, UpdateCsiCustomTeam } from '../types';
 import type { CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
+import { useCsiPollingFallback } from './useCsiLiveUpdates';
 
 const keys = queryKeys.csi;
 const picsKey = (scope: CsiScopeParam, includeInactive = false) => ['csi', scope, 'pics', includeInactive] as const;
@@ -195,7 +196,8 @@ export function useSetCsiPeriodPics(scope: CsiScopeParam, periodId: string) {
     });
 }
 export function useCsiHcRecap(scope: CsiScopeParam, periodId: string) {
-    return useQuery({ queryKey: recapKey(scope, periodId), queryFn: () => CsiHcApi.hcRecap(scope, periodId), enabled: !!periodId });
+    const refetchInterval = useCsiPollingFallback();
+    return useQuery({ queryKey: recapKey(scope, periodId), queryFn: () => CsiHcApi.hcRecap(scope, periodId), enabled: !!periodId, refetchInterval });
 }
 
 const ratersKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-raters', id] as const;

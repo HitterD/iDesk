@@ -16,6 +16,7 @@ import { ReadinessList } from '../wizard/ReadinessList';
 import { WIZARD_COPY } from '../wizard/wizardCopy';
 import { AdminSection, LockedNote, MUTED_TEXT } from './AdminParts';
 import { ConfirmByTitleDialog } from './ConfirmByTitleDialog';
+import { PeriodQuestionModes } from './PeriodQuestionModes';
 
 type ActionProps = { scope: CsiScopeParam; period: CsiPeriodDetail };
 const missingCount = (period: CsiPeriodDetail) => period.readiness.checks.filter((check) => !check.ok).length;
@@ -145,24 +146,27 @@ export function PeriodChecklist({ scope, period, responseCount = 0, onEditStep, 
     const status = period.publishStatus;
     const cancelled = status === 'CANCELLED';
     return (
-        <AdminSection title={WIZARD_COPY.readinessTitle} description="Syarat agar survei bisa terbit. Ubah membuka langkah wizard terkait."
-            actions={!cancelled && (
-                <Button variant="soft" onClick={() => onEditStep('info')}>
-                    <Pencil aria-hidden="true" />{WIZARD_COPY.editInfo}
-                </Button>
-            )}>
-            {cancelled && <CancelledNote period={period} />}
-            <ReadinessList readiness={period.readiness} onEdit={onEditStep} locked={period.locked || cancelled} published={status !== 'DRAFT'} />
-            <div className="mt-5 flex flex-wrap items-start justify-end gap-2">
-                {period.locked && !cancelled && <LockedNote />}
-                <span className="flex-1" />
-                {status === 'DRAFT' && !period.locked && <DeleteDraft scope={scope} period={period} onDeleted={onDeleted} />}
-                {(status === 'PUBLISHED' || (status === 'DRAFT' && period.locked)) && <CancelSurvey scope={scope} period={period} responses={responseCount} />}
-                {cancelled && <PurgeSurvey scope={scope} period={period} responses={responseCount} onDeleted={onDeleted} />}
-                {status === 'PUBLISHED' && !period.locked && <UnpublishButton scope={scope} period={period} />}
-                {status === 'DRAFT' && <PublishButton scope={scope} period={period} />}
-                {cancelled && <RestoreButton scope={scope} period={period} />}
-            </div>
-        </AdminSection>
+        <div className="grid gap-5">
+            <AdminSection title={WIZARD_COPY.readinessTitle} description="Syarat agar survei bisa terbit. Ubah membuka langkah wizard terkait."
+                actions={!cancelled && (
+                    <Button variant="soft" onClick={() => onEditStep('info')}>
+                        <Pencil aria-hidden="true" />{WIZARD_COPY.editInfo}
+                    </Button>
+                )}>
+                {cancelled && <CancelledNote period={period} />}
+                <ReadinessList readiness={period.readiness} onEdit={onEditStep} locked={period.locked || cancelled} published={status !== 'DRAFT'} />
+                <div className="mt-5 flex flex-wrap items-start justify-end gap-2">
+                    {period.locked && !cancelled && <LockedNote />}
+                    <span className="flex-1" />
+                    {status === 'DRAFT' && !period.locked && <DeleteDraft scope={scope} period={period} onDeleted={onDeleted} />}
+                    {(status === 'PUBLISHED' || (status === 'DRAFT' && period.locked)) && <CancelSurvey scope={scope} period={period} responses={responseCount} />}
+                    {cancelled && <PurgeSurvey scope={scope} period={period} responses={responseCount} onDeleted={onDeleted} />}
+                    {status === 'PUBLISHED' && !period.locked && <UnpublishButton scope={scope} period={period} />}
+                    {status === 'DRAFT' && <PublishButton scope={scope} period={period} />}
+                    {cancelled && <RestoreButton scope={scope} period={period} />}
+                </div>
+            </AdminSection>
+            <PeriodQuestionModes scope={scope} period={period} />
+        </div>
     );
 }

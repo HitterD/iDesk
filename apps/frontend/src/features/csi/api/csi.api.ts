@@ -8,7 +8,7 @@ import type {
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiTeamDeleteImpact, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
     CsiServerDraft, SaveCsiDraft,
-    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
+    UpdateCsiDepartment, UpdateCsiDimension, UpdateCsiPeriod, UpdateCsiPeriodQuestions, UpdateCsiPeriodRatee, UpdateCsiSubject, CsiSelfResult,
 } from '../types';
 
 const adminPath = (scope: CsiScopeParam) => `/csi/admin/${scope}`;
@@ -151,6 +151,9 @@ export const CsiApi = {
     },
     async setTeamQuestions(scope: CsiScopeParam, id: string, payload: SetCsiTeamQuestions): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/team`, payload)).data;
+    },
+    async updatePeriodQuestions(scope: CsiScopeParam, id: string, payload: UpdateCsiPeriodQuestions): Promise<CsiPeriodDetail> {
+        return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/questions`, payload)).data;
     },
     async setRaters(scope: CsiScopeParam, id: string, payload: CsiUserIds): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/raters`, payload)).data;

@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
 import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'typeorm';
@@ -35,6 +36,7 @@ import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entit
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
 import { ratersWithoutAccount } from '../org/csi-template-view';
+import { emitCsiUpdated } from '../csi.events';
 
 const RESPONSE_NOT_FOUND_MESSAGE = 'Jawaban tidak ditemukan';
 const RESET_ENTITY_TYPE = 'csi_response';
@@ -148,6 +150,7 @@ export class CsiReportService {
         private readonly sla: CsiSlaService,
         private readonly subjects: CsiSubjectService,
         private readonly assignments: CsiAssignmentService,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     private get readers(): ItemReaders {
@@ -556,6 +559,7 @@ export class CsiReportService {
             description: `Reset jawaban CSI ${response.respondentName}. Alasan: ${trimmed}`,
             request: req,
         });
+        emitCsiUpdated(this.eventEmitter, scope, periodId);
         return { reset: true as const };
     }
 
