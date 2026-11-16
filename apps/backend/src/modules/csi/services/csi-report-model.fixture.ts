@@ -36,7 +36,6 @@ export function reportFixture({ people = 2, responses = 2, sites = 1, comments =
     const raters = Array.from({ length: basis }, (_, i) => ({ department: i < 2 ? 'Keuangan' : 'Produksi', answered: i >= basis - responses }));
     const input: CsiReportModelInput = {
         report,
-        matrix: { subjects: [], rows: [{ responseId: 'a', respondentName: 'Rahasia Penilai', departmentName: 'Produksi', areaName: null, submittedAt: new Date(), scores: [], average: null }], totals: [] } as any,
         scopeLabel: 'ICT',
         scope: ServiceScope.ICT,
         previousBySubject: new Map([['PERSON:orang 0:', 4.9]]),
@@ -44,7 +43,7 @@ export function reportFixture({ people = 2, responses = 2, sites = 1, comments =
         siteBasis: siteRows.map((site, i) => ({ siteId: site.id, basis: Array.from({ length: basis }).filter((_, r) => r % sites === i).length, responses: Math.floor(responses / sites), average: 4.2 })),
         raters,
         serviceAverages: [],
-        comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
+        comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text }))),
         notes: 'Tindak lanjut: pelatihan\nReview bulan depan',
     };
     return { input, model: buildReportModel(input) };
@@ -112,7 +111,7 @@ export function hcReportFixture({ respondents = 30, previous = false, title = 'C
         // Anita by master PIC (her name changed since), Bambang by name.
         previousBySubject: previous ? new Map([['PIC:pic0', 3.9], ['PERSON:bambang benefit:', 4.2]]) : new Map(),
         serviceAverages: recap.services.filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
-        comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt }))),
+        comments: ratees.flatMap((ratee) => ratee.comments.map((comment) => ({ periodRateeId: ratee.periodRateeId, text: comment.text }))),
     };
     return { input: hcInput, model: { ...buildReportModel(hcInput), hcRecap }, ratings };
 }

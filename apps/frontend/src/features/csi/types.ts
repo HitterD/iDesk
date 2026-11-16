@@ -263,10 +263,10 @@ export interface CsiReportRatee {
     /** Count of STAR answers per score: index 0 = 1 star … index 4 = 5 stars. */
     starDistribution: number[];
     questions: CsiQuestionStat[];
-    /** Non-empty comments for this ratee (same site narrowing as the scores), newest first. */
+    /** Non-empty anonymous comments for this ratee in scrambled order (no department or timestamp). */
     comments: CsiReportComment[];
 }
-export interface CsiReportComment { text: string; departmentName: string; submittedAt: string }
+export interface CsiReportComment { text: string }
 export interface CsiSlaReporter { email: string; department: string | null; fullName: string }
 export interface CsiSla {
     mode: CsiRespondentMode;
@@ -300,31 +300,6 @@ export interface CsiRespondents {
     /** LISTED only: raters per department (directory department), without names. */
     pendingByDepartment?: Array<{ department: string; pending: number; total: number }> | null;
     totals: { submitted: number; pending: number | null };
-}
-
-export interface CsiAnswerScore {
-    dimension: string;
-    type: CsiQuestionType;
-    score: number | null;
-    answerLabel: string | null;
-    answerText: string | null;
-}
-
-export interface CsiResponseDetail {
-    responseId: string;
-    respondentName: string;
-    accountName: string;
-    areaName: string | null;
-    departmentName: string;
-    submittedAt: string;
-    ratees: Array<{
-        periodRateeId: string;
-        kind: CsiRateeKind;
-        displayName: string;
-        jobTitle: string | null;
-        comment: string | null;
-        scores: CsiAnswerScore[];
-    }>;
 }
 
 export interface CsiMemoSigner { name: string; title: string }
@@ -442,16 +417,6 @@ export interface CsiTeamDeleteImpact {
     draftSurveys: CsiTeamSurveyRef[];
     teamSectionOff: CsiTeamSurveyRef[];
     finishedSurveys: number;
-}
-
-// ─── "Siapa menilai siapa" (respondents × subjects) ─────────────────────────
-export interface CsiRaterMatrix {
-    subjects: Array<{ periodRateeId: string; kind: CsiRateeKind; displayName: string; siteId: string | null }>;
-    rows: Array<{
-        responseId: string; respondentName: string; departmentName: string; areaName: string | null; submittedAt: string;
-        scores: Array<number | null>; average: number | null;
-    }>;
-    totals: Array<{ raters: number; average: number | null }>;
 }
 
 /** A published survey of the scope whose sites and dates intersect the ones being edited. */

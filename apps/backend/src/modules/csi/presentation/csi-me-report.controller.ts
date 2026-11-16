@@ -43,10 +43,4 @@ export class CsiMeReportController {
     async export(@Req() req: CsiMeRequest, @Param('scope') scope: string, @Param('id', ID_PIPE) id: string, @Param('serviceCode') serviceCode: string, @Res() res: Response) {
         sendXlsx(res, await this.reports.exportWorkbook(req.user.userId, id, serviceCode, parseCsiScope(scope)));
     }
-
-    /** Raw ratings of the owner's own service (rater names; ratings about the owner stay anonymous). */
-    @Get('periods/:id/services/:serviceCode/export-raw')
-    async exportRaw(@Req() req: CsiMeRequest, @Param('scope') scope: string, @Param('id', ID_PIPE) id: string, @Param('serviceCode') serviceCode: string, @Res() res: Response) {
-        sendXlsx(res, await this.reports.exportRawWorkbook(req.user.userId, id, serviceCode, parseCsiScope(scope)));
-    }
 }

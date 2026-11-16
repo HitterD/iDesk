@@ -14,7 +14,7 @@ const score = (dimension: string, type: string, value: number | null, answerLabe
     ({ dimension, type, score: value, answerLabel, answerText });
 
 describe('CsiExportService', () => {
-    let reports: { getReport: jest.Mock; listAnswers: jest.Mock; getRaterMatrix: jest.Mock; getExecutiveModel: jest.Mock };
+    let reports: { getReport: jest.Mock; listAnswers: jest.Mock; getExecutiveModel: jest.Mock };
     let service: CsiExportService;
 
     const load = async () => {
@@ -49,7 +49,6 @@ describe('CsiExportService', () => {
                     },
                 ],
             }])),
-            getRaterMatrix: jest.fn(async () => ({ subjects: [], rows: [], totals: [] })),
             getExecutiveModel: jest.fn(async (_s: unknown, _p: unknown, input: { notes?: string }) => ({ ...reportFixture({ people: 3, sites: 2 }).model, notes: input.notes ?? '' })),
         };
         service = new CsiExportService(reports as any);
@@ -65,12 +64,6 @@ describe('CsiExportService', () => {
         expect(sanitizeCell('Budi')).toBe('Budi');
     });
 
-    const raw = async () => {
-        const { buffer, filename } = await service.buildRawWorkbook(ServiceScope.ICT, 'p1', NOW);
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(buffer as any);
-        return { workbook, filename };
-    };
     const workbookOf = async (model: unknown) => {
         reports.getExecutiveModel.mockImplementation(async () => model);
         return load();
@@ -117,7 +110,6 @@ describe('CsiExportService', () => {
 
     it('ICT main workbook forwards siteId filter alongside notes to the report model', async () => {
         await service.buildWorkbook(ServiceScope.ICT, 'p1', NOW, { siteId: 'site-skd', notes: 'Catatan' });
-        expect(reports.getRaterMatrix).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', 'site-skd');
         expect(reports.getExecutiveModel).toHaveBeenCalledWith(ServiceScope.ICT, 'p1', expect.objectContaining({ siteId: 'site-skd', notes: 'Catatan' }));
     });
 
@@ -360,91 +352,5 @@ describe('CsiExportService', () => {
         expect(summaryValue(workbook, 'Yang dinilai')).toBe(ratedCount);
         const nestedNames = workbook.getWorksheet('3 Layanan-bagian-PIC')!.getColumn(1).values;
         expect(nestedNames).not.toContain('PIC Belum Dinilai');
-    });
-
-    describe('raw-data workbook', () => {
-        it('confidential filename, red banner above every table, header row 3, sheets in order', async () => {
-            const { workbook, filename } = await raw();
-            expect(filename).toBe('csi-ict-2026-10-25 - DATA MENTAH (RAHASIA).xlsx');
-            expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Penilaian Tim', 'Penilaian Per Orang', 'Penilai x Subjek']);
-            workbook.worksheets.forEach((sheet) => {
-                expect(String(sheet.getCell('A1').value)).toMatch(/^RAHASIA/);
-                expect(sheet.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFB42318' } });
-                expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 3 });
-            });
-        });
-
-        it('answer sheets: Point columns only for scored questions, timestamps as Date (WIB)', async () => {
-            const { workbook } = await raw();
-            const team = workbook.getWorksheet('Penilaian Tim')!;
-            expect((team.getRow(3).values as unknown[]).slice(1)).toEqual(['Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Kecepatan', 'Point 1', 'Average']);
-            const first = (team.getRow(4).values as unknown[]).slice(1);
-            expect(first[0]).toBeInstanceOf(Date);
-            // 2025-11-03 08:14:32Z shows as 15:14:32 (Jakarta).
-            expect((first[0] as Date).toISOString()).toBe('2025-11-03T15:14:32.000Z');
-            expect(team.getRow(4).getCell(1).numFmt).toBe('dd mmm yyyy hh:mm');
-            expect(first.slice(1)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 4, 4]);
-            const people = workbook.getWorksheet('Penilaian Per Orang')!;
-            expect((people.getRow(3).values as unknown[]).slice(1)).toEqual([
-                'Timestamp', 'Nama', 'Area Kerja', 'Departemen', 'Dinilai', 'Ramah', 'Point 1', 'Channel', 'Saran', 'Average',
-            ]);
-            expect((people.getRow(4).values as unknown[]).slice(2)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 'Budi', 5, 5, 'Email', "'-bagus", 5]);
-        });
-
-        it('omits Penilaian Tim without a TEAM ratee', async () => {
-            const report = await reports.getReport();
-            report.ratees = report.ratees.filter((ratee: any) => ratee.kind === 'PERSON');
-            reports.getReport.mockResolvedValue(report);
-            expect((await raw()).workbook.worksheets.map((sheet) => sheet.name)).toEqual(['Penilaian Per Orang', 'Penilai x Subjek']);
-        });
-
-        it('"Penilai x Subjek": one row per respondent, totals below and outside the filter, band fills', async () => {
-            const sheet = (await raw()).workbook.getWorksheet('Penilai x Subjek')!;
-            expect((sheet.getRow(3).values as unknown[]).slice(1)).toEqual(['Timestamp', 'Nama penilai', 'Area Kerja', 'Departemen', 'Tim · Tim IT Support', `'=HYPERLINK("x")`, 'Rata-rata penilai']);
-            expect((sheet.getRow(4).values as unknown[]).slice(2)).toEqual(['titi yusliyanti', 'SEPANJANG', "'+Keuangan", 4, 5, 4.5]);
-            expect(sheet.getRow(4).getCell(1).value).toBeInstanceOf(Date);
-            expect(sheet.getRow(5).getCell(2).value).toBe('Jumlah penilai');
-            expect(sheet.getRow(5).getCell(5).value).toBe(1);
-            expect(sheet.getRow(6).getCell(6).value).toBe(5);
-            expect(filterLastRow(sheet)).toBe(4);
-            expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 4, ySplit: 3 });
-            // Default bands 4.0 / 4.5: 5 good, 4 fair.
-            expect(sheet.getRow(4).getCell(6).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
-            expect(sheet.getRow(4).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFFFF1CC' } });
-        });
-
-        it('custom survey bands colour the matrix', async () => {
-            reports.getExecutiveModel.mockImplementation(async () => ({ ...reportFixture({ people: 3, sites: 2 }).model, bands: { fairMin: 3, goodMin: 3.8 } }));
-            const sheet = (await raw()).workbook.getWorksheet('Penilai x Subjek')!;
-            expect(sheet.getRow(4).getCell(5).fill).toMatchObject({ fgColor: { argb: 'FFD7F2EC' } });
-        });
-
-        it('simulated survey: amber SIMULASI line under the confidential banner on every raw sheet', async () => {
-            reports.getExecutiveModel.mockImplementation(async () => ({ ...hcReportFixture().model, simulation: true }));
-            const { workbook } = await raw();
-            workbook.worksheets.forEach((sheet) => {
-                expect(String(sheet.getCell('A2').value)).toMatch(/^SIMULASI/);
-                expect(sheet.getCell('A2').fill).toMatchObject({ fgColor: { argb: 'FFFFF1CC' } });
-            });
-        });
-
-        it('ICT: no "HC Jawaban Responden" sheet', async () => {
-            expect((await raw()).workbook.getWorksheet('HC Jawaban Responden')).toBeUndefined();
-        });
-
-        it('HC: respondent answers per PIC in layanan order HCD, HCC, HCS (names only in this file)', async () => {
-            reports.getExecutiveModel.mockImplementation(async () => hcReportFixture().model);
-            const sheet = (await raw()).workbook.getWorksheet('HC Jawaban Responden')!;
-            expect(sheet.getRow(3).getCell(1).value).toBe('Responden');
-            const order = ['HCD', 'HCC', 'HCS'];
-            const byRespondent = new Map<string, string[]>();
-            for (let row = 4; row <= sheet.rowCount; row++) {
-                const cells = (sheet.getRow(row).values as unknown[]).slice(1);
-                byRespondent.set(String(cells[0]), [...(byRespondent.get(String(cells[0])) ?? []), String(cells[5])]);
-            }
-            expect([...byRespondent.keys()].some((name) => name.startsWith('Penilai Rahasia'))).toBe(true);
-            byRespondent.forEach((codes) => expect(codes).toEqual([...codes].sort((a, b) => order.indexOf(a) - order.indexOf(b))));
-            expect([...byRespondent.values()].some((codes) => new Set(codes).size > 1)).toBe(true);
-        });
     });
 });

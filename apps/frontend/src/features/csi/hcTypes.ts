@@ -65,16 +65,6 @@ export interface CsiRespondentGroupRow {
     /** Distinct respondents behind the row. */
     respondents?: number;
 }
-export interface CsiRespondentDetail {
-    responseId: string;
-    name: string;
-    division: string | null;
-    department: string | null;
-    bagian: string | null;
-    location: CsiLocationCode | null;
-    pics: Array<{ name: string; serviceCode: string | null; bagian: string | null; scores: Record<string, number>; average: number | null }>;
-    average: number | null;
-}
 /** Layanan rows come in report order (HCD, HCC, HCS, then others). */
 export interface CsiHcRecap {
     period: { id: string; title: string; startDate: string; endDate: string };
@@ -85,7 +75,6 @@ export interface CsiHcRecap {
     overall: CsiLocationCells & { dimensions: Record<string, number | null>; respondents: number };
     services: CsiRecapRow[];
     respondentGroups: CsiRespondentGroupRow[];
-    respondents: CsiRespondentDetail[];
 }
 
 export interface CsiUnitRule {

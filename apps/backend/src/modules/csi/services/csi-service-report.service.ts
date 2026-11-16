@@ -6,11 +6,11 @@ import { CSI_SIMULATION_BANNER, CsiPeriodPublishStatus, isSimulation } from '../
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiHcRecap } from '../org/csi-hc-report.calc';
-import { addHcAnswersRawSheet, addHcNestedSheet, addHcRespondentSheet, addHcServiceSheet, HcSheetContext } from '../org/csi-hc-report.render';
+import { addHcNestedSheet, addHcRespondentSheet, addHcServiceSheet, HcSheetContext } from '../org/csi-hc-report.render';
 import { buildServiceReport, CsiPendingDepartment, mergeSmallDepartments } from '../org/csi-service-report.calc';
 import { addTable, sectionRow, startReportSheet, XlColumn } from './csi-excel-style';
 import { surveyLineOf } from './csi-export.executive';
-import { newCsiWorkbook, RAW_FILENAME_SUFFIX } from './csi-export.service';
+import { newCsiWorkbook } from './csi-export.service';
 import { sanitizeCell } from './csi-export.sheet';
 import { CsiReportAccessService } from './csi-report-access.service';
 import { CsiHcPeriodRef, CsiReportService } from './csi-report.service';
@@ -97,18 +97,6 @@ export class CsiServiceReportService {
             });
         }
         return { filename: `${this.baseName(report, scope)}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
-    }
-
-    /**
-     * Raw data of the owner's own service: every rating with the rater's name, except the ratings about the owner
-     * themself, which stay "Anonim" exactly as on the screen (same report as `get`).
-     */
-    async exportRawWorkbook(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<{ filename: string; buffer: Buffer }> {
-        const report = await this.get(userId, periodId, serviceCode, scope);
-        const workbook = newCsiWorkbook(`${report.period.title}${RAW_FILENAME_SUFFIX}`, new Date());
-        const { surveyLine: line, simulation } = this.sheetContext(report);
-        addHcAnswersRawSheet(workbook, report, { line, simulation }, report.scoreBands);
-        return { filename: `${this.baseName(report, scope)}${RAW_FILENAME_SUFFIX}.xlsx`, buffer: Buffer.from(await workbook.xlsx.writeBuffer()) };
     }
 
     private sheetContext(report: CsiServiceReport): HcSheetContext {

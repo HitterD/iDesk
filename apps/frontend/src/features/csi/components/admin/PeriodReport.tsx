@@ -12,7 +12,6 @@ import { ReportHero } from './report/ReportHero';
 import { ScoreHeatmap } from './report/ScoreHeatmap';
 import { SubjectDetailSheet } from './report/SubjectDetailSheet';
 import { SubjectScoreCard } from './report/SubjectScoreCard';
-import { RaterMatrixPanel } from './report/RaterMatrixPanel';
 import { ReportExportDialog } from './report/ReportExportDialog';
 import { HcRecapPanel } from './hc/HcRecapPanel';
 
@@ -81,7 +80,6 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
                 siteCode={open ? siteCodeOf(open.siteId) : null} bands={bands} onClose={() => setOpenId(null)} />
         </AdminSection>
         {scope === 'hc' && <HcRecapPanel scope={scope} periodId={periodId} />}
-        <RaterMatrixPanel scope={scope} periodId={periodId} siteId={siteParam} bands={bands} />
         <ReportExportDialog scope={scope} periodId={periodId} siteId={siteParam} open={exportOpen} onOpenChange={setExportOpen} />
         </>
     );

@@ -1,6 +1,6 @@
 import * as ExcelJS from 'exceljs';
 import {
-    addTable, RAW_HEADER_ROW, RawIntro, sectionRow, startRawSheet, startReportSheet, XlColumn, XlRowStyle, XlTab, XlValue,
+    addTable, sectionRow, startReportSheet, XlColumn, XlRowStyle, XlTab, XlValue,
 } from '../services/csi-excel-style';
 import { sanitizeCell } from '../services/csi-export.sheet';
 import { CsiScoreBands } from '../services/csi-score-bands';
@@ -10,7 +10,6 @@ import { CSI_LOCATION_ALL_LABEL } from './csi-org.constants';
 /** Excel sheets of the HC per-PIC recap (the PDF pages live in csi-hc-report.pdf.ts). */
 export const HC_SHEETS = {
     services: 'Per layanan', recap: 'Layanan-bagian-PIC', respondents: 'Rekap responden', questions: 'Per pertanyaan',
-    detail: 'HC Jawaban Responden',
 } as const;
 
 /** What every HC sheet needs: the recap, the survey bands, the title-block line and banner. */
@@ -119,22 +118,4 @@ export function addHcQuestionSheet(workbook: ExcelJS.Workbook, name: string, con
         text(fullOf.get(dimension) ?? dimension), ...services.map((service) => service.dimensions[dimension] ?? null), recap.overall.dimensions[dimension] ?? null,
     ]), { bands: context.bands, headerRow: note, filter: false, emptyText: 'Belum ada pertanyaan bernilai.' });
     return sheet;
-}
-
-/** Raw data: every respondent's stars per PIC (names!). Raw workbook only. */
-export function addHcAnswersRawSheet(workbook: ExcelJS.Workbook, recap: CsiHcRecap, intro: RawIntro, bands: CsiScoreBands) {
-    const columns: XlColumn[] = [
-        { header: 'Responden' }, { header: 'Divisi' }, { header: 'Departemen' }, { header: 'Bagian' }, { header: 'Lokasi' },
-        { header: 'Layanan' }, { header: 'Bagian PIC' }, { header: 'PIC' },
-        ...recap.dimensions.map((label): XlColumn => ({ header: `${label} (bintang)`, kind: 'count' })),
-        score('Rata-rata PIC'), score('Rata-rata responden'),
-    ];
-    const rows: XlValue[][] = recap.respondents.flatMap((respondent) => respondent.pics.map((pic) => [
-        text(respondent.name), text(respondent.division), text(respondent.department), text(respondent.bagian),
-        recap.locations.find((location) => location.code === respondent.location)?.label ?? '',
-        pic.serviceCode ?? '', text(pic.bagian), text(pic.name),
-        ...recap.dimensions.map((label) => pic.scores[label] ?? null), pic.average, respondent.average,
-    ]));
-    const sheet = startRawSheet(workbook, HC_SHEETS.detail, intro, columns.length);
-    addTable(sheet, columns, rows, { bands, headerRow: RAW_HEADER_ROW, freeze: { columns: 1 }, emptyText: 'Belum ada jawaban.' });
 }

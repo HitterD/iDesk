@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { ChevronDown, ChevronRight, Star } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
@@ -12,13 +12,12 @@ import { formatScore, scoreBarClass, scoreFillClass, scoreToneClass, titleCase }
 
 /**
  * HC recap: averages per layanan → bagian → PIC and per respondent division → department → bagian, in the columns
- * SJA 1..4, Jakarta and ALL SJA; plus every respondent's stars per PIC (admin only).
+ * SJA 1..4, Jakarta and ALL SJA (anonymous aggregates only).
  */
-type View = 'services' | 'respondents' | 'answers';
+type View = 'services' | 'respondents';
 const VIEWS = [
     { value: 'services', label: 'Layanan · Bagian · PIC' },
     { value: 'respondents', label: 'Per divisi responden' },
-    { value: 'answers', label: 'Jawaban per responden' },
 ] as const;
 const TH = 'px-2.5 py-2 text-left text-[11.5px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]';
 const TD = 'px-2.5 py-1.5 text-[13px] tabular-nums';
@@ -167,60 +166,6 @@ function RespondentTable({ recap }: { recap: CsiHcRecap }) {
     );
 }
 
-function Stars({ value }: { value: number | undefined }) {
-    if (value === undefined) return <span className="text-[hsl(var(--idesk-text-secondary))]">–</span>;
-    return (
-        <span className="inline-flex items-center gap-0.5" aria-label={`${value} bintang`}>
-            {Array.from({ length: 5 }, (_, index) => (
-                <Star key={index} className={cn('h-3 w-3', index < value ? 'fill-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber))]' : 'text-[hsl(var(--border))]')} aria-hidden="true" />
-            ))}
-        </span>
-    );
-}
-
-function AnswersTable({ recap }: { recap: CsiHcRecap }) {
-    const [query, setQuery] = useState('');
-    const needle = query.trim().toLowerCase();
-    const rows = recap.respondents.filter((row) => !needle || [row.name, row.division, row.department, row.bagian].some((value) => (value ?? '').toLowerCase().includes(needle)));
-    const locationLabel = (code: string | null) => recap.locations.find((location) => location.code === code)?.label ?? '–';
-    return (
-        <div className="grid gap-2">
-            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari responden, divisi atau bagian" aria-label="Cari responden"
-                className="h-9 w-full max-w-sm rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-            <div className="max-h-[640px] overflow-auto rounded-2xl ring-1 ring-[hsl(var(--border))]">
-                <table className="w-full min-w-[980px] border-collapse">
-                    <thead className="sticky top-0 z-10 bg-[hsl(var(--idesk-surface))]">
-                        <tr className="border-b border-[hsl(var(--border))]">
-                            <th className={TH}>Responden</th><th className={TH}>PIC dinilai</th>
-                            {recap.dimensions.map((label) => <th key={label} className={TH}>{label}</th>)}
-                            <th className={cn(TH, 'text-right')}>Rata-rata</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows.map((respondent) => respondent.pics.map((pic, index) => (
-                            <tr key={`${respondent.responseId}-${index}`} className={cn('border-b border-[hsl(var(--border)/.5)]', index === 0 && 'border-t-2 border-t-[hsl(var(--border))]')}>
-                                {index === 0 && (
-                                    <td rowSpan={respondent.pics.length} className={cn(TD, 'align-top')}>
-                                        <p className="font-semibold">{respondent.name}</p>
-                                        <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[respondent.division, respondent.department, respondent.bagian].filter(Boolean).map((value) => titleCase(value!)).join(' · ')}</p>
-                                        <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{`${locationLabel(respondent.location)} · rata-rata `}<b className={scoreToneClass(respondent.average, recap.scoreBands)}>{formatScore(respondent.average)}</b></p>
-                                    </td>
-                                )}
-                                <td className={TD}>
-                                    <p className="font-medium">{titleCase(pic.name)}</p>
-                                    <p className="text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">{[pic.serviceCode, pic.bagian ? titleCase(pic.bagian) : null].filter(Boolean).join(' · ')}</p>
-                                </td>
-                                {recap.dimensions.map((label) => <td key={label} className={TD}><Stars value={pic.scores[label]} /></td>)}
-                                <td className={cn(TD, 'text-right font-bold', scoreToneClass(pic.average, recap.scoreBands))}>{formatScore(pic.average)}</td>
-                            </tr>
-                        )))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-}
-
 function Overview({ recap }: { recap: CsiHcRecap }) {
     const bands = recap.scoreBands;
     return (
@@ -270,7 +215,6 @@ export function HcRecapBody({ recap, expandAll }: { recap: CsiHcRecap; expandAll
             <SegmentedControl aria-label="Tampilan rekap HC" className="dash-seg w-fit" options={VIEWS} value={view} onValueChange={setView} />
             {view === 'services' && <ServicesTable recap={recap} expandAll={expandAll} />}
             {view === 'respondents' && <RespondentTable recap={recap} />}
-            {view === 'answers' && <AnswersTable recap={recap} />}
         </div>
     );
 }

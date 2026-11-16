@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Check, ChevronRight, Clock, Search } from 'lucide-react';
+import { Bell, Check, Clock, RotateCcw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
@@ -22,7 +22,7 @@ export interface PersonListProps {
     reminded: ReadonlySet<string>;
     remindingId: string | null;
     onRemind: (userId: string) => void;
-    onOpenResponse: (responseId: string) => void;
+    onResetResponse?: (target: { responseId: string; name: string }) => void;
 }
 
 function Status({ done }: { done: boolean }) {
@@ -32,10 +32,21 @@ function Status({ done }: { done: boolean }) {
         : <span className={cn(PILL, tone.soft, tone.ink)}><Clock className="h-3 w-3" aria-hidden="true" />Belum</span>;
 }
 
-function RowAction({ row, canRemind, reminded, busy, onRemind }: {
-    row: PersonRow; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void;
+function RowAction({ row, canRemind, reminded, busy, onRemind, onReset }: {
+    row: PersonRow; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void; onReset?: () => void;
 }) {
-    if (row.done) return <span className={cn(MUTED_TEXT, 'text-[12px]')}>{row.submittedAt ? formatDateTime(row.submittedAt) : ''}</span>;
+    if (row.done) {
+        return (
+            <span className="inline-flex items-center gap-2">
+                <span className={cn(MUTED_TEXT, 'text-[12px]')}>{row.submittedAt ? formatDateTime(row.submittedAt) : ''}</span>
+                {onReset && (
+                    <Button variant="subtle" size="sm" onClick={onReset} aria-label={`Reset jawaban ${row.name}`}>
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />Reset
+                    </Button>
+                )}
+            </span>
+        );
+    }
     if (!canRemind || !row.userId) return null;
     if (reminded) return <span className={cn(PILL, toneClasses('sky').soft, toneClasses('sky').ink)}>Pengingat terkirim</span>;
     return (
@@ -45,33 +56,27 @@ function RowAction({ row, canRemind, reminded, busy, onRemind }: {
     );
 }
 
-function PersonItem({ row, siteCode, ...action }: { row: PersonRow; siteCode: string | null; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void; onOpen: () => void }) {
-    const body = (
-        <>
-            <RateeAvatar name={row.name} avatarUrl={null} size="sm" />
-            <span className="min-w-0">
-                <b className="block truncate text-[13.5px] font-semibold">{row.name}</b>
-                {row.detail && <span className={cn(MUTED_TEXT, 'block truncate text-[12px]')}>{row.detail}</span>}
-            </span>
-        </>
-    );
+function PersonItem({ row, siteCode, canRemind, reminded, busy, onRemind, onReset }: {
+    row: PersonRow; siteCode: string | null; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void; onReset?: () => void;
+}) {
     return (
-        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_50px_130px_150px]">
-            {row.done && row.responseId ? (
-                <button type="button" onClick={action.onOpen} aria-label={`Lihat jawaban ${row.name}`}
-                    className="group flex min-w-0 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    {body}<ChevronRight className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
-                </button>
-            ) : <span className="flex min-w-0 items-center gap-3">{body}</span>}
+        <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_50px_130px_auto]">
+            <span className="flex min-w-0 items-center gap-3">
+                <RateeAvatar name={row.name} avatarUrl={null} size="sm" />
+                <span className="min-w-0">
+                    <b className="block truncate text-[13.5px] font-semibold">{row.name}</b>
+                    {row.detail && <span className={cn(MUTED_TEXT, 'block truncate text-[12px]')}>{row.detail}</span>}
+                </span>
+            </span>
             <span className="hidden sm:block"><SiteBadge code={siteCode} /></span>
             <span className="hidden sm:block"><Status done={row.done} /></span>
-            <span className="justify-self-end"><RowAction row={row} {...action} /></span>
+            <span className="justify-self-end"><RowAction row={row} canRemind={canRemind} reminded={reminded} busy={busy} onRemind={onRemind} onReset={onReset} /></span>
         </li>
     );
 }
 
-/** Tabs Semua | Belum | Sudah (with counts), site filter, search; not-yet first; per-row reminder. */
-export function PersonList({ rows, sites, canRemind, reminded, remindingId, onRemind, onOpenResponse }: PersonListProps) {
+/** Tabs Semua | Belum | Sudah (with counts), site filter, search; not-yet first; per-row reminder & anonymous reset. */
+export function PersonList({ rows, sites, canRemind, reminded, remindingId, onRemind, onResetResponse }: PersonListProps) {
     const [filter, setFilter] = useState<PersonFilter>('all');
     const [site, setSite] = useState<string>(ALL_SITES);
     const [search, setSearch] = useState('');
@@ -99,7 +104,10 @@ export function PersonList({ rows, sites, canRemind, reminded, remindingId, onRe
                     {visible.map((row) => (
                         <PersonItem key={row.key} row={row} siteCode={codeOf(row.siteId)} canRemind={canRemind}
                             reminded={!!row.userId && reminded.has(row.userId)} busy={!!row.userId && remindingId === row.userId}
-                            onRemind={() => row.userId && onRemind(row.userId)} onOpen={() => row.responseId && onOpenResponse(row.responseId)} />
+                            onRemind={() => row.userId && onRemind(row.userId)}
+                            onReset={row.done && row.responseId && onResetResponse
+                                ? () => onResetResponse({ responseId: row.responseId!, name: row.name })
+                                : undefined} />
                     ))}
                 </ul>
             ) : <p className={cn(MUTED_TEXT, 'rounded-2xl bg-[hsl(var(--muted)/.5)] px-4 py-6 text-center')}>{rows.length ? 'Tidak ada yang cocok.' : 'Belum ada jawaban.'}</p>}

@@ -35,11 +35,6 @@ export class CsiAdminReportController {
         return this.reports.getHcRecap(req.csiScope, id);
     }
 
-    @Get('rater-matrix')
-    raterMatrix(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportQueryDto) {
-        return this.reports.getRaterMatrix(req.csiScope, id, query.siteId);
-    }
-
     @Post('reminders')
     @HttpCode(HttpStatus.OK)
     sendReminders(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: SendRemindersDto) {
@@ -49,13 +44,6 @@ export class CsiAdminReportController {
     @Get('respondents')
     respondents(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
         return this.reports.getRespondents(req.csiScope, id);
-    }
-
-    @Get('responses/:responseId')
-    responseDetail(
-        @Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Param('responseId', CSI_ID_PIPE) responseId: string,
-    ) {
-        return this.reports.getResponseDetail(req.csiScope, id, responseId);
     }
 
     @Delete('responses/:responseId')
@@ -77,15 +65,6 @@ export class CsiAdminReportController {
     @Get('export')
     async export(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Query() query: ReportExportQueryDto, @Res() res: Response) {
         const { filename, buffer } = await this.exporter.buildWorkbook(req.csiScope, id, new Date(), { siteId: query.siteId, notes: query.notes });
-        res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(buffer);
-    }
-
-    /** Raw data (names the raters): separate file and endpoint, same admin guard as the report export. */
-    @Get('export-raw')
-    async exportRaw(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Res() res: Response) {
-        const { filename, buffer } = await this.exporter.buildRawWorkbook(req.csiScope, id, new Date());
         res.setHeader('Content-Type', XLSX_CONTENT_TYPE);
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(buffer);

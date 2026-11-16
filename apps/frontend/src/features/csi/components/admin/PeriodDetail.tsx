@@ -16,7 +16,6 @@ import { isHcDecided } from '../../lib/hcMode';
 import { PeriodChecklist } from './PeriodChecklist';
 import { PeriodReport } from './PeriodReport';
 import { RespondentStatus } from './RespondentStatus';
-import { ResponseDetailSheet } from './ResponseDetailSheet';
 
 type DetailTab = 'settings' | 'raters' | 'report';
 const DETAIL_TABS = [
@@ -29,13 +28,11 @@ export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 function ReportPanel({ scope, periodId, sites, initialSiteId, hcTarget }: {
     scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null; hcTarget?: boolean;
 }) {
-    const [responseId, setResponseId] = useState<string | null>(null);
     return (
         <div className="grid gap-5">
             {/* Progress first: "who has not filled it yet" is what admins look for while a survey runs. */}
-            <RespondentStatus scope={scope} periodId={periodId} sites={sites} onOpenResponse={setResponseId} hcTarget={hcTarget} />
+            <RespondentStatus scope={scope} periodId={periodId} sites={sites} hcTarget={hcTarget} />
             <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
-            <ResponseDetailSheet scope={scope} periodId={periodId} responseId={responseId} onClose={() => setResponseId(null)} />
         </div>
     );
 }

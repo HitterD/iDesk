@@ -18,7 +18,7 @@ import { lockPeriodRow } from './csi-period-lock.util';
 import { CsiItemRow, overallStats, rateeStats, ratingAverage } from './csi-report.calc';
 import { assertPeriodInScope } from './csi-scope.util';
 import { CsiAssignmentService } from './csi-assignment.service';
-import { raterMatrix } from './csi-rater-matrix.calc';
+import { commentOrder } from './csi-report-pdf-sections';
 import { CsiSlaReporter, CsiSlaService } from './csi-sla.service';
 import { User } from '../../users/entities/user.entity';
 import { Site } from '../../sites/entities/site.entity';
@@ -77,7 +77,7 @@ export type CsiSiteStats = {
     scoreWeight: number;
     people: Array<{ userId: string; displayName: string; photoUrl: string | null; average: number | null }>;
 };
-export type CsiReportComment = { text: string; departmentName: string; submittedAt: Date };
+export type CsiReportComment = { text: string };
 type ItemReaders = { items: Repository<CsiResponseItem>; comments: Repository<CsiResponseComment> };
 
 const toScore = (item: CsiResponseItem): CsiAnswerScore => ({
@@ -177,21 +177,19 @@ export class CsiReportService {
         };
     }
 
-    /** Non-empty comments per ratee from the (site-narrowed) responses, newest first; department + date only, no name. */
+    /** Non-empty comments per ratee from the (site-narrowed) responses in scrambled order (no department or timestamp). */
     private async rateeComments(data: PeriodData): Promise<Map<string, CsiReportComment[]>> {
         const rateeIds = data.ratees.map((ratee) => ratee.id);
         if (!rateeIds.length || !data.responses.length) return new Map();
-        const byResponse = new Map(data.responses.map((response) => [response.id, response]));
+        const responseIds = new Set(data.responses.map((response) => response.id));
         const rows = await this.comments.find({ where: { periodRateeId: In(rateeIds) } });
         const result = new Map<string, CsiReportComment[]>();
         for (const row of rows) {
-            const response = byResponse.get(row.responseId);
             const text = row.comment?.trim();
-            if (!response || !text) continue;
-            result.set(row.periodRateeId, [...(result.get(row.periodRateeId) ?? []),
-                { text, departmentName: response.departmentName, submittedAt: response.submittedAt }]);
+            if (!responseIds.has(row.responseId) || !text) continue;
+            result.set(row.periodRateeId, [...(result.get(row.periodRateeId) ?? []), { text }]);
         }
-        result.forEach((list, key) => result.set(key, [...list].sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())));
+        result.forEach((list, key) => result.set(key, [...list].sort((a, b) => commentOrder(a.text, b.text))));
         return result;
     }
 
@@ -247,8 +245,8 @@ export class CsiReportService {
      * subject, participation per site, anonymous participation per rater department (numbers only), the HC layanan
      * averages and every comment.
      */
-    async getExecutiveModel(scope: ServiceScope, periodId: string, input: { siteId?: string; notes?: string; matrix: Awaited<ReturnType<CsiReportService['getRaterMatrix']>> }): Promise<CsiReportModel> {
-        const { siteId, matrix } = input;
+    async getExecutiveModel(scope: ServiceScope, periodId: string, input: { siteId?: string; notes?: string } = {}): Promise<CsiReportModel> {
+        const { siteId } = input;
         const report = await this.getReport(scope, periodId, siteId);
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const raw = await this.loadPeriodData(scope, period);
@@ -279,12 +277,12 @@ export class CsiReportService {
             siteBasis.push({ siteId: site.id, basis: sla.basis, responses: stats?.responses ?? 0, average: stats?.average ?? null });
         }
         const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
-            periodRateeId: ratee.periodRateeId, text: comment.text, department: comment.departmentName, date: comment.submittedAt,
+            periodRateeId: ratee.periodRateeId, text: comment.text,
         })));
         // HC: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
         const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId, previous?.id) : null;
         const model = buildReportModel({
-            report, matrix, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
+            report, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
             raters: await this.basisRaters(reporters, data.responses),
             serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
             notes: input.notes ?? '', hcRecap,
@@ -480,29 +478,6 @@ export class CsiReportService {
         return map;
     }
 
-    /**
-     * "Siapa menilai siapa": every response × every subject of the (site-narrowed) report with the average given.
-     * Respondent names are shown to scope admins only (this endpoint sits behind CsiAdminGuard); the PDF never uses it.
-     */
-    async getRaterMatrix(scope: ServiceScope, periodId: string, siteId?: string) {
-        const report = await this.getReport(scope, periodId, siteId);
-        const answers = await this.listAnswers(scope, periodId);
-        const period = await this.findInScope(scope, periodId, { sites: { site: true } });
-        const handlers = await this.siteHandlerMap(scope, period);
-        const respondentSites = siteId
-            ? resolveSiteFilter(scope, handlers, { ratees: report.ratees.map((ratee) => ({ id: ratee.periodRateeId, siteId: ratee.siteId }) as CsiPeriodRatee), views: new Map() }, siteId, true)
-            : null;
-        const subjects = report.ratees.map((ratee) => ({
-            periodRateeId: ratee.periodRateeId, kind: ratee.kind, siteId: ratee.siteId,
-            displayName: ratee.kind === CsiRateeKind.TEAM ? ratee.displayName || report.period.teamLabel : ratee.displayName,
-        }));
-        const subjectIds = new Set(subjects.map((subject) => subject.periodRateeId));
-        // Same site rule as the report: only respondents whose effective site filter matches count.
-        const relevant = answers.filter((answer) => (!respondentSites || (answer.siteId ? respondentSites.respondentSites.has(answer.siteId) : false))
-            && answer.ratees.some((ratee) => subjectIds.has(ratee.periodRateeId)));
-        return raterMatrix(subjects, relevant);
-    }
-
     async getRespondents(scope: ServiceScope, periodId: string) {
         const period = await this.findInScope(scope, periodId, { sites: true });
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
@@ -550,15 +525,7 @@ export class CsiReportService {
         return new Map(rows.filter((row) => row.department).map((row) => [row.nik, row.department!]));
     }
 
-    async getResponseDetail(scope: ServiceScope, periodId: string, responseId: string): Promise<CsiAnswer> {
-        await this.findInScope(scope, periodId);
-        const response = await this.responses.findOne({ where: { id: responseId, periodId }, relations: { respondent: { site: true } } });
-        if (!response) throw new NotFoundException(RESPONSE_NOT_FOUND_MESSAGE);
-        const [answer] = await this.buildAnswers(this.readers, [response]);
-        return answer;
-    }
-
-    /** Every response of the period with its answers and comments, in submit order (used by the Excel export). */
+    /** Every response of the period with its answers and comments, in submit order (used by Memo PDF rendering). */
     async listAnswers(scope: ServiceScope, periodId: string): Promise<CsiAnswer[]> {
         await this.findInScope(scope, periodId);
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: { site: true } }, order: { submittedAt: 'ASC' } });
@@ -571,27 +538,22 @@ export class CsiReportService {
             throw new BadRequestException(`Alasan reset minimal ${CSI_RESET_REASON_MIN} karakter`);
         }
         await this.findInScope(scope, periodId);
-        const snapshot = await this.dataSource.transaction(async (manager) => {
+        const response = await this.dataSource.transaction(async (manager) => {
             // Same row lock as admin edits: a reset never interleaves with ratee/rater changes or other resets.
             if (!(await lockPeriodRow(manager, periodId))) throw new NotFoundException('Periode tidak ditemukan');
-            const response = await manager.getRepository(CsiResponse).findOne({ where: { id: responseId, periodId }, relations: { respondent: true } });
-            if (!response) throw new NotFoundException(RESPONSE_NOT_FOUND_MESSAGE);
-            const readers = { items: manager.getRepository(CsiResponseItem), comments: manager.getRepository(CsiResponseComment) };
-            const [answer] = await this.buildAnswers(readers, [response]);
+            const found = await manager.getRepository(CsiResponse).findOne({ where: { id: responseId, periodId } });
+            if (!found) throw new NotFoundException(RESPONSE_NOT_FOUND_MESSAGE);
             await manager.delete(CsiResponse, { id: responseId });
-            await manager.delete(CsiResponseDraft, { periodId, respondentId: response.respondentId });
-            return { response, answer };
+            await manager.delete(CsiResponseDraft, { periodId, respondentId: found.respondentId });
+            return found;
         });
-        const { response, answer } = snapshot;
         await this.audit.log({
             userId: actor.id, action: AuditAction.CSI_RESPONSE_RESET, entityType: RESET_ENTITY_TYPE, entityId: responseId,
             oldValue: {
-                periodId, respondentId: response.respondentId, respondentName: answer.respondentName,
-                departmentName: answer.departmentName, submittedAt: answer.submittedAt,
-                scores: answer.ratees.flatMap((ratee) => ratee.scores.map(({ dimension, score, answerLabel, answerText }) =>
-                    ({ ratee: ratee.displayName, dimension, score, answerLabel, answerText }))),
+                periodId, respondentId: response.respondentId, respondentName: response.respondentName,
+                departmentName: response.departmentName, submittedAt: response.submittedAt,
             },
-            description: `Reset jawaban CSI ${answer.respondentName}. Alasan: ${trimmed}`,
+            description: `Reset jawaban CSI ${response.respondentName}. Alasan: ${trimmed}`,
             request: req,
         });
         return { reset: true as const };

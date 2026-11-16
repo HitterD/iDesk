@@ -50,17 +50,11 @@ export type CsiRespondentRow = {
     /** Distinct respondents behind the row. */
     respondents: number;
 };
-export type CsiRespondentDetail = {
-    responseId: string; name: string; division: string | null; department: string | null; bagian: string | null; location: string | null;
-    pics: Array<{ name: string; serviceCode: string | null; bagian: string | null; scores: Record<string, number>; average: number | null }>;
-    average: number | null;
-};
 export type CsiHcRecap = {
     dimensions: string[]; locations: Array<{ code: CsiOrgLocation; label: string }>;
     overall: CsiLocationCells & { dimensions: Record<string, number | null>; respondents: number };
     services: CsiRecapRow[];
     respondentGroups: CsiRespondentRow[];
-    respondents: CsiRespondentDetail[];
     /** Executive report only: ALL SJA average of the previous period per recapRowKey (absent = no previous period). */
     previous?: Record<string, number | null>;
     /** Executive report only: overall.all.average of the previous period (absent = no previous period). */
@@ -254,23 +248,6 @@ export function collapseRespondentRows(rows: CsiRespondentRow[]): CsiRespondentR
     });
 }
 
-/** Every respondent's ratings (admin Excel only); PICs in report layanan order (HCD, HCC, HCS), then by name. */
-function respondentDetails(pics: CsiHcPic[], ratings: CsiHcRating[]): CsiRespondentDetail[] {
-    const picOf = new Map(pics.map((pic) => [pic.periodRateeId, pic]));
-    return [...groupBy(ratings, (rating) => rating.responseId).values()].map((own) => {
-        const first = own[0];
-        const picRows = own.map((rating) => {
-            const pic = picOf.get(rating.periodRateeId);
-            return { name: pic ? recapSubjectName(pic) : '-', serviceCode: pic?.serviceCode ?? null, bagian: pic?.bagian ?? null, scores: rating.scores, average: ratingValue(rating) };
-        }).sort((a, b) => compareServiceCodes(a.serviceCode, b.serviceCode) || a.name.localeCompare(b.name, 'id'));
-        return {
-            responseId: first.responseId, name: first.respondent.name, division: first.respondent.division, department: first.respondent.department,
-            bagian: first.respondent.bagian, location: first.location, pics: picRows,
-            average: mean(own.map(ratingValue).filter((value): value is number => value !== null)),
-        };
-    }).sort((a, b) => a.name.localeCompare(b.name, 'id'));
-}
-
 /** `scope` names the layanan rows (HC departments or ICT teams); HC when omitted. */
 export function buildHcRecap(input: { pics: CsiHcPic[]; ratings: CsiHcRating[]; dimensions: string[]; scope?: ServiceScope }): CsiHcRecap {
     const { pics, ratings, dimensions } = input;
@@ -280,7 +257,6 @@ export function buildHcRecap(input: { pics: CsiHcPic[]; ratings: CsiHcRating[]; 
         overall: { ...cells(ratings), dimensions: dimensionAverages(ratings, dimensions), respondents: respondentsOf(ratings) },
         services: serviceRows(pics, ratings, dimensions, scope),
         respondentGroups: respondentRows(ratings),
-        respondents: respondentDetails(pics, ratings),
     };
 }
 

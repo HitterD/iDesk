@@ -34,7 +34,6 @@ const RECAP: CsiHcRecap = {
             all: cell(null, 4),
         },
     ],
-    respondents: [],
 };
 
 afterEach(cleanup);
@@ -90,5 +89,6 @@ describe('HcRecapPanel', () => {
         render(<HcRecapPanel scope="hc" periodId="p1" />);
         const row = screen.getByRole('row', { name: /HCD · HC Development/ });
         expect(within(row).getByTitle(/disembunyikan/i)).toHaveTextContent('–');
+        expect(screen.queryByRole('button', { name: /Jawaban per responden/i })).not.toBeInTheDocument();
     });
 });

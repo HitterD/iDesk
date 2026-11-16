@@ -50,13 +50,11 @@ describe('buildHcRecap', () => {
         expect(row('s:HCC').serviceFunction).toBeNull();
     });
 
-    it('groups respondents by division → department → bagian and lists each answer', () => {
+    it('groups respondents by division → department → bagian without exposing individual answers', () => {
         // Each unit here has 1 respondent (< CSI_ANON_MIN_GROUP): all sit in the merged row, which (2 people) shows counts only.
         expect(recap.respondentGroups.map((entry) => [entry.level, entry.label, entry.all.average, entry.respondents]))
             .toEqual([['division', CSI_SMALL_GROUP_LABEL, null, 2]]);
-        const r1 = recap.respondents.find((entry) => entry.responseId === 'r1')!;
-        expect(r1.pics.map((pic) => [pic.name, pic.average])).toEqual([['ANITA', 4.5], ['CICI', 3]]);
-        expect(r1.average).toBe(3.75);
+        expect(recap).not.toHaveProperty('respondents');
     });
 
     it('anon boundary: respondent departments of 3 are kept, 2 are merged into one row', () => {
@@ -149,7 +147,7 @@ describe('buildHcRecap', () => {
             level: 'pic', label: 'Tim · TIM RECEPTION', bagian: null, team: true, serviceFunction: 'Reception', all: { average: 5, ratings: 1 },
         });
         expect(withTeam.services.find((entry) => entry.key === 's:HCS')!.all).toEqual({ average: 4, ratings: 2 });
-        expect(withTeam.respondents.find((entry) => entry.responseId === 'r2')!.pics.map((pic) => pic.name)).toContain('Tim · TIM RECEPTION');
+        expect(withTeam).not.toHaveProperty('respondents');
         // A team without any rating is listed too.
         const unrated = buildHcRecap({ pics: [...pics, team], dimensions: DIMS, ratings });
         expect(unrated.services.find((entry) => entry.key === 'p:t')!.all).toEqual({ average: null, ratings: 0 });

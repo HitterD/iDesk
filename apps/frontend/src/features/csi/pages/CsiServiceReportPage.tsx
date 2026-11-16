@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Download, Lock } from 'lucide-react';
+import { BarChart3, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -11,7 +11,7 @@ import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 import { useCsiMyReportAccess, useCsiMyReportPeriods, useCsiMyServiceReport } from '../hooks/useCsiHc';
 import { serviceLabel } from '../lib/services';
 import type { CsiScopeParam } from '../types';
-import { downloadBlob, RAW_EXPORT_HINT, RAW_EXPORT_LABEL } from '../lib/csiAdmin';
+import { downloadBlob } from '../lib/csiAdmin';
 import { formatDate } from '../lib/format';
 
 const SELECT = 'h-9 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -41,18 +41,17 @@ export function CsiServiceReportPage() {
     const service = serviceCode ?? access?.services[0] ?? null;
     const report = useCsiMyServiceReport(scope, period, service);
     const switchScope = (next: CsiScopeParam) => { setChosenScope(next); setPeriodId(null); setServiceCode(null); };
-    const [exporting, setExporting] = useState<'excel' | 'raw' | null>(null);
-    const download = async (kind: 'excel' | 'raw') => {
+    const [exporting, setExporting] = useState(false);
+    const download = async () => {
         if (!period || !service) return;
-        setExporting(kind);
+        setExporting(true);
         try {
-            const request = kind === 'raw' ? CsiHcApi.myServiceReportRawExport : CsiHcApi.myServiceReportExport;
-            const { blob, filename } = await request(scope, period, service);
+            const { blob, filename } = await CsiHcApi.myServiceReportExport(scope, period, service);
             downloadBlob(blob, filename);
         } catch {
             toast.error('Gagal mengunduh Excel.');
         } finally {
-            setExporting(null);
+            setExporting(false);
         }
     };
 
@@ -60,7 +59,7 @@ export function CsiServiceReportPage() {
         <div className="mx-auto max-w-6xl space-y-5">
             <FadeIn className="space-y-1.5 pt-1">
                 <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight sm:text-[28px]"><BarChart3 className="h-6 w-6" aria-hidden="true" />Report CSI layanan</h1>
-                <p className="text-[14px] text-muted-foreground">Hasil penilaian layanan Anda di semua lokasi. Penilaian tentang diri Anda sendiri ditampilkan tanpa nama penilai.</p>
+                <p className="text-[14px] text-muted-foreground">Hasil penilaian layanan Anda di semua lokasi secara anonim.</p>
             </FadeIn>
             {isLoading && <div className={cn(CSI_CARD, 'h-40 animate-pulse')} aria-busy="true" />}
             {isError && <ErrorState title="Gagal memuat report" message="Silakan coba lagi." onRetry={() => refetch()} />}
@@ -82,13 +81,9 @@ export function CsiServiceReportPage() {
                             {access.services.map((code) => <option key={code} value={code}>{serviceLabel(scope, code)}</option>)}
                         </select>
                     )}
-                    <Button variant="soft" className="ml-auto" disabled={!period || !!exporting} onClick={() => void download('excel')}>
-                        <Download aria-hidden="true" />{exporting === 'excel' ? 'Mengunduh…' : 'Unduh Excel'}
+                    <Button variant="soft" className="ml-auto" disabled={!period || exporting} onClick={() => void download()}>
+                        <Download aria-hidden="true" />{exporting ? 'Mengunduh…' : 'Unduh Excel'}
                     </Button>
-                    <Button variant="subtle" disabled={!period || !!exporting} title={RAW_EXPORT_HINT} aria-describedby="csi-service-raw-hint" onClick={() => void download('raw')}>
-                        <Lock aria-hidden="true" />{exporting === 'raw' ? 'Mengunduh…' : RAW_EXPORT_LABEL}
-                    </Button>
-                    <p id="csi-service-raw-hint" className="basis-full text-right text-xs text-muted-foreground">{RAW_EXPORT_HINT}</p>
                 </div>
             )}
             {access && access.services.length > 0 && !access.periods.length && (
