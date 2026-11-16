@@ -33,6 +33,11 @@ const ACTIVE_SURVEYS_STALE_TIME_MS = 60_000;
 export function useCsiMyResults() {
     return useQuery({ queryKey: ['csi', 'me', 'results'], queryFn: CsiApi.myResults });
 }
+export function useRemindMyResultRaters() {
+    return useMutation({
+        mutationFn: (periodRateeId: string) => CsiApi.remindMyResultRaters(periodRateeId),
+    });
+}
 export function useCsiActive() {
     return useQuery({ queryKey: keys.active(), queryFn: CsiApi.active, staleTime: ACTIVE_SURVEYS_STALE_TIME_MS });
 }

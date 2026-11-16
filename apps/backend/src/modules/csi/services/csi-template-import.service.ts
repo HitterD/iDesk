@@ -170,7 +170,7 @@ function ambiguousMastersOf(state: ImportState, pics: ClassifiedPic[]): string[]
 export function newMasterOf(ctx: CsiMasterContext, pic: CsiMasterSeed): Partial<CsiPic> {
     const usable = rowOf(ctx.findPerson(pic.picName, pic.nik));
     const nik = normalizeNik(usable?.nik ?? pic.nik) ?? FALLBACK_NIK_PREFIX + randomBytes(FALLBACK_NIK_BYTES).toString('hex').toUpperCase();
-    const account = ctx.accounts.byNik.get(nik) ?? null;
+    const account = ctx.accounts.byNik.get(nik) ?? rowOf(ctx.accounts.byName(usable?.fullName ?? pic.picName)) ?? null;
     return {
         scope: ctx.scope, nik, fullName: usable?.fullName ?? pic.picName, jobTitle: usable?.jobTitle ?? pic.jobTitle,
         serviceCode: pic.serviceCode, serviceFunction: normalizeServiceFunction(pic.serviceFunction),
@@ -318,11 +318,34 @@ export class CsiTemplateImportService {
             for (const [name, master] of links) if (master === stale) links.set(name, saved);
             return saved;
         };
+        const claimed = new Set(masters.flatMap((master) => (master.userId && state.accounts.activeIds.has(master.userId) ? [master.userId] : [])));
+        const picNameCounts = new Map<string, number>();
+        for (const master of masters) {
+            const key = normalizeName(master.fullName);
+            if (key) picNameCounts.set(key, (picNameCounts.get(key) ?? 0) + 1);
+        }
+        const matchMissingAccount = (nik: string, fullName: string): string | null => {
+            const normalizedNik = normalizeNik(nik);
+            const byNik = normalizedNik ? state.accounts.byNik.get(normalizedNik) : null;
+            const byName = (picNameCounts.get(normalizeName(fullName)) ?? 0) === 1 ? rowOf(state.accounts.byName(fullName)) : null;
+            const hitId = byNik?.id ?? byName?.id ?? null;
+            if (!hitId || claimed.has(hitId)) return null;
+            claimed.add(hitId);
+            return hitId;
+        };
         for (const pic of pics) {
             const hit = existingMaster(state, mastersIndex(masters), pic);
             if (hit === 'ambiguous') continue;
-            if (hit) links.set(pic.picName, hit.isActive ? hit : keep(hit, await repo.save({ ...hit, isActive: true })));
-            else if (pic.newMasterPic) links.set(pic.picName, keep(null, await repo.save(newMasterOf(state, pic))));
+            if (hit) {
+                const inactiveOwner = hit.userId !== null && !state.accounts.activeIds.has(hit.userId);
+                const resolvedUserId = !hit.userId || inactiveOwner ? matchMissingAccount(hit.nik, hit.fullName) : hit.userId;
+                const needsSave = !hit.isActive || resolvedUserId !== hit.userId;
+                links.set(pic.picName, needsSave ? keep(hit, await repo.save({ ...hit, isActive: true, userId: resolvedUserId })) : hit);
+            } else if (pic.newMasterPic) {
+                const seed = newMasterOf(state, pic);
+                const dedupedUserId = seed.userId && !claimed.has(seed.userId) ? (claimed.add(seed.userId), seed.userId) : null;
+                links.set(pic.picName, keep(null, await repo.save({ ...seed, userId: dedupedUserId })));
+            }
         }
         return links;
     }

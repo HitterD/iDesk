@@ -36,6 +36,9 @@ export const CsiApi = {
     async myResults(): Promise<CsiSelfResult[]> {
         return (await api.get<CsiSelfResult[]>('/csi/me/results', { skipToast: true })).data;
     },
+    async remindMyResultRaters(periodRateeId: string): Promise<{ reminded: boolean }> {
+        return (await api.post<{ reminded: boolean }>(`/csi/me/results/${encodeURIComponent(periodRateeId)}/remind`, {}, { skipToast: true })).data;
+    },
     async active(): Promise<CsiActivePeriod[]> {
         // Background nav probe: a failure just hides the entry point, no toast.
         return (await api.get<CsiActivePeriod[]>('/csi/me/active', { skipToast: true })).data;
