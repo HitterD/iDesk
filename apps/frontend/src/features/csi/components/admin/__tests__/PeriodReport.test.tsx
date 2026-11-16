@@ -86,4 +86,18 @@ describe('PeriodReport', () => {
         await user.click(screen.getByRole('button', { name: 'Laporan PDF & Excel' }));
         expect(fx.dialog).toHaveBeenLastCalledWith(expect.objectContaining({ open: true, siteId: 's2', periodId: 'p1' }));
     });
+
+    it('ranks selected site subjects ahead of cross-site 1-rater subjects when a site tab is active', async () => {
+        const user = userEvent.setup();
+        fx.report = report({
+            ratees: [
+                { periodRateeId: 'r-spj', kind: 'PERSON', displayName: 'Esterlita', jobTitle: 'Legal', siteId: 's1', photoUrl: null, respondentCount: 1, average: 5, indexPct: 100, starDistribution: [0, 0, 0, 0, 1], questions: [], comments: [] },
+                { periodRateeId: 'r-krw', kind: 'PERSON', displayName: 'Novitasari', jobTitle: 'HC', siteId: 's2', photoUrl: null, respondentCount: 15, average: 4.95, indexPct: 99, starDistribution: [0, 0, 0, 1, 14], questions: [], comments: [] },
+            ],
+        });
+        renderReport();
+        await user.click(within(screen.getByRole('group', { name: 'Filter site laporan' })).getByRole('button', { name: 'KRW' }));
+        const cards = screen.getAllByRole('button', { name: /^Rincian / });
+        expect(cards.map((card) => card.getAttribute('aria-label'))).toEqual(['Rincian Novitasari', 'Rincian Esterlita']);
+    });
 });

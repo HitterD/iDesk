@@ -24,9 +24,11 @@ vi.mock('@/hooks/usePermissions', () => ({
 }));
 
 const csiActive = vi.hoisted(() => ({ current: undefined as Array<{ id: string; scope: string; title: string; submitted: boolean }> | undefined }));
+const csiMyResults = vi.hoisted(() => ({ current: undefined as Array<{ periodRateeId: string }> | undefined }));
 const csiOwnerReport = vi.hoisted(() => ({ current: false }));
 vi.mock('@/features/csi/hooks/useCsi', () => ({
     useCsiActive: () => ({ data: csiActive.current }),
+    useCsiMyResults: () => ({ data: csiMyResults.current }),
 }));
 vi.mock('@/features/csi/hooks/useCsiHc', () => ({
     useCsiOwnerReportAccess: () => csiOwnerReport.current,
@@ -74,6 +76,7 @@ describe('ClientLayout requester shell', () => {
         performLogout.mockClear();
         permissions.current = { pageAccess: { hardware_requests: false, eform_access: true, zoom_calendar: false, knowledge_base: true } };
         csiActive.current = undefined;
+        csiMyResults.current = undefined;
         csiOwnerReport.current = false;
     });
 
@@ -117,6 +120,15 @@ describe('ClientLayout requester shell', () => {
         renderPortal();
         expect(within(portalNav()).getByRole('link', { name: 'Survei CSI' })).toHaveAttribute('href', '/client/csi');
         expect(within(portalNav()).queryByRole('link', { name: 'Report CSI' })).not.toBeInTheDocument();
+    });
+
+    it('shows Hasil CSI tab for rated users (e.g. Sri Supatmi) when no active survey targets them', () => {
+        csiActive.current = [];
+        csiMyResults.current = [{ periodRateeId: 'pr-sri' }];
+        renderPortal();
+        const link = within(portalNav()).getByRole('link', { name: 'Hasil CSI' });
+        expect(link).toHaveAttribute('href', '/client/csi/hasil-saya');
+        expect(link).toHaveAttribute('data-tone', 'teal');
     });
 
     it('shows every item while the preset is still loading', () => {
