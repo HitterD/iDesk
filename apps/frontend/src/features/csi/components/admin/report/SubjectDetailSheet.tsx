@@ -88,23 +88,23 @@ export function SubjectDetailSheet({ ratee, siteName, siteCode, bands, onClose }
                             <SheetDescription>{meta}</SheetDescription>
                         </SheetHeader>
                         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
-                            <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--idesk-chrome))]">
+                            <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
                                 <SubjectPhoto name={ratee.displayName} photoUrl={ratee.photoUrl} siteCode={siteCode}
-                                    className="aspect-[4/3] max-h-[340px] w-full" />
-                                <div aria-hidden="true"
-                                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_45%,rgb(8_14_30/.78)_100%)]" />
-                                <div className="absolute inset-x-3.5 bottom-3 flex flex-wrap items-center gap-1.5 text-white">
-                                    <SiteBadge code={siteCode} />
-                                    {ratee.serviceCode && (
-                                        <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-md">{ratee.serviceCode}</span>
-                                    )}
-                                    {ratee.serviceFunction && (
-                                        <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-white/20 px-2 py-0.5 text-[11.5px] font-medium backdrop-blur-md">
-                                            <BriefcaseBusiness className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                            <span className="truncate">{ratee.serviceFunction}</span>
-                                        </span>
-                                    )}
-                                </div>
+                                    fit="contain" className="aspect-[4/3] max-h-[340px] w-full" />
+                                {(siteCode || ratee.serviceCode || ratee.serviceFunction) && (
+                                    <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 bg-[hsl(var(--muted)/.35)] px-3.5 py-2.5">
+                                        <SiteBadge code={siteCode} />
+                                        {ratee.serviceCode && (
+                                            <span className="rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-[11px] font-bold text-foreground">{ratee.serviceCode}</span>
+                                        )}
+                                        {ratee.serviceFunction && (
+                                            <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-[11.5px] font-medium text-foreground">
+                                                <BriefcaseBusiness className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                                <span className="break-words">{ratee.serviceFunction}</span>
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3.5 rounded-2xl bg-[hsl(var(--muted)/.45)] p-3.5">

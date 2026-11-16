@@ -9,7 +9,9 @@ const RATEE: CsiFormRatee = {
 };
 
 const photo = () => screen.getByTestId('csi-subject-photo');
-const classes = () => photo().className.split(/\s+/);
+const media = () => screen.getByTestId('csi-subject-photo-media');
+const caption = () => screen.getByTestId('csi-subject-caption');
+const classes = (element = photo()) => element.className.split(/\s+/);
 
 afterEach(cleanup);
 
@@ -25,18 +27,24 @@ describe('SubjectPhoto', () => {
         }
     });
 
-    it('is a short banner on phones (first question visible), taller from sm, sticky only behind the lg + container >= 780px variants', () => {
+    it('renders a short media frame on phones, sticky only behind the lg + container >= 780px variants', () => {
         render(<SubjectPhoto ratee={RATEE} index={0} total={3} />);
-        expect(classes()).toEqual(expect.arrayContaining(['relative', 'aspect-[16/10]', 'max-h-[34vh]', 'sm:aspect-[4/3.8]', 'sm:max-h-[64vh]']));
+        expect(classes(media())).toEqual(expect.arrayContaining(['relative', 'aspect-[16/10]', 'max-h-[34vh]', 'sm:aspect-[4/3.4]', 'sm:max-h-[420px]']));
         expect(classes()).toContain('lg:@min-[780px]:sticky');
         // No unprefixed sticky / fixed height: the < lg layout (mobile header + bottom nav) never sticks.
         expect(classes().filter((name) => /^(sticky|top-|h-\[|min-h-)/.test(name))).toEqual([]);
     });
 
-    it('is a narrower, shorter column than before so the form leads (max 640 px tall)', () => {
-        render(<SubjectPhoto ratee={RATEE} index={0} total={3} />);
-        expect(classes()).toContain('lg:@min-[780px]:max-h-[640px]');
-        expect(classes()).not.toContain('lg:@min-[780px]:max-h-[820px]');
+    it('renders the full uncropped photo with a blurred backdrop, no Ken Burns zoom, and caption below the image', () => {
+        render(<SubjectPhoto ratee={{ ...RATEE, photoUrl: '/uploads/csi/suherlan.jpg', serviceFunction: 'DRIVER SERVICES' }} index={0} total={3} />);
+        const imgs = Array.from(media().querySelectorAll('img'));
+        expect(imgs).toHaveLength(2);
+        const foreground = imgs.find((img) => img.className.includes('object-contain'));
+        expect(foreground).toBeDefined();
+        expect(foreground?.className).not.toContain('csi-kenburns');
+        expect(foreground?.className).not.toContain('object-[center_25%]');
+        expect(caption()).toContainElement(screen.getByRole('heading', { name: 'Andi' }));
+        expect(media()).not.toContainElement(caption());
     });
 
     it('shows the service function under the job title, and nothing when there is none', () => {

@@ -64,7 +64,7 @@ function PhotoDropzone({ fileName, error, onPick }: { fileName: string | null; e
                     over && 'border-[hsl(var(--ticket-teal))] text-[hsl(var(--ticket-teal-ink))]')}>
                 <Upload className="h-7 w-7" aria-hidden="true" />
                 <span className="mt-1.5 text-[13.5px]"><b>Tarik foto ke sini</b> atau klik untuk pilih</span>
-                <span className="text-[12px]">{fileName ?? 'JPG/PNG/WebP ≤ 5 MB · potret 4:5, wajah di sepertiga atas'}</span>
+                <span className="text-[12px]">{fileName ?? 'JPG/PNG/WebP ≤ 5 MB · tampil utuh (portrait & landscape)'}</span>
             </button>
             <input ref={input} type="file" accept={PHOTO_TYPES.join(',')} aria-label="Pilih foto" tabIndex={-1} className="sr-only"
                 onChange={(event) => { pickFirst(event.target.files); event.target.value = ''; }} />
@@ -121,7 +121,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
         <>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
                 <FlowChromeContext.Provider value={PREVIEW_CHROME}>
-                    <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl">
+                    <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl border border-border/70 bg-card">
                         <SubjectPhoto ratee={preview} index={0} total={1} />
                     </div>
                 </FlowChromeContext.Provider>
@@ -190,7 +190,7 @@ function PeriodEditForm({ scope, periodId, target, onClose }: { scope: CsiScopeP
         <>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
                 <FlowChromeContext.Provider value={PREVIEW_CHROME}>
-                    <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl">
+                    <div aria-label="Pratinjau" role="group" className="@container overflow-hidden rounded-2xl border border-border/70 bg-card">
                         <SubjectPhoto ratee={preview} index={0} total={1} />
                     </div>
                 </FlowChromeContext.Provider>

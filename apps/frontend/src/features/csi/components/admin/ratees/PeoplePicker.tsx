@@ -20,7 +20,7 @@ function Avatar({ person, siteCode }: { person: Person; siteCode: string }) {
     const [failed, setFailed] = useState<string | null>(null);
     if (person.photoUrl && failed !== person.photoUrl) {
         return <img src={imageUrl(person.photoUrl)} alt="" loading="lazy" onError={() => setFailed(person.photoUrl)}
-            className="h-10 w-10 shrink-0 rounded-full object-cover object-[center_25%]" />;
+            className="h-10 w-10 shrink-0 rounded-full object-cover object-center" />;
     }
     return (
         <span aria-hidden="true" className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-full text-[15px] font-bold text-white', toneClasses(siteTone(siteCode)).fill)}>
