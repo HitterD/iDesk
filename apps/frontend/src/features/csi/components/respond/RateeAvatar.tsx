@@ -36,7 +36,7 @@ export function RateeAvatar({ name, avatarUrl, size = 'lg' }: { name: string; av
         <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold', SIZES[size],
             !showImage && initialTone(name))}>
             {showImage && avatarUrl ? (
-                <img src={imageUrl(avatarUrl)} alt="" loading="lazy" className="h-full w-full object-cover"
+                <img src={imageUrl(avatarUrl)} alt="" loading="lazy" className="h-full w-full object-cover object-center"
                     onError={() => setFailedUrl(avatarUrl)} />
             ) : (
                 <span aria-hidden="true">{name.trim().charAt(0).toUpperCase() || '?'}</span>
@@ -54,10 +54,25 @@ export function SubjectAvatar({ ratee, className }: { ratee: Pick<CsiFormRatee, 
         <span className={cn('grid shrink-0 place-items-center overflow-hidden rounded-full font-bold text-white', className,
             !showImage && toneClasses(siteTone(ratee.siteCode)).fill)}>
             {showImage && url ? (
-                <img src={imageUrl(url)} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />
+                <img src={imageUrl(url)} alt="" loading="lazy" className="h-full w-full object-cover object-center" onError={() => setFailedUrl(url)} />
             ) : (
                 <span aria-hidden="true">{ratee.displayName.trim().charAt(0).toUpperCase() || '?'}</span>
             )}
+        </span>
+    );
+}
+
+/** Uncropped photo over a soft blurred mirror backdrop so landscape and tall images never clip faces. */
+export function ContainedPhoto({ src, loading, onError, className }: {
+    src: string; loading?: 'lazy' | 'eager'; onError?: () => void; className?: string;
+}) {
+    return (
+        <span className={cn('relative block h-full w-full overflow-hidden bg-[hsl(222_35%_12%)]', className)}>
+            <img src={src} alt="" aria-hidden="true" loading={loading} onError={onError}
+                className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover object-center opacity-55 blur-2xl saturate-125" />
+            <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[rgb(8_14_30/.18)]" />
+            <img src={src} alt="" loading={loading} onError={onError}
+                className="relative z-[1] h-full w-full object-contain object-center" />
         </span>
     );
 }

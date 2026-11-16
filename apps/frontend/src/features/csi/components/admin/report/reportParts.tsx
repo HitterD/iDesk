@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { scoreTone, siteTone, starTone, toneClasses, type CsiScoreBands } from '../../../lib/csiTone';
 import { formatFixed2 } from '../../../lib/format';
 import type { CsiReportRatee } from '../../../types';
-import { imageUrl } from '../../respond/RateeAvatar';
+import { ContainedPhoto, imageUrl } from '../../respond/RateeAvatar';
 import { questionDisplayLabel, questionFullText } from './reportModel';
 
 export type SiteCodeOf = (siteId: string | null) => string | null;
@@ -48,15 +48,19 @@ export function subjectExtremes(ratee: CsiReportRatee, bands: CsiScoreBands) {
     };
 }
 
-/** Subject photo (cover) or its initial on the site colour; decorative. */
-export function SubjectPhoto({ name, photoUrl, siteCode, className }: { name: string; photoUrl: string | null; siteCode: string | null; className?: string }) {
+/** Subject photo (`contain` for detail sheets so faces never crop, `cover` for small thumbnails) or initial on site colour. */
+export function SubjectPhoto({ name, photoUrl, siteCode, className, fit = 'cover' }: {
+    name: string; photoUrl: string | null; siteCode: string | null; className?: string; fit?: 'cover' | 'contain';
+}) {
     const [failedUrl, setFailedUrl] = useState<string | null>(null);
     const showImage = Boolean(photoUrl) && failedUrl !== photoUrl;
     return (
-        <span className={cn('grid shrink-0 place-items-center overflow-hidden font-bold text-white', className,
+        <span className={cn('relative grid shrink-0 place-items-center overflow-hidden font-bold text-white', className,
             !showImage && toneClasses(siteTone(siteCode)).fill)}>
             {showImage && photoUrl ? (
-                <img src={imageUrl(photoUrl)} alt="" loading="lazy" className="h-full w-full object-cover object-[center_25%]" onError={() => setFailedUrl(photoUrl)} />
+                fit === 'contain'
+                    ? <ContainedPhoto src={imageUrl(photoUrl)} loading="lazy" onError={() => setFailedUrl(photoUrl)} />
+                    : <img src={imageUrl(photoUrl)} alt="" loading="lazy" className="h-full w-full object-cover object-center" onError={() => setFailedUrl(photoUrl)} />
             ) : (
                 <span aria-hidden="true" className="text-[22px]">{name.trim().charAt(0).toUpperCase() || '?'}</span>
             )}

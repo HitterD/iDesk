@@ -39,4 +39,19 @@ describe('SubjectDetailSheet', () => {
         expect(screen.getByText('indeks 90,0%')).toBeInTheDocument();
         expect(screen.getByText('Sangat puas')).toBeInTheDocument();
     });
+
+    it('renders subject photo uncropped (object-contain) without object-[center_25%] overlay clipping', () => {
+        const subject = ratee({
+            periodRateeId: 'r3',
+            displayName: 'Suherlan',
+            photoUrl: '/uploads/csi/suherlan.jpg',
+            serviceCode: 'DRV',
+            serviceFunction: 'DRIVER SERVICES',
+        });
+        const { baseElement } = render(<SubjectDetailSheet ratee={subject} siteName="Karawang" siteCode="KRW" bands={BANDS} onClose={vi.fn()} />);
+        const imgs = Array.from(baseElement.querySelectorAll('img'));
+        expect(imgs.some((img) => img.className.includes('object-contain'))).toBe(true);
+        expect(imgs.some((img) => img.className.includes('object-[center_25%]'))).toBe(false);
+        expect(screen.getByText('DRIVER SERVICES')).toBeInTheDocument();
+    });
 });

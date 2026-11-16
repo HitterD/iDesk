@@ -72,7 +72,7 @@ function RowsTable({ rows, groups, disabled, onAssign }: { rows: Row[]; groups: 
                 <tbody>
                     {rows.map((row) => (
                         <tr key={row.id} className="border-t border-[hsl(var(--border)/.6)]">
-                            <td className="p-2">{row.url ? <img src={row.url} alt="" className="h-10 w-8 rounded object-cover" /> : <span className="block h-10 w-8 rounded bg-[hsl(var(--muted))]" />}</td>
+                            <td className="p-2">{row.url ? <img src={row.url} alt="" className="h-10 w-8 rounded object-cover object-center" /> : <span className="block h-10 w-8 rounded bg-[hsl(var(--muted))]" />}</td>
                             <td className="max-w-[160px] break-words p-2">{row.file.name}</td>
                             <td className="min-w-[180px] p-2"><SubjectSelect row={row} groups={groups} disabled={disabled} onChange={(key) => onAssign(row.id, key)} /></td>
                             <td className="p-2"><StatusCell row={row} /></td>
