@@ -15,6 +15,7 @@ import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateSeed, CsiTemplateSeedPic } from '../org/csi-template-excel';
 import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../org/csi-template-view';
 import { suggestAccounts } from '../org/csi-account-suggest';
+import { buildPicAccountMatcher } from '../org/csi-pic-account.util';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
 import { hcDirectoryCandidates, masterNameIndex, withCurrentNames } from './csi-template-import.service';
 import { buildBlankTemplate } from '../org/csi-template-blank';
@@ -298,14 +299,16 @@ export class CsiAssignmentTemplateService {
     private async createPicsFromDirectory(manager: EntityManager, scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
         const findPerson = buildNameIndex(await hcDirectoryCandidates(manager), (row) => row.fullName);
         const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
+        const accounts = await this.activeAccounts(manager.getRepository(User));
+        const claimed = new Set(existing.map((pic) => pic.userId).filter((id): id is string => Boolean(id)));
+        const matcher = buildPicAccountMatcher(accounts, seeds.map((seed) => ({ fullName: seed.picName })), claimed);
         for (const seed of seeds) {
             const person = findPerson(seed.picName);
             if (!person || person === 'ambiguous' || existing.some((pic) => pic.nik === person.nik)) continue;
-            const account = await manager.getRepository(User).findOne({ where: { employeeId: person.nik } });
             await manager.getRepository(CsiPic).save({
                 scope, nik: person.nik, fullName: person.fullName, jobTitle: person.jobTitle ?? seed.jobTitle, serviceCode: seed.serviceCode,
                 serviceFunction: normalizeServiceFunction(seed.serviceFunction), bagian: normalizeBagian(person.bagian), workLocation: person.workLocation,
-                siteId: site?.id ?? null, userId: account?.id ?? null, photoUrl: null, isActive: true,
+                siteId: site?.id ?? null, userId: matcher.match({ nik: person.nik, fullName: person.fullName }), photoUrl: null, isActive: true,
             });
         }
     }

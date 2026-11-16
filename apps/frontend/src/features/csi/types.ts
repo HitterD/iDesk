@@ -478,8 +478,9 @@ export interface CsiDashboard {
 
 /** "Hasil penilaian saya": anonymous results about the signed-in account (scores only from `minRaters` raters on). */
 export interface CsiSelfResult {
+    periodRateeId: string;
     periodId: string; title: string; startDate: string; endDate: string; status: 'UPCOMING' | 'ACTIVE' | 'ENDED';
-    serviceFunction: string | null; teamName: string | null; raters: number; minRaters: number; ready: boolean;
+    serviceFunction: string | null; teamName: string | null; raters: number; expectedRaters: number | null; minRaters: number; ready: boolean;
     average: number | null; dimensions: Array<{ label: string; average: number }>; comments: string[];
     /** Score colour bands of the survey. */
     scoreBands: CsiScoreBands;

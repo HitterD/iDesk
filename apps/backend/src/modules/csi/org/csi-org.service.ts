@@ -13,6 +13,7 @@ import { lockPeriodRow } from '../services/csi-period-lock.util';
 import { surveyStage } from '../services/csi-survey-stage.util';
 import { suggestAccounts } from './csi-account-suggest';
 import { CsiOrgRow, readOrgWorkbook } from './csi-org-import';
+import { buildPicAccountMatcher } from './csi-pic-account.util';
 import {
     CSI_HC_SERVICES, CsiOrgLocation, locationOfSiteCode, locationOfWorkLocation, normalizeBagian, normalizeNik,
     serviceOfDepartment, siteCodeOfLocation,
@@ -134,12 +135,10 @@ export class CsiOrgService {
         const staff = await this.people.find({ where: { department: In(departments) } });
         const existing = await this.pics.find({ where: { scope } });
         const byNik = new Map(existing.map((pic) => [pic.nik, pic]));
-        const accounts = staff.length ? await this.users.find({ select: { id: true, employeeId: true } }) : [];
-        const userOf = new Map<string, string>();
-        for (const user of accounts) {
-            const nik = normalizeNik(user.employeeId);
-            if (nik && !userOf.has(nik)) userOf.set(nik, user.id);
-        }
+        const accounts = staff.length ? await this.users.find({ select: { id: true, fullName: true, employeeId: true, isActive: true } }) : [];
+        const inactiveIds = new Set(accounts.filter((user) => user.isActive === false).map((user) => user.id));
+        const activeClaimed = new Set(existing.flatMap((pic) => (pic.userId && !inactiveIds.has(pic.userId) ? [pic.userId] : [])));
+        const matcher = buildPicAccountMatcher(accounts, staff, activeClaimed);
         const siteIdOf = await this.siteIdsByCode();
         let added = 0;
         let updated = 0;
@@ -147,11 +146,13 @@ export class CsiOrgService {
             const location = locationOfWorkLocation(person.workLocation);
             const previous = byNik.get(person.nik);
             if (previous) updated += 1; else added += 1;
+            const keptUserId = previous?.userId && !inactiveIds.has(previous.userId) ? previous.userId : null;
             return {
                 ...(previous ?? { scope, nik: person.nik, photoUrl: null, isActive: true }),
                 fullName: person.fullName, jobTitle: person.jobTitle, serviceCode: serviceOfDepartment(person.department)!,
                 bagian: normalizeBagian(person.bagian), workLocation: person.workLocation,
-                siteId: siteIdOf.get(siteCodeOfLocation(location) ?? '') ?? null, userId: previous?.userId ?? userOf.get(person.nik) ?? null,
+                siteId: siteIdOf.get(siteCodeOfLocation(location) ?? '') ?? null,
+                userId: keptUserId ?? matcher.match({ nik: person.nik, fullName: person.fullName }),
             };
         });
         if (rows.length) await this.pics.save(rows);

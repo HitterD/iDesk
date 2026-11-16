@@ -1,4 +1,5 @@
-import { CsiPeriodPublishStatus } from '../csi.constants';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiRespondentMode } from '../csi.constants';
 import { CsiSelfResultService } from './csi-self-result.service';
 
 const NOW = new Date('2026-11-15T03:00:00Z');
@@ -12,6 +13,13 @@ const matches = (row: any, where: any): boolean => Object.entries(where ?? {}).e
 const repo = (rows: any[]) => ({
     rows,
     find: jest.fn(async ({ where }: any = {}) => rows.filter((row) => (Array.isArray(where) ? where.some((part) => matches(row, part)) : matches(row, where)))),
+    findOne: jest.fn(async ({ where }: any = {}) => rows.find((row) => matches(row, where)) ?? null),
+    save: jest.fn(async (entity: any) => {
+        const index = rows.findIndex((row) => row.id === entity.id);
+        if (index >= 0) rows[index] = { ...rows[index], ...entity };
+        else rows.push(entity);
+        return entity;
+    }),
 });
 
 describe('CsiSelfResultService', () => {
@@ -163,5 +171,98 @@ describe('CsiSelfResultService', () => {
             period: { ...period, id, scope: 'ICT', selfResults, createdAt: new Date('2026-11-10T03:00:00Z') } });
         ratees.rows.push(ict('p-ict-old', false), ict('p-ict-new', true));
         expect((await service.list('u-agent', NOW)).map((row) => row.periodId)).toEqual(['p-ict-new']);
+    });
+
+    describe('expectedRaters, remindRaters, and self-healing PIC linking', () => {
+        it('computes expectedRaters for LISTED (CUSTOM pairs & ALL mode) and leaves OPEN as null', async () => {
+            const listedPeriod = { ...period, id: 'p-listed', respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, sites: [{ siteId: 's1' }] };
+            const allPeriod = { ...period, id: 'p-all', respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.ALL, sites: [{ siteId: 's1' }] };
+            const openPeriod = { ...period, id: 'p-open', respondentMode: CsiRespondentMode.OPEN };
+            ratees = repo([
+                { id: 'r-custom', periodId: 'p-listed', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: listedPeriod },
+                { id: 'r-all', periodId: 'p-all', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: allPeriod },
+                { id: 'r-open', periodId: 'p-open', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: openPeriod },
+            ]);
+            const periodRaters = repo([
+                { id: 'pr-1', periodId: 'p-listed', userId: 'u-r1', user: { isActive: true, siteId: 's1' } },
+                { id: 'pr-2', periodId: 'p-listed', userId: 'u-r2', user: { isActive: true, siteId: 's1' } },
+                { id: 'pr-3', periodId: 'p-listed', userId: 'u-inactive', user: { isActive: false, siteId: 's1' } },
+                { id: 'pr-self', periodId: 'p-listed', userId: 'u-sri', user: { isActive: true, siteId: 's1' } },
+                { id: 'pa-1', periodId: 'p-all', userId: 'u-r1', user: { isActive: true, siteId: 's1' } },
+                { id: 'pa-2', periodId: 'p-all', userId: 'u-r2', user: { isActive: true, siteId: 's2' } },
+                { id: 'pa-self', periodId: 'p-all', userId: 'u-sri', user: { isActive: true, siteId: 's1' } },
+            ]);
+            const pairs = repo([
+                { periodId: 'p-listed', periodRateeId: 'r-custom', periodRaterId: 'pr-1' },
+                { periodId: 'p-listed', periodRateeId: 'r-custom', periodRaterId: 'pr-2' },
+                { periodId: 'p-listed', periodRateeId: 'r-custom', periodRaterId: 'pr-3' },
+                { periodId: 'p-listed', periodRateeId: 'r-custom', periodRaterId: 'pr-self' },
+            ]);
+            const fullService = new CsiSelfResultService(
+                ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any,
+                periodRaters as any, pairs as any,
+            );
+            const list = await fullService.list('u-sri', NOW);
+            const byRatee = new Map(list.map((row) => [row.periodRateeId, row.expectedRaters]));
+            expect(byRatee.get('r-custom')).toBe(2);
+            expect(byRatee.get('r-all')).toBe(1);
+            expect(byRatee.get('r-open')).toBeNull();
+        });
+
+        it('reconciles an unlinked HC PIC matching normalised NIK or unique full name so personal scores appear', async () => {
+            ratees = repo([
+                { id: 'r-sri', periodId: 'p1', userId: null, picId: 'pic-sri', kind: 'PERSON', serviceFunction: 'HCD', period },
+                { id: 'r-budi', periodId: 'p1', userId: null, picId: 'pic-budi', kind: 'PERSON', serviceFunction: 'HCS', period },
+            ]);
+            pics = repo([
+                { id: 'pic-sri', scope: 'HC', nik: '00003713', fullName: 'SRI SUPATMI', userId: null, user: null },
+                { id: 'pic-budi', scope: 'HC', nik: 'TPL-11AA', fullName: 'BUDI SANTOSO', userId: null, user: null },
+            ]);
+            const users = repo([
+                { id: 'u-sri', fullName: 'Sri Supatmi', employeeId: '3713', isActive: true },
+                { id: 'u-budi-1', fullName: 'Budi Santoso', employeeId: null, isActive: true },
+                { id: 'u-budi-2', fullName: 'Budi Santoso', employeeId: null, isActive: true },
+            ]);
+            const fullService = new CsiSelfResultService(
+                ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any,
+                undefined, undefined, users as any,
+            );
+            const sriResults = await fullService.list('u-sri', NOW);
+            expect(sriResults).toHaveLength(1);
+            expect(sriResults[0].periodRateeId).toBe('r-sri');
+            expect(pics.rows[0].userId).toBe('u-sri');
+
+            // Duplicate active name must NOT guess and link an unlinked PIC.
+            expect(await fullService.list('u-budi-1', NOW)).toEqual([]);
+            expect(pics.rows[1].userId).toBeNull();
+        });
+
+        it('remindRaters delegates only assigned pending targets via CsiReminderService without leaking counts', async () => {
+            const listedPeriod = { ...period, id: 'p-listed', respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, sites: [{ siteId: 's1' }] };
+            ratees = repo([
+                { id: 'r-sri', periodId: 'p-listed', userId: 'u-sri', kind: 'PERSON', serviceFunction: null, period: listedPeriod },
+                { id: 'r-other', periodId: 'p-listed', userId: 'u-other', kind: 'PERSON', serviceFunction: null, period: listedPeriod },
+            ]);
+            const periodRaters = repo([
+                { id: 'pr-1', periodId: 'p-listed', userId: 'u-r1', user: { isActive: true, siteId: 's1' } },
+                { id: 'pr-2', periodId: 'p-listed', userId: 'u-r2', user: { isActive: true, siteId: 's1' } },
+            ]);
+            const pairs = repo([
+                { periodId: 'p-listed', periodRateeId: 'r-sri', periodRaterId: 'pr-1' },
+                { periodId: 'p-listed', periodRateeId: 'r-other', periodRaterId: 'pr-2' },
+            ]);
+            const reminders = { send: jest.fn(async () => ({ sent: 1, skipped: 0 })) };
+            const fullService = new CsiSelfResultService(
+                ratees as any, dimensions as any, items as any, comments as any, pics as any, () => 0, repo([]) as any,
+                periodRaters as any, pairs as any, undefined, reminders as any,
+            );
+
+            await expect(fullService.remindRaters('u-sri', 'r-other', NOW)).rejects.toBeInstanceOf(NotFoundException);
+            expect(await fullService.remindRaters('u-sri', 'r-sri', NOW)).toEqual({ reminded: true });
+            expect(reminders.send).toHaveBeenCalledWith('HC', 'p-listed', ['u-r1'], NOW);
+
+            listedPeriod.respondentMode = CsiRespondentMode.OPEN;
+            await expect(fullService.remindRaters('u-sri', 'r-sri', NOW)).rejects.toBeInstanceOf(BadRequestException);
+        });
     });
 });

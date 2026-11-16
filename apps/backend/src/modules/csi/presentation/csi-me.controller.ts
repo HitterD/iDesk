@@ -28,6 +28,12 @@ export class CsiMeController {
         return this.selfResults.list(req.user.userId);
     }
 
+    /** Anonymous in-app + Web Push reminder to pending assigned raters of one of the user's own ratees. */
+    @Post('results/:periodRateeId/remind')
+    remindMyRaters(@Req() req: CsiMeRequest, @Param('periodRateeId', CSI_ID_PIPE) periodRateeId: string) {
+        return this.selfResults.remindRaters(req.user.userId, periodRateeId);
+    }
+
     @Get('active')
     async listActive(@Req() req: CsiMeRequest) {
         const periods = await this.respondent.listActive(toRespondent(req));

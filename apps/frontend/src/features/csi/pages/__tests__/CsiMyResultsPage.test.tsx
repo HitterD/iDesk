@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,12 +7,16 @@ import type { CsiSelfResult } from '../../types';
 import { CsiMyResultsPage } from '../CsiMyResultsPage';
 
 const base: CsiSelfResult = {
+    periodRateeId: 'pr1',
     periodId: 'p1', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', status: 'ACTIVE',
-    serviceFunction: 'People & Organization Development', teamName: null, raters: 2, minRaters: 3, ready: false, average: null, dimensions: [], comments: [],
+    serviceFunction: 'People & Organization Development', teamName: null, raters: 2, expectedRaters: null, minRaters: 3, ready: false, average: null, dimensions: [], comments: [],
     scoreBands: { fairMin: 4, goodMin: 4.5 },
 };
-const fx = vi.hoisted(() => ({ results: [] as unknown[] }));
-vi.mock('../../api/csi.api', () => ({ CsiApi: { myResults: vi.fn(async () => fx.results) } }));
+const fx = vi.hoisted(() => ({
+    results: [] as unknown[],
+    remind: vi.fn(async () => ({ reminded: true })),
+}));
+vi.mock('../../api/csi.api', () => ({ CsiApi: { myResults: vi.fn(async () => fx.results), remindMyResultRaters: fx.remind } }));
 
 const renderPage = () => render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -66,5 +71,33 @@ describe('CsiMyResultsPage', () => {
         fx.results = [];
         renderPage();
         expect(await screen.findByText(/anda belum menjadi orang yang dinilai/i)).toBeInTheDocument();
+    });
+
+    it('shows X / Y rater progress and lets rated users trigger anonymous reminders while ACTIVE', async () => {
+        const user = userEvent.setup();
+        fx.remind.mockClear();
+        fx.remind.mockResolvedValueOnce({ reminded: true }).mockResolvedValueOnce({ reminded: false });
+        fx.results = [
+            { ...base, periodRateeId: 'pr-wait', raters: 2, expectedRaters: 10, ready: false },
+            { ...base, periodRateeId: 'pr-ready', raters: 4, expectedRaters: 8, ready: true, average: 4.6, dimensions: [{ label: 'Responsif', average: 4.6 }] },
+            { ...base, periodRateeId: 'pr-done', status: 'ENDED', raters: 5, expectedRaters: 5, ready: true, average: 4.5 },
+        ];
+        renderPage();
+
+        expect(await screen.findByText('2 / 10 penilai sudah mengisi')).toBeInTheDocument();
+        expect(screen.getByText(/saat ini 2 dari 10/i)).toBeInTheDocument();
+        expect(screen.getByText('4 / 8 penilai sudah mengisi')).toBeInTheDocument();
+        expect(screen.getByText('5 / 5 penilai sudah mengisi')).toBeInTheDocument();
+
+        const buttons = screen.getAllByRole('button', { name: /ingatkan penilai/i });
+        expect(buttons).toHaveLength(2);
+
+        await user.click(buttons[0]);
+        expect(fx.remind).toHaveBeenCalledWith('pr-wait');
+        expect(await screen.findByText(/pengingat anonim telah dikirim ke penilai yang belum mengisi/i)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /ingatkan penilai/i }));
+        expect(fx.remind).toHaveBeenCalledWith('pr-ready');
+        expect(await screen.findByText(/semua penilai yang belum mengisi sudah diingatkan dalam 24 jam terakhir/i)).toBeInTheDocument();
     });
 });

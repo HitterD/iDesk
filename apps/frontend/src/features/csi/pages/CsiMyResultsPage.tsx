@@ -1,14 +1,21 @@
-import { Hourglass, MessageSquareQuote, ShieldCheck, Star } from 'lucide-react';
+import { useState } from 'react';
+import { BellRing, CheckCircle2, Hourglass, MessageSquareQuote, ShieldCheck, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { formatScore, scoreToneClass } from '../components/admin/hc/hcFormat';
 import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
-import { useCsiMyResults } from '../hooks/useCsi';
+import { useCsiMyResults, useRemindMyResultRaters } from '../hooks/useCsi';
 import { formatDate } from '../lib/format';
 import type { CsiSelfResult } from '../types';
 
 const MAX_SCORE = 5;
 const STATUS_TEXT = { UPCOMING: 'Belum dimulai', ACTIVE: 'Sedang berjalan', ENDED: 'Selesai' } as const;
+const REMINDED_MESSAGE = 'Pengingat anonim telah dikirim ke penilai yang belum mengisi.';
+const ALREADY_REMINDED_MESSAGE = 'Semua penilai yang belum mengisi sudah diingatkan dalam 24 jam terakhir.';
+const REMIND_ERROR_MESSAGE = 'Gagal mengirim pengingat. Silakan coba lagi.';
+
+type RemindState = { kind: 'sent' | 'deduped' | 'error'; message: string } | null;
 
 function DimensionBars({ result }: { result: CsiSelfResult }) {
     return (
@@ -26,6 +33,58 @@ function DimensionBars({ result }: { result: CsiSelfResult }) {
     );
 }
 
+function raterCountLabel(raters: number, expectedRaters: number | null): string {
+    return expectedRaters !== null ? `${raters} / ${expectedRaters} penilai sudah mengisi` : `dari ${raters} penilai`;
+}
+
+function RaterProgressSection({ result }: { result: CsiSelfResult }) {
+    const remind = useRemindMyResultRaters();
+    const [feedback, setFeedback] = useState<RemindState>(null);
+    const expected = result.expectedRaters;
+    if (expected === null) return null;
+
+    const complete = expected > 0 && result.raters >= expected;
+    const pct = expected > 0 ? Math.min(100, Math.round((result.raters / expected) * 100)) : 100;
+    const canRemind = result.status === 'ACTIVE' && expected > 0 && result.raters < expected && feedback?.kind !== 'sent' && feedback?.kind !== 'deduped';
+
+    const sendReminder = () => {
+        setFeedback(null);
+        remind.mutate(result.periodRateeId, {
+            onSuccess: ({ reminded }) => setFeedback({ kind: reminded ? 'sent' : 'deduped', message: reminded ? REMINDED_MESSAGE : ALREADY_REMINDED_MESSAGE }),
+            onError: () => setFeedback({ kind: 'error', message: REMIND_ERROR_MESSAGE }),
+        });
+    };
+
+    return (
+        <div className="grid gap-2 rounded-xl border border-border/60 bg-[hsl(var(--muted)/.35)] px-3.5 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[13px]">
+                    {complete && <CheckCircle2 className="h-4 w-4 shrink-0 text-[hsl(var(--ticket-green-ink))]" aria-hidden="true" />}
+                    <span className="font-semibold tabular-nums">{raterCountLabel(result.raters, expected)}</span>
+                    <span className="text-[12px] text-muted-foreground tabular-nums">{`(${pct}%)`}</span>
+                </div>
+                {canRemind && (
+                    <Button type="button" variant="soft" size="sm" onClick={sendReminder} loading={remind.isPending}>
+                        <BellRing className="h-3.5 w-3.5" aria-hidden="true" />Ingatkan penilai
+                    </Button>
+                )}
+            </div>
+            <div role="progressbar" aria-label="Progres pengisian penilai" aria-valuenow={result.raters} aria-valuemin={0} aria-valuemax={expected}
+                className="h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--border))]">
+                <div className={cn('h-full rounded-full transition-[width] duration-300',
+                    complete ? 'bg-[hsl(var(--ticket-green))]' : 'bg-[hsl(var(--idesk-sapphire))]')}
+                style={{ width: `${pct}%` }} />
+            </div>
+            {feedback && (
+                <p role="status" className={cn('text-[12px]',
+                    feedback.kind === 'error' ? 'text-[hsl(var(--ticket-red-ink))]' : 'text-[hsl(var(--ticket-green-ink))]')}>
+                    {feedback.message}
+                </p>
+            )}
+        </div>
+    );
+}
+
 function ResultCard({ result, index }: { result: CsiSelfResult; index: number }) {
     return (
         <FadeIn index={index} className={cn(CSI_CARD, 'grid gap-4 p-5')}>
@@ -37,12 +96,15 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
                     {result.serviceFunction && <p className="mt-1 text-[13px] text-[hsl(var(--idesk-sapphire))]">{`Fungsi pelayanan: ${result.serviceFunction}`}</p>}
                 </div>
             </header>
+            <RaterProgressSection result={result} />
             {!result.ready && (
                 <p className="flex items-center gap-2 rounded-xl bg-[hsl(var(--muted)/.6)] px-3 py-3 text-[13.5px]">
                     <Hourglass className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {result.minRaters <= 1
                         ? 'Belum ada penilaian.'
-                        : `Hasil tampil setelah minimal ${result.minRaters} penilai mengisi (saat ini ${result.raters}).`}
+                        : result.expectedRaters !== null
+                            ? `Hasil tampil setelah minimal ${result.minRaters} penilai mengisi (saat ini ${result.raters} dari ${result.expectedRaters}).`
+                            : `Hasil tampil setelah minimal ${result.minRaters} penilai mengisi (saat ini ${result.raters}).`}
                 </p>
             )}
             {result.ready && (
@@ -53,7 +115,9 @@ function ResultCard({ result, index }: { result: CsiSelfResult; index: number })
                             <p className={cn('flex items-center justify-center gap-1 text-[30px] font-bold tabular-nums', scoreToneClass(result.average, result.scoreBands))}>
                                 <Star className="h-6 w-6 fill-[hsl(var(--ticket-amber))] text-[hsl(var(--ticket-amber))]" aria-hidden="true" />{formatScore(result.average)}
                             </p>
-                            <p className="text-[12px] text-muted-foreground">{`dari ${result.raters} penilai`}</p>
+                            <p className="text-[12px] text-muted-foreground tabular-nums">
+                                {result.expectedRaters !== null ? `${result.raters} / ${result.expectedRaters} penilai` : `dari ${result.raters} penilai`}
+                            </p>
                         </div>
                         <DimensionBars result={result} />
                     </div>
@@ -90,7 +154,7 @@ export function CsiMyResultsPage() {
             {results && !results.length && (
                 <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>Anda belum menjadi orang yang dinilai pada survei mana pun.</p>
             )}
-            {results?.map((result, index) => <ResultCard key={`${result.periodId}-${index}`} result={result} index={index} />)}
+            {results?.map((result, index) => <ResultCard key={`${result.periodRateeId}-${index}`} result={result} index={index} />)}
         </div>
     );
 }
