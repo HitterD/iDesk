@@ -173,12 +173,12 @@ describe('BentoSidebar', () => {
         expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toBeInTheDocument();
     });
 
-    it('MANAGER without any CSI key still sees both Admin CSI entries (read-only)', () => {
+    it('MANAGER without any CSI key sees Admin CSI ICT only, never HC', () => {
         authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
         pageAccess.current = { ...pageAccess.defaults };
         renderSidebar('/manager/dashboard');
-        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/manager/csi/admin/hc');
         expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/manager/csi/admin/ict');
+        expect(screen.queryByRole('link', { name: 'Admin CSI HC' })).not.toBeInTheDocument();
     });
 
     it('HC_ADMIN sees only the Human Capital group (no tickets, management or administration)', () => {

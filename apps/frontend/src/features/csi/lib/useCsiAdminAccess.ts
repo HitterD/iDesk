@@ -14,10 +14,10 @@ export function canAdminCsi(role: string | undefined, pageAccess: Record<string,
     return CSI_ADMIN_ROLES.includes(role ?? '') && role !== 'HC_ADMIN' && pageAccess?.[CSI_ADMIN_PAGE_KEYS[scope]] === true;
 }
 
-/** Mirrors backend `canReadCsiScope`: writers, any ADMIN/MANAGER, and the report owners of the scope (read-only). */
+/** Mirrors backend `canReadCsiScope`: writers, ADMIN (both), MANAGER (ICT only) and the owners of that same scope (read-only). */
 export function canReadCsi(role: string | undefined, pageAccess: Record<string, boolean> | undefined, scope: CsiScopeParam, isOwner: boolean) {
     if (canAdminCsi(role, pageAccess, scope) || isOwner) return true;
-    return role !== 'HC_ADMIN' && (role === 'ADMIN' || role === 'MANAGER');
+    return role === 'ADMIN' || (role === 'MANAGER' && scope === 'ict');
 }
 
 export function useCsiAdminAccess() {

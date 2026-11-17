@@ -34,14 +34,15 @@ export const READ_ONLY_MESSAGE = 'Hanya lihat: akun Anda tidak dapat mengubah da
 export const CsiWriterOnly = () => SetMetadata(WRITER_ONLY_KEY, true);
 
 /**
- * Who may open (read) the CSI admin pages of a scope, read-only: everyone who may administer it, any MANAGER and
- * ADMIN, and the report owners of the scope (any role). HC_ADMIN stays HC only, unless it is an owner.
+ * Who may open (read) the CSI admin pages of a scope, read-only: everyone who may administer it, ADMIN (both scopes),
+ * MANAGER (ICT only, never HC) and the report owners of that same scope (any role). HC and ICT are never mixed:
+ * HC_ADMIN reads HC only, and an owner reads only the scope they own.
  */
 export function canReadCsiScope(role: string, pageAccess: PageAccess, scope: ServiceScope, isOwner: boolean): boolean {
     if (canAdminCsiScope(role, pageAccess, scope)) return true;
     if (isOwner) return true;
-    if (role === UserRole.HC_ADMIN) return false;
-    return role === UserRole.ADMIN || role === UserRole.MANAGER;
+    if (role === UserRole.ADMIN) return true;
+    return role === UserRole.MANAGER && scope === ServiceScope.ICT;
 }
 
 @Injectable()
