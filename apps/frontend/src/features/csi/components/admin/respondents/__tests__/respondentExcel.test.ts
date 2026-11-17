@@ -2,7 +2,13 @@ import * as XLSX from 'xlsx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatDateTime } from '../../../../lib/format';
 import type { CsiSiteSummary } from '../../../../types';
-import { buildRespondentsSheetData, exportRespondentsExcel, respondentsExportFilename, sanitizeExcelCell } from '../respondentExcel';
+import {
+    buildRekapSheetData,
+    buildRespondentsSheetData,
+    exportRespondentsExcel,
+    respondentsExportFilename,
+    sanitizeExcelCell,
+} from '../respondentExcel';
 import { personRows } from '../respondentModel';
 
 const fx = vi.hoisted(() => ({
@@ -26,7 +32,7 @@ describe('respondentExcel', () => {
         expect(sanitizeExcelCell('Budi Santoso')).toBe('Budi Santoso');
     });
 
-    it('builds Row-1 table headers and clean site/department columns without scores', () => {
+    it('builds Rekap summary per site with totals and percentage cells', () => {
         const rows = personRows({
             mode: 'LISTED',
             submitted: [{
@@ -39,25 +45,70 @@ describe('respondentExcel', () => {
                 submittedAt: '2026-10-20T05:00:00Z',
             }],
             pending: [
-                { userId: 'u1', fullName: '=Andi', department: 'Gudang', siteId: 's-skd' },
+                { userId: 'u1', fullName: 'Andi', department: 'Gudang', siteId: 's-skd' },
+                { userId: 'u2', fullName: 'Budi', department: 'IT', siteId: 's-spj' },
             ],
-            totals: { submitted: 1, pending: 1 },
+            totals: { submitted: 1, pending: 2 },
         });
 
-        const table = buildRespondentsSheetData(rows, SITES);
-        expect(table).toEqual([
-            ['No', 'Nama', 'Site', 'Departemen', 'Status', 'Waktu Mengisi'],
-            [1, "'=Andi", 'SKD', 'Gudang', 'Belum', ''],
-            [2, 'Rina', 'SPJ', 'Finance', 'Sudah mengisi', formatDateTime('2026-10-20T05:00:00Z')],
+        const rekap = buildRekapSheetData(rows, SITES, {
+            scope: 'ict',
+            periodTitle: 'Survei CSI ICT',
+            now: new Date('2026-11-17T08:00:00Z'),
+            link: 'idesk.santos.co.id',
+        });
+
+        expect(rekap[0]).toEqual(['REKAPITULASI PROGRES PENGISIAN SURVEI CSI ICT']);
+        expect(rekap[2]).toEqual(['Link Pengisian Survei:', 'idesk.santos.co.id']);
+        expect(rekap[4]).toEqual(['Site', 'Total Responden', 'Sudah Mengisi', 'Belum Mengisi', 'Persentase Selesai', 'Link Pengisian']);
+        expect(rekap[5]).toEqual(['SKD', 1, 0, 1, { t: 'n', v: 0, z: '0.0%' }, 'idesk.santos.co.id']);
+        expect(rekap[6]).toEqual(['SPJ', 2, 1, 1, { t: 'n', v: 0.5, z: '0.0%' }, 'idesk.santos.co.id']);
+        expect(rekap[7]).toEqual(['TOTAL', 3, 1, 2, { t: 'n', v: 1 / 3, z: '0.0%' }, 'idesk.santos.co.id']);
+    });
+
+    it('sorts respondents by site, pending-first, then name and preserves formula sanitization', () => {
+        const rows = personRows({
+            mode: 'LISTED',
+            submitted: [{
+                responseId: 'r1',
+                userId: 'u9',
+                respondentName: 'Rina',
+                accountName: 'rina@sja.com',
+                departmentName: 'Finance',
+                siteId: 's-spj',
+                submittedAt: '2026-10-20T05:00:00Z',
+            }],
+            pending: [
+                { userId: 'u2', fullName: 'Zaki', department: 'IT', siteId: 's-spj' },
+                { userId: 'u1', fullName: '=Andi', department: 'Gudang', siteId: 's-skd' },
+            ],
+            totals: { submitted: 1, pending: 2 },
+        });
+
+        const table = buildRespondentsSheetData(rows, SITES, {
+            scope: 'ict',
+            periodTitle: 'Survei CSI ICT',
+            link: 'idesk.santos.co.id',
+        });
+        expect(table[0]).toEqual(['DAFTAR RESPONDEN SURVEI CSI ICT — SEMUA SITE (TERURUT PER SITE)']);
+        expect(table[1]).toEqual(['Link Pengisian:', 'idesk.santos.co.id', '', '', 'Total: 3 | Sudah: 1 | Belum: 2']);
+        expect(table[3]).toEqual(['No', 'Nama Responden', 'Site', 'Departemen', 'Status', 'Waktu Mengisi', 'Link Pengisian']);
+        expect(table.slice(4)).toEqual([
+            [1, "'=Andi", 'SKD', 'Gudang', 'Belum', '-', 'idesk.santos.co.id'],
+            [2, 'Zaki', 'SPJ', 'IT', 'Belum', '-', 'idesk.santos.co.id'],
+            [3, 'Rina', 'SPJ', 'Finance', 'Sudah mengisi', formatDateTime('2026-10-20T05:00:00Z'), 'idesk.santos.co.id'],
         ]);
     });
 
-    it('exports readable xlsx workbook blob and readable sheet via downloadBlob', async () => {
+    it('exports multi-sheet xlsx workbook (Rekap, Semua Site, and per-site sheets) via downloadBlob', async () => {
         const rows = personRows({
             mode: 'LISTED',
             submitted: [],
-            pending: [{ userId: 'u1', fullName: 'Budi', department: 'IT', siteId: 's-spj' }],
-            totals: { submitted: 0, pending: 1 },
+            pending: [
+                { userId: 'u1', fullName: 'Budi', department: 'IT', siteId: 's-spj' },
+                { userId: 'u2', fullName: 'Citra', department: 'QA', siteId: 's-skd' },
+            ],
+            totals: { submitted: 0, pending: 2 },
         });
 
         const filename = await exportRespondentsExcel({
@@ -75,12 +126,10 @@ describe('respondentExcel', () => {
         expect(blob).toBeInstanceOf(Blob);
 
         const workbook = XLSX.read(await (blob as Blob).arrayBuffer(), { type: 'array' });
-        expect(workbook.SheetNames).toEqual(['Responden']);
-        const parsed = XLSX.utils.sheet_to_json(workbook.Sheets.Responden, { header: 1 });
-        expect(parsed).toEqual([
-            ['No', 'Nama', 'Site', 'Departemen', 'Status', 'Waktu Mengisi'],
-            [1, 'Budi', 'SPJ', 'IT', 'Belum', ''],
-        ]);
+        expect(workbook.SheetNames).toEqual(['Rekap', 'Semua Site', 'SKD', 'SPJ']);
+        const skdParsed = XLSX.utils.sheet_to_json(workbook.Sheets.SKD, { header: 1 });
+        expect(skdParsed[0]).toEqual(['DAFTAR RESPONDEN SURVEI CSI - ICT — SITE SKD']);
+        expect(skdParsed[4]).toEqual([1, 'Citra', 'SKD', 'QA', 'Belum', '-', 'idesk.santos.co.id']);
     });
 
     it('builds safe fallback filenames when periodTitle is omitted', () => {
