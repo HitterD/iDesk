@@ -48,7 +48,7 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
     if (route.wizard !== undefined) return <WizardRoute key={route.wizard ?? 'new'} scope={scope} route={route} />;
     if (route.periodId) {
         return <PeriodDetail key={route.periodId} scope={scope} periodId={route.periodId} onBack={route.closeAll}
-            initialTab={route.detailTab} initialSiteId={route.siteId}
+            initialTab={route.detailTab} initialSiteId={route.siteId} onSiteChange={route.setSiteId}
             onEditStep={(step) => route.openWizard(route.periodId, step)} />;
     }
     return <SurveyList scope={scope} route={route} />;

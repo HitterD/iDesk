@@ -198,9 +198,14 @@ describe('CsiReportService', () => {
         expect(loads).toHaveBeenCalledTimes(1);
         const siteB = await service.getExecutiveModel(HC, 'p-hc', { siteId: 'site-b' });
         expect(siteB.serviceHighlight).toMatchObject({ best: { code: 'HCS', average: 4 }, worst: { code: 'HCD', average: 3 } });
-        expect(siteB.overall).toMatchObject({ average: 3.5 });
         expect(siteB.hcRecap?.overall.respondents).toBe(1);
         expect(loads).toHaveBeenLastCalledWith(HC, 'p-hc', 'site-b');
+        // Site-a (SMG) report keeps all 2 ratings for Dewi (h1) even though rb's user.siteId is site-b (SPJ),
+        // and site-b (SPJ) report does NOT leak SMG-only subjects (h1, h2) into SPJ with partial scores.
+        const siteAReport = await service.getReport(HC, 'p-hc', 'site-a');
+        expect(siteAReport.ratees.find((row) => row.periodRateeId === 'h1')).toMatchObject({ average: 4, respondentCount: 2 });
+        const siteBReport = await service.getReport(HC, 'p-hc', 'site-b');
+        expect(siteBReport.ratees).toEqual([]);
         // Multi-site PIC via viewsFor.siteIds is still included when filtering by any of its template sites even with 0 responses there.
         subjects.viewsFor.mockResolvedValueOnce(new Map([
             ['h1', { siteId: 'site-a', siteIds: ['site-a', 'site-b'], siteCode: 'SMG', photoUrl: null, tagline: null, jobTitle: null }],

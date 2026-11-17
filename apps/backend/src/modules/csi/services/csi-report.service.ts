@@ -189,8 +189,11 @@ export class CsiReportService {
     /** Non-empty comments per ratee from the (site-narrowed) responses in scrambled order (no department or timestamp). */
     private async rateeComments(data: PeriodData): Promise<Map<string, CsiReportComment[]>> {
         const rateeIds = data.ratees.map((ratee) => ratee.id);
-        if (!rateeIds.length || !data.responses.length) return new Map();
-        const responseIds = new Set(data.responses.map((response) => response.id));
+        const responseIds = new Set([
+            ...data.responses.map((response) => response.id),
+            ...data.items.map((item) => item.responseId),
+        ]);
+        if (!rateeIds.length || !responseIds.size) return new Map();
         const rows = await this.comments.find({ where: { periodRateeId: In(rateeIds) } });
         const result = new Map<string, CsiReportComment[]>();
         for (const row of rows) {
@@ -636,21 +639,28 @@ const rateeSitesOf = (data: Pick<PeriodData, 'views'>, ratee: CsiPeriodRatee): s
 };
 
 /**
- * Site filter: ratees matching `filter.rateeSites` (or rated by `filter.respondentSites` in HC cross-site reports)
- * and responses (with items) matching `filter.respondentSites`.
+ * Site filter: keeps ratees belonging to `filter.rateeSites`.
+ * - In HC, raters are explicitly paired to PICs/teams (even when a rater's iDesk User.siteId differs from the PIC's site),
+ *   so each subject's score and rater count stay identical between "Semua site" and its site tab, and subjects never
+ *   leak into other site tabs with partial scores.
+ * - In ICT, responses and items are narrowed to `filter.respondentSites` (supporting SKD -> SPJ evaluation).
  */
 function narrowToSites(data: PeriodData, filter: SiteScopeFilter, scope: ServiceScope): PeriodData {
+    const ratees = data.ratees.filter((ratee) =>
+        rateeSitesOf(data, ratee).some((site) => filter.rateeSites.has(site)));
+    const allowedRateeIds = new Set(ratees.map((ratee) => ratee.id));
     const responses = data.responses.filter((response) => {
         const site = response.respondent?.siteId ?? null;
         return !!site && filter.respondentSites.has(site);
     });
+    if (scope === ServiceScope.HC) {
+        return {
+            ...data, ratees,
+            items: data.items.filter((item) => allowedRateeIds.has(item.periodRateeId)),
+            responses,
+        };
+    }
     const allowedResponseIds = new Set(responses.map((response) => response.id));
-    const ratedBySite = scope === ServiceScope.HC
-        ? new Set(data.items.filter((item) => allowedResponseIds.has(item.responseId)).map((item) => item.periodRateeId))
-        : new Set<string>();
-    const ratees = data.ratees.filter((ratee) =>
-        rateeSitesOf(data, ratee).some((site) => filter.rateeSites.has(site)) || ratedBySite.has(ratee.id));
-    const allowedRateeIds = new Set(ratees.map((ratee) => ratee.id));
     return {
         ...data, ratees,
         items: data.items.filter((item) => allowedRateeIds.has(item.periodRateeId) && allowedResponseIds.has(item.responseId)),
