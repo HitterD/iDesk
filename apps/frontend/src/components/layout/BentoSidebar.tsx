@@ -158,8 +158,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const hasMyResults = (myResults?.length ?? 0) > 0;
     const pendingSurveyCount = activeSurveys?.filter((survey) => !survey.submitted).length ?? 0;
     const hasOwnerReport = useCsiOwnerReportAccess();
-    const hcOwner = (useCsiMyReportAccess('hc').data?.services.length ?? 0) > 0;
-    const ictOwner = (useCsiMyReportAccess('ict').data?.services.length ?? 0) > 0;
+    const hcOwner = (useCsiMyReportAccess('hc').data?.services?.length ?? 0) > 0;
+    const ictOwner = (useCsiMyReportAccess('ict').data?.services?.length ?? 0) > 0;
 
     // Badge resolution helper for navigation items
     const getItemBadge = (key: string): BadgeInfo | null => {

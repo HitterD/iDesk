@@ -27,7 +27,7 @@ export function useCsiAdminAccess() {
     const ictOwner = useCsiMyReportAccess('ict');
     const pageAccess = (data as { pageAccess?: Record<string, boolean> } | undefined)?.pageAccess;
     const ownerOf: Record<CsiScopeParam, boolean> = {
-        hc: (hcOwner.data?.services.length ?? 0) > 0, ict: (ictOwner.data?.services.length ?? 0) > 0,
+        hc: (hcOwner.data?.services?.length ?? 0) > 0, ict: (ictOwner.data?.services?.length ?? 0) > 0,
     };
     const readable = CSI_ADMIN_SCOPES.filter((scope) => canReadCsi(user?.role, pageAccess, scope, ownerOf[scope]));
     // Scopes the account can change come first (they are the fallback landing), read-only ones after.
