@@ -192,6 +192,13 @@ describe('CsiAdminPage', () => {
         expect(screen.getByRole('group', { name: 'Tampilan hanya lihat' })).toBeDisabled();
     });
 
+    it('MANAGER tanpa kunci tidak pernah mendapat HC: /csi/admin/hc dialihkan ke ICT', () => {
+        access.role = 'MANAGER';
+        renderAt('/csi/admin/hc');
+        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        expect(screen.queryByText('dashboard:hc')).not.toBeInTheDocument();
+    });
+
     it('MANAGER dengan kunci preset tetap bisa mengubah (tanpa banner hanya lihat)', () => {
         access.role = 'MANAGER';
         access.pageAccess = { csi_admin_ict: true };

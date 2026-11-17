@@ -71,13 +71,12 @@ describe('CsiAdminGuard', () => {
         await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('MANAGER without the key reads (GET) in read-only mode, in both scopes', async () => {
+    it('MANAGER without the key reads ICT (GET) read-only, but never HC', async () => {
         withPreset(UserRole.MANAGER, {});
-        for (const scope of ['hc', 'ict']) {
-            const { request, executionContext } = context(scope);
-            await expect(guard.canActivate(executionContext)).resolves.toBe(true);
-            expect(request.csiReadOnly).toBe(true);
-        }
+        const { request, executionContext } = context('ict');
+        await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+        expect(request.csiReadOnly).toBe(true);
+        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('MANAGER with the key writes normally (not read-only)', async () => {
@@ -89,14 +88,14 @@ describe('CsiAdminGuard', () => {
 
     it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('read-only viewer is refused %s', async (method) => {
         withPreset(UserRole.MANAGER, {});
-        await expect(guard.canActivate(context('hc', { userId: USER_ID }, method).executionContext)).rejects.toThrow('Hanya lihat');
+        await expect(guard.canActivate(context('ict', { userId: USER_ID }, method).executionContext)).rejects.toThrow('Hanya lihat');
     });
 
     it('read-only viewer is refused on a @CsiWriterOnly GET (rater names / raw data)', async () => {
         withPreset(UserRole.MANAGER, {});
         class Probe { @CsiWriterOnly() sensitive() { return 1; } }
         const handler = Probe.prototype.sensitive;
-        await expect(guard.canActivate(context('hc', { userId: USER_ID }, 'GET', handler).executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(guard.canActivate(context('ict', { userId: USER_ID }, 'GET', handler).executionContext)).rejects.toThrow('Hanya lihat');
     });
 
     it('a @CsiWriterOnly GET still works for a writer', async () => {
@@ -111,6 +110,16 @@ describe('CsiAdminGuard', () => {
         await expect(guard.canActivate(executionContext)).resolves.toBe(true);
         expect(request.csiReadOnly).toBe(true);
         expect(ownerRepo.count).toHaveBeenCalledWith({ where: { scope: ServiceScope.ICT, userId: USER_ID } });
+    });
+
+    it('an ICT owner never reads HC, and an HC owner never reads ICT', async () => {
+        withPreset(UserRole.USER, {});
+        ownerRepo.count.mockImplementation(async ({ where }: any) => (where.scope === ServiceScope.ICT ? 1 : 0));
+        await expect(guard.canActivate(context('ict').executionContext)).resolves.toBe(true);
+        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        ownerRepo.count.mockImplementation(async ({ where }: any) => (where.scope === ServiceScope.HC ? 1 : 0));
+        await expect(guard.canActivate(context('hc').executionContext)).resolves.toBe(true);
+        await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('a non-owner USER stays denied', async () => {

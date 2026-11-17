@@ -18,11 +18,14 @@ describe('blobErrorMessage', () => {
 });
 
 describe('canReadCsi / canAdminCsi', () => {
-    it('MANAGER tanpa kunci boleh baca kedua scope tapi tidak boleh ubah', () => {
-        for (const scope of ['hc', 'ict'] as const) {
-            expect(canReadCsi('MANAGER', {}, scope, false)).toBe(true);
-            expect(canAdminCsi('MANAGER', {}, scope)).toBe(false);
-        }
+    it('MANAGER tanpa kunci hanya boleh baca ICT (bukan HC) dan tidak boleh ubah', () => {
+        expect(canReadCsi('MANAGER', {}, 'ict', false)).toBe(true);
+        expect(canReadCsi('MANAGER', {}, 'hc', false)).toBe(false);
+        expect(canAdminCsi('MANAGER', {}, 'ict')).toBe(false);
+    });
+    it('penanggung jawab ICT tidak membaca HC, penanggung jawab HC tidak membaca ICT', () => {
+        expect(canReadCsi('AGENT', {}, 'hc', false)).toBe(false);
+        expect(canReadCsi('USER', {}, 'ict', false)).toBe(false);
     });
     it('MANAGER dengan kunci boleh ubah scope itu saja', () => {
         expect(canAdminCsi('MANAGER', { csi_admin_ict: true }, 'ict')).toBe(true);
