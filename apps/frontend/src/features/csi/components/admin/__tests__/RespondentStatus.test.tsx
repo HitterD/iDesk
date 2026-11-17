@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CsiReport, CsiRespondents } from '../../../types';
+import { CsiReadOnlyProvider } from '../../../lib/CsiReadOnly';
 import { RespondentStatus } from '../RespondentStatus';
 import { PERIOD, report } from '../report/__tests__/reportFixture';
 
@@ -218,5 +219,22 @@ describe('RespondentStatus', () => {
         fx.respondents = OPEN;
         renderStatus();
         expect(screen.queryByRole('button', { name: /Hapus penilai/ })).not.toBeInTheDocument();
+    });
+
+    it('read-only viewers keep the same numbers but see no person list, remind-all or names toggle', () => {
+        fx.respondents = {
+            ...LISTED,
+            submitted: [{ ...LISTED.submitted[0], respondentName: 'Penilai', accountName: '', departmentName: '' }],
+            pending: [
+                { userId: 'anon-p-0', fullName: 'Penilai', department: null, siteId: 's1' },
+                { userId: 'anon-p-1', fullName: 'Penilai', department: null, siteId: 's2' },
+            ],
+        };
+        render(<CsiReadOnlyProvider readOnly><RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} /></CsiReadOnlyProvider>);
+        expect(screen.getByText('1/3')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Butuh 2 jawaban lagi untuk mencapai target 90%');
+        expect(screen.queryByRole('list', { name: 'Daftar responden' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Ingatkan semua/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Tampilkan nama/ })).not.toBeInTheDocument();
     });
 });
