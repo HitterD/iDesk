@@ -1,7 +1,9 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
+import api from '@/lib/api';
 import { TicketForwardDialog } from '../../TicketForwardDialog';
 
 const ticket = { id: 'ticket-1', ticketNumber: 'T-01', title: 'Printer marketing', handlingTeam: 'OPS_SUPPORT' };
@@ -110,5 +112,61 @@ describe('approved forward form', () => {
             'Masalah infrastruktur / perangkat / IT Support',
             'smg',
         ));
+    });
+
+    it('does not loop while /sites/active is pending and keeps user input across inline ticket object rerenders', async () => {
+        let resolveSites!: (v: unknown) => void;
+        const getSpy = vi.spyOn(api, 'get').mockImplementation((url: string) => {
+            if (url === '/sites/active') {
+                return new Promise((resolve) => {
+                    resolveSites = resolve;
+                });
+            }
+            return Promise.resolve({ data: [] });
+        }) as unknown as { mockRestore: () => void };
+
+        try {
+            const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+            const { rerender } = render(
+                <QueryClientProvider client={qc}>
+                    <TicketForwardDialog
+                        isOpen
+                        ticket={{ ...ticket, siteId: 'spj', site: { id: 'spj', code: 'SPJ', name: 'Sepanjang' } }}
+                        onClose={vi.fn()}
+                        onConfirm={vi.fn()}
+                    />
+                </QueryClientProvider>,
+            );
+
+            fireEvent.click(screen.getByRole('radio', { name: /Web Developer/ }));
+            const note = screen.getByRole('textbox', { name: /Catatan tambahan/ });
+            fireEvent.change(note, { target: { value: 'Butuh cek portal' } });
+
+            rerender(
+                <QueryClientProvider client={qc}>
+                    <TicketForwardDialog
+                        isOpen
+                        ticket={{ ...ticket, siteId: 'spj', site: { id: 'spj', code: 'SPJ', name: 'Sepanjang' } }}
+                        onClose={vi.fn()}
+                        onConfirm={vi.fn()}
+                    />
+                </QueryClientProvider>,
+            );
+
+            expect(screen.getByRole('radio', { name: /Web Developer/ })).toBeChecked();
+            expect(screen.getByRole('textbox', { name: /Catatan tambahan/ })).toHaveValue('Butuh cek portal');
+
+            resolveSites({
+                data: [
+                    { id: 'spj', code: 'SPJ', name: 'Sepanjang', isActive: true, handledBySiteId: null },
+                    { id: 'krw', code: 'KRW', name: 'Karawang', isActive: true, handledBySiteId: null },
+                ],
+            });
+            await waitFor(() => {
+                expect(screen.getByText(/Teruskan ke IT Support site lain/)).toBeInTheDocument();
+            });
+        } finally {
+            getSpy.mockRestore();
+        }
     });
 });
