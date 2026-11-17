@@ -124,6 +124,31 @@ describe('useTicketSocket', () => {
         expect(result.current.typingUsers).toEqual({});
     });
 
+    it('keeps typingUsers object reference stable across repeated typing:start heartbeats while extending TTL', () => {
+        const { result } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), {
+            wrapper: createWrapper(),
+        });
+
+        fire('typing:start', { ticketId: 'ticket-1', user: { fullName: 'Amelia Yolanda' }, socketId: 'sock-amelia' });
+        const firstRef = result.current.typingUsers;
+
+        act(() => {
+            vi.advanceTimersByTime(1200);
+        });
+        fire('typing:start', { ticketId: 'ticket-1', user: { fullName: 'Amelia Yolanda' }, socketId: 'sock-amelia' });
+        expect(result.current.typingUsers).toBe(firstRef);
+
+        act(() => {
+            vi.advanceTimersByTime(3000);
+        });
+        expect(result.current.typingUsers).toEqual({ 'sock-amelia': 'Amelia Yolanda' });
+
+        act(() => {
+            vi.advanceTimersByTime(600);
+        });
+        expect(result.current.typingUsers).toEqual({});
+    });
+
     it('ignores self-tab typing:start events matching own socket.id', () => {
         const { result } = renderHook(() => useTicketSocket({ ticketId: 'ticket-1' }), {
             wrapper: createWrapper(),

@@ -165,7 +165,9 @@ export const useTicketSocket = ({ ticketId, onNewMessage, onStatusChange }: UseT
         // Typing indicators with 3.5s auto-expire TTL to eliminate ghost typing
         const handleTypingStart = (data: { ticketId: string; user: { fullName: string }; socketId: string }) => {
             if (data.ticketId === ticketId && data.socketId && data.socketId !== socket.id) {
-                setTypingUsers(prev => ({ ...prev, [data.socketId]: data.user?.fullName || 'User' }));
+                const displayName = data.user?.fullName || 'User';
+                // Preserve reference when the same socket keeps typing every ~1.2s to avoid redundant re-renders.
+                setTypingUsers(prev => (prev[data.socketId] === displayName ? prev : { ...prev, [data.socketId]: displayName }));
 
                 // Reset auto-expire timer for this socket
                 if (typingTimersRef.current[data.socketId]) {

@@ -350,4 +350,28 @@ describe('TicketChat surface', () => {
         expect(toast.success).toHaveBeenCalledWith('1 screenshot ditempel');
         expect(screen.getByText('image.png')).toBeInTheDocument();
     });
+
+    it('renders typing indicator in a fixed strip outside .chat-stream without auto-scrolling messages', () => {
+        const props = { isConnected: true, onSendMessage: vi.fn(() => Promise.resolve()), onImageClick: vi.fn() };
+        const view = (typingUsers: Record<string, string> = {}) => (
+            <QueryClientProvider client={new QueryClient()}>
+                <TicketChat ticket={ticket} typingUsers={typingUsers} {...props} />
+            </QueryClientProvider>
+        );
+
+        const { rerender } = render(view());
+        const bar = screen.getByTestId('chat-typing-bar');
+        const stream = document.querySelector('.chat-stream') as HTMLElement;
+        expect(stream.contains(bar)).toBe(false);
+        expect(bar).toHaveTextContent('');
+
+        vi.mocked(Element.prototype.scrollIntoView).mockClear();
+        rerender(view({ s1: 'SHANNON STEPHANIE LIMAWAN' }));
+        expect(bar).toHaveTextContent('Shannon Stephanie Limawan sedang mengetik…');
+        expect(stream).not.toHaveTextContent(/sedang mengetik/);
+        expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+
+        rerender(view({ s1: 'SHANNON STEPHANIE LIMAWAN', s2: 'BUDI SANTOSO', s3: 'SITI RAHMA' }));
+        expect(bar).toHaveTextContent('Shannon Stephanie Limawan dan 2 lainnya sedang mengetik…');
+    });
 });
