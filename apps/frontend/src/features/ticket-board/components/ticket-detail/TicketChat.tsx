@@ -239,9 +239,6 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
 
     // Opening the chat lands at the bottom at once; a smooth scroll here flashed the jump button.
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, []);
-    useEffect(() => {
-        if (Object.keys(typingUsers).length > 0 && nearBottomRef.current) scrollToBottom();
-    }, [typingUsers, scrollToBottom]);
 
     useEffect(() => () => {
         if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -301,7 +298,14 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
         await onSendMessage(sticker, null, false);
     };
 
-    const typingUserNames = Object.values(typingUsers);
+    const typingUserNames = Object.values(typingUsers).map(toDisplayName);
+    const typingText = typingUserNames.length === 0
+        ? ''
+        : typingUserNames.length === 1
+            ? `${typingUserNames[0]} sedang mengetik…`
+            : typingUserNames.length === 2
+                ? `${typingUserNames[0]} dan ${typingUserNames[1]} sedang mengetik…`
+                : `${typingUserNames[0]} dan ${typingUserNames.length - 1} lainnya sedang mengetik…`;
 
     const scrollToRootIssue = () => {
         rootIssueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -564,17 +568,6 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                             </React.Fragment>
                         );
                     })}
-
-                    {typingUserNames.length > 0 && (
-                        <div className="chat-bubble chat-bubble-in mt-3 ml-10 flex w-fit items-center gap-2 rounded-[20px] px-3.5 py-2 text-xs">
-                            <span className="flex gap-1">
-                                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-0" />
-                                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-100" />
-                                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 delay-200" />
-                            </span>
-                            <span>{typingUserNames.map(toDisplayName).join(', ')} sedang mengetik…</span>
-                        </div>
-                    )}
                 </div>
                 <div ref={messagesEndRef} />
             </div>
@@ -585,6 +578,32 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                         <ChevronsDown aria-hidden="true" />
                         {unseenCount > 0 && <span className="chat-jump-badge" aria-label={`${unseenCount} pesan baru`}>{unseenCount}</span>}
                     </button>
+                </div>
+            )}
+
+            {/* Fixed-height status strip outside `.chat-stream` so typing never shifts or scrolls messages. */}
+            {!isTicketClosed && (
+                <div
+                    data-testid="chat-typing-bar"
+                    className="flex h-6 shrink-0 items-center bg-[hsl(var(--idesk-surface-raised))] px-3 sm:px-5"
+                >
+                    <div
+                        className={cn(
+                            'flex min-w-0 items-center gap-2 text-xs text-[hsl(var(--idesk-text-secondary))] transition-opacity duration-150',
+                            typingText ? 'opacity-100' : 'pointer-events-none opacity-0',
+                        )}
+                    >
+                        {typingText && (
+                            <>
+                                <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400 motion-reduce:animate-none" />
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:150ms] motion-reduce:animate-none" />
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400 [animation-delay:300ms] motion-reduce:animate-none" />
+                                </span>
+                                <span className="truncate">{typingText}</span>
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
 
