@@ -44,9 +44,10 @@ const getTeamName = (team?: string) => TEAM_OPTIONS.find((option) => option.valu
 const getTeamPreset = (team: ForwardTargetTeam) => REASON_PRESETS.find((preset) => preset.forTeam === team)!.value;
 
 const ActiveSitesLoader: React.FC<{ onLoaded: (sites: Site[]) => void }> = ({ onLoaded }) => {
-    const { data = [] } = useActiveSites();
+    const { data } = useActiveSites();
     useEffect(() => {
-        onLoaded(data);
+        // Guard against undefined while loading/erroring so we never pass a fresh `[]` every render and loop.
+        if (Array.isArray(data)) onLoaded(data);
     }, [data, onLoaded]);
     return null;
 };
@@ -76,15 +77,18 @@ export const TicketForwardDialog: React.FC<TicketForwardDialogProps> = ({ isOpen
     );
     const currentSiteCode = ticket?.site?.code || effectiveSites.find((site) => site.id === currentSiteId)?.code;
 
+    const ticketId = ticket?.id;
+    const ticketHandlingTeam = ticket?.handlingTeam;
+
     useEffect(() => {
-        if (!isOpen || !ticket) return;
-        const defaultTeam = ticket.handlingTeam === 'ORACLE_DEV' ? 'WEB_DEV' : ticket.handlingTeam === 'WEB_DEV' ? 'MOBILE_DEV' : 'ORACLE_DEV';
+        if (!isOpen || !ticketId) return;
+        const defaultTeam = ticketHandlingTeam === 'ORACLE_DEV' ? 'WEB_DEV' : ticketHandlingTeam === 'WEB_DEV' ? 'MOBILE_DEV' : 'ORACLE_DEV';
         setSelectedTeam(defaultTeam);
         setSelectedPreset(getTeamPreset(defaultTeam));
         setSelectedSiteId('');
         setCustomReason('');
         setError(null);
-    }, [isOpen, ticket]);
+    }, [isOpen, ticketId, ticketHandlingTeam]);
 
     useEffect(() => {
         if (selectedTeam !== 'OPS_SUPPORT') return;
