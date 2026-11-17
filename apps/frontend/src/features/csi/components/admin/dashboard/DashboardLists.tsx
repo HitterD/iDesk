@@ -9,6 +9,7 @@ import { AdminSection, MUTED_TEXT } from '../AdminParts';
 import { SiteBadge } from '../report/reportParts';
 import { reminderKey, remindAllLabel, siteCodes } from './dashboardModel';
 import { useDashboardReminders } from './useDashboardReminders';
+import { useCsiReadOnly } from '../../../lib/CsiReadOnly';
 
 export const LIST_ITEM = 'flex min-w-0 items-center gap-2.5 border-b border-[hsl(var(--idesk-border))] py-2.5 last:border-b-0';
 const SENT_PILL = 'inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[12px] font-medium';
@@ -40,11 +41,14 @@ export function PendingPanel({ scope, data, className }: { scope: CsiScopeParam;
     const reminders = useDashboardReminders(scope);
     const codes = siteCodes(data);
     const open = data.pending.filter((row) => !reminders.reminded.has(reminderKey(row.periodId, row.userId)));
-    const remindAll = open.length > 0 && (
+    const readOnly = useCsiReadOnly();
+    const remindAll = !readOnly && open.length > 0 && (
         <Button variant="soft" size="sm" onClick={() => reminders.remindAll(open)} loading={reminders.allBusy}>
             {!reminders.allBusy && <BellRing aria-hidden="true" />}{remindAllLabel(data.pending.length)}
         </Button>
     );
+    // Names of raters who have not answered are for admins only.
+    if (readOnly) return null;
     return (
         <AdminSection title="Belum mengisi — paling mendesak" actions={remindAll || undefined} className={className}>
             {data.pending.length === 0 ? <p className={MUTED_TEXT}>Semua penilai terdaftar sudah mengisi.</p> : (

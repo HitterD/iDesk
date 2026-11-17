@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useCsiReadOnly } from '../../lib/CsiReadOnly';
 import { CalendarRange, ChevronRight, CopyPlus } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -64,6 +65,7 @@ interface PeriodsTabProps {
 }
 
 export function PeriodsTab({ scope, onOpen, onCreate, onCreated, onRepeat }: PeriodsTabProps) {
+    const readOnly = useCsiReadOnly();
     const [siteId, setSiteId] = useState(ALL_SITES);
     const [showCancelled, setShowCancelled] = useState(false);
     const [memoOpen, setMemoOpen] = useState(false);
@@ -88,7 +90,7 @@ export function PeriodsTab({ scope, onOpen, onCreate, onCreated, onRepeat }: Per
                 <span className="flex-1" />
                 <Button variant="soft" onClick={() => setMemoOpen(true)}>Export memo PDF</Button>
                 {/* HC surveys are always built from location templates; ICT keeps the generic wizard. */}
-                <CreateButton label={WIZARD_COPY.create} onClick={scope === 'hc' ? () => setHcWizardOpen(true) : onCreate} />
+                {!readOnly && <CreateButton label={WIZARD_COPY.create} onClick={scope === 'hc' ? () => setHcWizardOpen(true) : onCreate} />}
             </div>
             <section aria-label="Daftar survei" className={cn(ADMIN_PANEL, 'overflow-hidden')}>
                 {isLoading && (
@@ -109,7 +111,7 @@ export function PeriodsTab({ scope, onOpen, onCreate, onCreated, onRepeat }: Per
                     <ul className="divide-y divide-[hsl(var(--idesk-border)/.55)]">
                         {periods.map((period) => (
                             <PeriodRow key={period.id} period={period} onOpen={() => onOpen(period)}
-                                onRepeat={onRepeat && period.publishStatus !== 'DRAFT' ? () => onRepeat(period) : undefined} />
+                                onRepeat={onRepeat && !readOnly && period.publishStatus !== 'DRAFT' ? () => onRepeat(period) : undefined} />
                         ))}
                     </ul>
                 )}

@@ -18,6 +18,7 @@ import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
 import { useCsiBasePath } from '../lib/useCsiBasePath';
 import { CsiLiveProvider } from '../hooks/useCsiLiveUpdates';
+import { CsiReadOnlyProvider, useCsiReadOnly } from '../lib/CsiReadOnly';
 import type { CsiPeriodListItem, CsiScopeParam } from '../types';
 
 type AdminArea = 'dashboard' | 'surveys' | 'settings';
@@ -56,7 +57,8 @@ function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute
 
 function SurveyList({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
     // Drafts resume in the wizard (the step is resolved once the detail loads); published surveys open the detail.
-    const open = (period: CsiPeriodListItem) => period.publishStatus === 'DRAFT' ? route.openWizard(period.id) : route.openDetail(period.id);
+    const readOnly = useCsiReadOnly();
+    const open = (period: CsiPeriodListItem) => period.publishStatus === 'DRAFT' && !readOnly ? route.openWizard(period.id) : route.openDetail(period.id);
     // A template-built HC draft already has people, raters and pairs: no fixed step, so it resumes at the first gap.
     return <PeriodsTab scope={scope} onOpen={open} onCreate={() => route.openWizard(null, 'info')}
         onCreated={(periodId) => route.openWizard(periodId)} onRepeat={(period) => route.openCopy(period.id)} />;
@@ -76,13 +78,13 @@ const DEFAULT_STICKY_TOP = 47;
 function ReadOnlyBody({ readOnly, children }: { readOnly: boolean; children: ReactNode }) {
     if (!readOnly) return <>{children}</>;
     return (
-        <>
-            <p className={cn(ADMIN_PANEL, 'flex items-center gap-2 px-4 py-2.5 text-[13px]')} role="status">
+        <CsiReadOnlyProvider readOnly>
+            <p className={cn(ADMIN_PANEL, 'mb-4 flex items-center gap-2 px-4 py-2.5 text-[13px]')} role="status">
                 <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Hanya lihat — akun Anda dapat melihat semua data tetapi tidak dapat mengubahnya. Nama penilai tidak ditampilkan.
             </p>
-            <fieldset disabled className="m-0 min-w-0 border-0 p-0" aria-label="Tampilan hanya lihat">{children}</fieldset>
-        </>
+            {children}
+        </CsiReadOnlyProvider>
     );
 }
 

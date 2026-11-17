@@ -1,3 +1,4 @@
+import { EditOnly } from '../../lib/CsiReadOnly';
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
@@ -98,9 +99,9 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
                     </p>
                 </div>
             </header>
-            {tab === 'settings' && <PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} />}
-            {tab === 'raters' && (isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
-                : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />)}
+            {tab === 'settings' && <EditOnly><PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} /></EditOnly>}
+            {tab === 'raters' && <EditOnly>{isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
+                : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />}</EditOnly>}
             {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} periodTitle={period.title} sites={period.sites} initialSiteId={initialSiteId}
                 onSiteChange={onSiteChange} hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents}
                 canEditRaters={isRaterAdditionOpen(period)} />}
