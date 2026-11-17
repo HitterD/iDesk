@@ -129,6 +129,16 @@ export class CsiAdminPeriodController {
         return this.periods.setRaters(req.csiScope, id, dto.userIds);
     }
 
+    @Delete(':id/raters/:userId')
+    removeRater(
+        @Req() req: CsiAdminRequest,
+        @Param('id', CSI_ID_PIPE) id: string,
+        @Param('userId', CSI_ID_PIPE) userId: string,
+        @Query('removeFromMaster') removeFromMaster?: string,
+    ) {
+        return this.periods.removeRater(req.csiScope, id, userId, { removeFromMaster: removeFromMaster === 'true' });
+    }
+
     @Put(':id/questions')
     updateQuestions(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string, @Body() dto: UpdatePeriodQuestionsDto) {
         return this.periods.updateQuestions(req.csiScope, id, dto);

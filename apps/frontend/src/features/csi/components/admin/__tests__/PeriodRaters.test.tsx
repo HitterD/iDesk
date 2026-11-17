@@ -72,26 +72,34 @@ describe('PeriodRaters', () => {
         expect(fx.save).toHaveBeenCalledWith({ userIds: ['u-r1'] });
     });
 
-    it('when locked & active: keeps registered raters disabled while allowing new raters to be ticked and saved', async () => {
+    it('when locked & active: keeps answered raters disabled while allowing unanswered and new raters to be toggled', async () => {
         const actor = userEvent.setup();
         const activeLocked: CsiPeriodDetail = {
             ...period(),
             locked: true,
             publishStatus: 'PUBLISHED',
             status: 'ACTIVE',
-            raters: [{ id: 'pr-1', periodId: 'p1', userId: 'u-r1', user: fx.raters[0].user }],
+            raters: [
+                { id: 'pr-1', periodId: 'p1', userId: 'u-r1', user: fx.raters[0].user, answered: true },
+                { id: 'pr-3', periodId: 'p1', userId: 'u-r3', user: fx.raters[2].user, answered: false },
+            ],
         };
         render(<PeriodRaters scope="ict" period={activeLocked} />);
 
-        expect(screen.getByText('Sudah ada jawaban · hanya bisa tambah penilai baru')).toBeInTheDocument();
+        expect(screen.getByText('Sudah ada jawaban · penilai yang sudah mengisi terkunci')).toBeInTheDocument();
+        expect(screen.getByText('Sudah mengisi')).toBeInTheDocument();
         expect(screen.getByText('Terdaftar')).toBeInTheDocument();
 
-        const registeredBox = screen.getByRole('checkbox', { name: /Budi Sepanjang/i });
+        const answeredBox = screen.getByRole('checkbox', { name: /Budi Sepanjang/i });
+        const pendingBox = screen.getByRole('checkbox', { name: /Abizar Jatibarang/i });
         const newBox = screen.getByRole('checkbox', { name: /Dina Sukodono/i });
-        expect(registeredBox).toBeDisabled();
-        expect(registeredBox).toBeChecked();
+        expect(answeredBox).toBeDisabled();
+        expect(answeredBox).toBeChecked();
+        expect(pendingBox).toBeEnabled();
+        expect(pendingBox).toBeChecked();
         expect(newBox).toBeEnabled();
 
+        await actor.click(pendingBox);
         await actor.click(newBox);
         await actor.click(screen.getByRole('button', { name: 'Simpan penilai' }));
         expect(fx.save).toHaveBeenCalledWith({ userIds: ['u-r1', 'u-r2'] });

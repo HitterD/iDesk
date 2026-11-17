@@ -140,6 +140,7 @@ export interface CsiPeriodRater {
     periodId: string;
     userId: string;
     user: CsiUser;
+    answered?: boolean;
 }
 
 export interface CsiPeriodDetail extends CsiPeriod {
@@ -365,6 +366,7 @@ export interface SubmitCsiResponse {
 }
 export interface ResetCsiResponse { reason: string }
 export interface CsiResetResult { reset: true }
+export interface CsiRemovePeriodRaterResult { removed: true; removedFromMaster: boolean }
 
 // ─── Subjects (master photo / tagline per person and per site team) ─────────
 export interface CsiTeamMemberView { id: string; name: string; userId: string | null }

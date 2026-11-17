@@ -16,6 +16,8 @@ import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
+import { CsiRater } from '../entities/csi-rater.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiAssignmentService } from './csi-assignment.service';
 import { emitCsiUpdated } from '../csi.events';
@@ -138,7 +140,8 @@ const assertSomeSection = (sections: { teamEnabled: boolean; individualEnabled: 
     if (!sections.teamEnabled && !sections.individualEnabled) throw new BadRequestException(NO_SECTION_MESSAGE);
 };
 const CANCELLED_MESSAGE = 'Survei ini sudah dibatalkan. Aktifkan lagi dulu.';
-const CANNOT_REMOVE_RATER_MESSAGE = 'Penilai yang sudah terdaftar tidak dapat dihapus setelah ada jawaban';
+const CANNOT_REMOVE_RATER_MESSAGE = 'Penilai yang sudah mengisi tidak dapat dihapus dari survei';
+const RATER_NOT_IN_PERIOD_MESSAGE = 'Penilai tidak ditemukan pada survei ini';
 const CONFIRM_TITLE_MESSAGE = 'Judul yang diketik tidak sama dengan judul survei';
 const collapse = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -205,6 +208,8 @@ export class CsiPeriodService {
             select: { id: true, periodId: true, userId: true, user: { id: true, fullName: true, email: true, jobTitle: true } },
             order: { user: { fullName: 'ASC' } },
         });
+        const responseRows = await this.responses.find({ where: { periodId: id }, select: { respondentId: true } });
+        const answeredIds = new Set(responseRows.map((row) => row.respondentId));
         const rateesWithDimensions = ratees.map((ratee) => ({
             ...ratee,
             dimensions: dimensions.filter((row) => row.periodRateeId === ratee.id).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -215,7 +220,7 @@ export class CsiPeriodService {
         return {
             ...withSites(period), status: computeStatus(period, now), locked: await this.isLocked(id),
             ratees: rateesWithDimensions,
-            raters,
+            raters: raters.map((rater) => ({ ...rater, answered: answeredIds.has(rater.userId) })),
             readiness: computeReadiness({
                 // Readiness only looks at PERSON ratees; a kept TEAM ratee is ignored while the team section is off.
                 ratees: rateesWithDimensions.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM),
@@ -591,10 +596,20 @@ export class CsiPeriodService {
             const existingRaterUsers = hasPairsBefore
                 ? new Set(existing.map((row) => row.userId))
                 : undefined;
-            // Diff by userId: rows (and their pairs) of raters who stay are kept; once responses exist only additions are allowed.
-            const removed = existing.filter((row) => !ids.includes(row.userId)).map((row) => row.id);
-            if (responseCount > 0 && removed.length > 0) throw new ConflictException(CANNOT_REMOVE_RATER_MESSAGE);
-            if (removed.length) await manager.delete(CsiPeriodRater, { id: In(removed) });
+            // Diff by userId: raters who already submitted answers stay locked; unanswered raters may be removed on open surveys.
+            const removedRows = existing.filter((row) => !ids.includes(row.userId));
+            const removed = removedRows.map((row) => row.id);
+            const removedUserIds = removedRows.map((row) => row.userId);
+            if (responseCount > 0 && removedUserIds.length > 0) {
+                const answeredCount = await manager.getRepository(CsiResponse).count({
+                    where: { periodId: id, respondentId: In(removedUserIds) },
+                });
+                if (answeredCount > 0) throw new ConflictException(CANNOT_REMOVE_RATER_MESSAGE);
+            }
+            if (removed.length) {
+                await manager.delete(CsiPeriodRater, { id: In(removed) });
+                await manager.delete?.(CsiResponseDraft, { periodId: id, respondentId: In(removedUserIds) });
+            }
             const kept = new Set(existing.map((row) => row.userId));
             await this.writeRaters(manager, id, ids.filter((userId) => !kept.has(userId)));
             return { unmapped: !hasPairsBefore && responseCount === 0, beforeRaters: existingRaterUsers };
@@ -602,6 +617,36 @@ export class CsiPeriodService {
         await this.applyTemplateWhileUnmapped(scope, id, unmapped, { raterUserIds: beforeRaters });
         emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
+    }
+
+    /**
+     * Removes one pending rater (without a submitted response) from a survey, and optionally from the scope's
+     * master Daftar penilai. Answered raters remain locked; ended/cancelled periods with answers remain locked.
+     */
+    async removeRater(
+        scope: ServiceScope,
+        id: string,
+        userId: string,
+        options: { removeFromMaster?: boolean } = {},
+        now: Date = new Date(),
+    ) {
+        await this.findInScope(scope, id);
+        await this.dataSource.transaction(async (manager) => {
+            await lockPeriodForRaterAdditions(manager, id, now);
+            const existing = await manager.getRepository(CsiPeriodRater).findOne({ where: { periodId: id, userId } });
+            if (!existing) throw new NotFoundException(RATER_NOT_IN_PERIOD_MESSAGE);
+            const answeredCount = await manager.getRepository(CsiResponse).count({
+                where: { periodId: id, respondentId: userId },
+            });
+            if (answeredCount > 0) throw new ConflictException(CANNOT_REMOVE_RATER_MESSAGE);
+            await manager.delete(CsiPeriodRater, { id: existing.id, periodId: id });
+            await manager.delete?.(CsiResponseDraft, { periodId: id, respondentId: userId });
+            if (options.removeFromMaster) {
+                await manager.delete(CsiRater, { scope, userId });
+            }
+        });
+        emitCsiUpdated(this.eventEmitter, scope, id);
+        return { removed: true as const, removedFromMaster: !!options.removeFromMaster };
     }
 
     /**

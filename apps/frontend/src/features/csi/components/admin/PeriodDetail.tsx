@@ -4,7 +4,7 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiPeriod, useCsiPeriods } from '../../hooks/useCsi';
-import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
+import { CSI_MODE_LABELS, isRaterAdditionOpen } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import { formatSites } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
@@ -25,13 +25,15 @@ const DETAIL_TABS = [
 ] as const;
 export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 
-function ReportPanel({ scope, periodId, sites, initialSiteId, hcTarget }: {
-    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null; hcTarget?: boolean;
+function ReportPanel({ scope, periodId, periodTitle, sites, initialSiteId, hcTarget, canEditRaters }: {
+    scope: CsiScopeParam; periodId: string; periodTitle?: string; sites: readonly CsiSiteSummary[];
+    initialSiteId?: string | null; hcTarget?: boolean; canEditRaters?: boolean;
 }) {
     return (
         <div className="grid gap-5">
             {/* Progress first: "who has not filled it yet" is what admins look for while a survey runs. */}
-            <RespondentStatus scope={scope} periodId={periodId} sites={sites} hcTarget={hcTarget} />
+            <RespondentStatus scope={scope} periodId={periodId} periodTitle={periodTitle} sites={sites}
+                hcTarget={hcTarget} canEditRaters={canEditRaters} />
             <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
         </div>
     );
@@ -98,8 +100,9 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
             {tab === 'settings' && <PeriodChecklist scope={scope} period={period} responseCount={responseCount} onEditStep={onEditStep} onDeleted={onBack} />}
             {tab === 'raters' && (isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
                 : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />)}
-            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} sites={period.sites} initialSiteId={initialSiteId}
-                hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents} />}
+            {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} periodTitle={period.title} sites={period.sites} initialSiteId={initialSiteId}
+                hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents}
+                canEditRaters={isRaterAdditionOpen(period)} />}
             <ConfirmationDialog isOpen={pendingAction !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"
                 onConfirm={leave} onCancel={() => setPendingAction(null)} />

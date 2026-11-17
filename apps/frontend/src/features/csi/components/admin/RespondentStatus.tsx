@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellRing } from 'lucide-react';
+import { BellRing, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -10,6 +10,8 @@ import { AdminSection } from './AdminParts';
 import { LiveStatusPill } from './LiveStatusPill';
 import { PendingByDepartment } from './hc/PendingByDepartment';
 import { PersonList } from './respondents/PersonList';
+import { exportRespondentsExcel } from './respondents/respondentExcel';
+import { RemovePeriodRaterDialog, type RemovePeriodRaterTarget } from './RemovePeriodRaterDialog';
 import { ResetResponseDialog, type ResetResponseTarget } from './ResetResponseDialog';
 import { RespondentHero, type SiteProgress } from './respondents/RespondentHero';
 import { overallProgress, personRows, progressOf, type PersonRow } from './respondents/respondentModel';
@@ -54,9 +56,11 @@ function useReminders(scope: CsiScopeParam, periodId: string) {
     return { reminded, rowId, remindOne, remindAll, allPending: send.isPending && rowId === null };
 }
 
-function StatusBody({ scope, data, rows, sites, targetPct, reminders, onResetResponse, basis, hcTarget, namesHidden }: {
-    scope: CsiScopeParam; data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
-    reminders: ReturnType<typeof useReminders>; onResetResponse: (target: ResetResponseTarget) => void;
+function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminders, onRemovePending, onResetResponse, basis, hcTarget, namesHidden }: {
+    scope: CsiScopeParam; periodTitle?: string; data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
+    reminders: ReturnType<typeof useReminders>;
+    onRemovePending?: (target: RemovePeriodRaterTarget) => void;
+    onResetResponse: (target: ResetResponseTarget) => void;
     basis: CsiSla | undefined;
     hcTarget?: boolean;
     /** HC: the statistic shows departments only until the admin asks for the names (follow-up). */
@@ -73,37 +77,59 @@ function StatusBody({ scope, data, rows, sites, targetPct, reminders, onResetRes
             )}
             {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
             {!(data.pendingByDepartment && namesHidden) && (
-                <PersonList scope={scope} rows={rows} sites={sites} canRemind={listed} reminded={reminders.reminded} remindingId={reminders.rowId}
-                    onRemind={reminders.remindOne} onResetResponse={onResetResponse} />
+                <PersonList scope={scope} periodTitle={periodTitle} rows={rows} sites={sites} canRemind={listed}
+                    reminded={reminders.reminded} remindingId={reminders.rowId} onRemind={reminders.remindOne}
+                    onRemovePending={onRemovePending} onResetResponse={onResetResponse} />
             )}
         </div>
     );
 }
 
-export function RespondentStatus({ scope, periodId, sites, hcTarget }: {
-    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[];
+export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget, canEditRaters = true }: {
+    scope: CsiScopeParam; periodId: string; periodTitle?: string; sites: readonly CsiSiteSummary[];
     /** Open HC survey with an HC target number of respondents (the participation basis). */
     hcTarget?: boolean;
+    /** False when the survey has ended or been cancelled (blocks removing pending raters). */
+    canEditRaters?: boolean;
 }) {
     const { data, isLoading, isError, refetch } = useCsiRespondents(scope, periodId);
     const { data: report } = useCsiReport(scope, periodId);
     const reminders = useReminders(scope, periodId);
     const [showNames, setShowNames] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [removeTarget, setRemoveTarget] = useState<RemovePeriodRaterTarget | null>(null);
     const [resetTarget, setResetTarget] = useState<ResetResponseTarget | null>(null);
     // Both scopes: who has not answered is summarised per department; names stay one click away for follow-up.
     const byDepartment = !!data?.pendingByDepartment;
     const listed = data?.mode === 'LISTED';
     const rows = data ? personRows(data) : [];
+    const namesHidden = byDepartment && !showNames;
     const pendingIds = rows.filter((row) => !row.done && row.userId && !reminders.reminded.has(row.userId)).map((row) => row.userId as string);
+    const handleExportAll = async () => {
+        if (!rows.length || exporting) return;
+        setExporting(true);
+        try {
+            await exportRespondentsExcel({ rows, sites, scope, periodTitle });
+        } catch {
+            toast.error('Gagal mengekspor daftar responden');
+        } finally {
+            setExporting(false);
+        }
+    };
     const remindAll = listed && pendingIds.length > 0 && (
         <Button variant="soft" onClick={() => reminders.remindAll(pendingIds)} loading={reminders.allPending}>
             {!reminders.allPending && <BellRing aria-hidden="true" />}Ingatkan semua yang belum
         </Button>
     );
+    const exportCollapsed = namesHidden && rows.length > 0 && (
+        <Button variant="soft" onClick={() => void handleExportAll()} loading={exporting}>
+            {!exporting && <Download aria-hidden="true" />}Ekspor Excel
+        </Button>
+    );
     const namesToggle = byDepartment && (
         <Button variant="soft" onClick={() => setShowNames((value) => !value)}>{showNames ? 'Sembunyikan nama' : 'Tampilkan nama'}</Button>
     );
-    const actions = <div className="flex flex-wrap items-center gap-2"><LiveStatusPill />{namesToggle}{remindAll}</div>;
+    const actions = <div className="flex flex-wrap items-center gap-2"><LiveStatusPill />{exportCollapsed}{namesToggle}{remindAll}</div>;
     return (
         <>
             <AdminSection title="Status responden" actions={actions}
@@ -111,10 +137,13 @@ export function RespondentStatus({ scope, periodId, sites, hcTarget }: {
                 {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat responden" />}
                 {isError && <ErrorState compact message="Gagal memuat status responden." onRetry={() => refetch()} />}
                 {data && (
-                    <StatusBody scope={scope} data={data} rows={rows} sites={sites} targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
-                        onResetResponse={setResetTarget} basis={report?.sla} hcTarget={hcTarget} namesHidden={byDepartment && !showNames} />
+                    <StatusBody scope={scope} periodTitle={periodTitle} data={data} rows={rows} sites={sites}
+                        targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
+                        onRemovePending={listed && canEditRaters ? setRemoveTarget : undefined}
+                        onResetResponse={setResetTarget} basis={report?.sla} hcTarget={hcTarget} namesHidden={namesHidden} />
                 )}
             </AdminSection>
+            <RemovePeriodRaterDialog scope={scope} periodId={periodId} target={removeTarget} onClose={() => setRemoveTarget(null)} />
             <ResetResponseDialog scope={scope} periodId={periodId} target={resetTarget} onClose={() => setResetTarget(null)} />
         </>
     );

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Bell, Check, Clock, RotateCcw, Search } from 'lucide-react';
+import { Bell, Check, Clock, Download, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
@@ -10,6 +11,7 @@ import type { CsiScopeParam, CsiSiteSummary } from '../../../types';
 import { MUTED_TEXT } from '../AdminParts';
 import { SiteBadge } from '../report/reportParts';
 import { RateeAvatar } from '../../respond/RateeAvatar';
+import { exportRespondentsExcel } from './respondentExcel';
 import { countByFilter, filterRows, matchesFilter, type PersonFilter, type PersonRow } from './respondentModel';
 
 const ALL_SITES = 'all';
@@ -18,6 +20,7 @@ const FILTER_LABELS: Readonly<Record<PersonFilter, string>> = { all: 'Semua', to
 
 export interface PersonListProps {
     scope?: CsiScopeParam;
+    periodTitle?: string;
     rows: readonly PersonRow[];
     sites: readonly CsiSiteSummary[];
     /** False in OPEN mode: there is no rater list to remind. */
@@ -25,6 +28,7 @@ export interface PersonListProps {
     reminded: ReadonlySet<string>;
     remindingId: string | null;
     onRemind: (userId: string) => void;
+    onRemovePending?: (target: { userId: string; name: string }) => void;
     onResetResponse?: (target: { responseId: string; name: string }) => void;
 }
 
@@ -35,8 +39,9 @@ function Status({ done }: { done: boolean }) {
         : <span className={cn(PILL, tone.soft, tone.ink)}><Clock className="h-3 w-3" aria-hidden="true" />Belum</span>;
 }
 
-function RowAction({ row, canRemind, reminded, busy, onRemind, onReset }: {
-    row: PersonRow; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void; onReset?: () => void;
+function RowAction({ row, canRemind, reminded, busy, onRemind, onRemove, onReset }: {
+    row: PersonRow; canRemind: boolean; reminded: boolean; busy: boolean;
+    onRemind: () => void; onRemove?: () => void; onReset?: () => void;
 }) {
     if (row.done) {
         return (
@@ -50,17 +55,30 @@ function RowAction({ row, canRemind, reminded, busy, onRemind, onReset }: {
             </span>
         );
     }
-    if (!canRemind || !row.userId) return null;
-    if (reminded) return <span className={cn(PILL, toneClasses('sky').soft, toneClasses('sky').ink)}>Pengingat terkirim</span>;
+    const showRemind = canRemind && !!row.userId;
+    if (!showRemind && !onRemove) return null;
     return (
-        <Button variant="soft" size="sm" onClick={onRemind} loading={busy} aria-label={`Ingatkan ${row.name}`}>
-            {!busy && <Bell aria-hidden="true" />}Ingatkan
-        </Button>
+        <span className="inline-flex items-center gap-1.5">
+            {showRemind && (reminded
+                ? <span className={cn(PILL, toneClasses('sky').soft, toneClasses('sky').ink)}>Pengingat terkirim</span>
+                : (
+                    <Button variant="soft" size="sm" onClick={onRemind} loading={busy} aria-label={`Ingatkan ${row.name}`}>
+                        {!busy && <Bell aria-hidden="true" />}Ingatkan
+                    </Button>
+                ))}
+            {onRemove && (
+                <Button variant="subtle" size="sm" onClick={onRemove} aria-label={`Hapus penilai ${row.name}`}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />Hapus
+                </Button>
+            )}
+        </span>
     );
 }
 
-function PersonItem({ row, siteCode, canRemind, reminded, busy, onRemind, onReset }: {
-    row: PersonRow; siteCode: string | null; canRemind: boolean; reminded: boolean; busy: boolean; onRemind: () => void; onReset?: () => void;
+function PersonItem({ row, siteCode, canRemind, reminded, busy, onRemind, onRemove, onReset }: {
+    row: PersonRow; siteCode: string | null; canRemind: boolean; reminded: boolean; busy: boolean;
+    onRemind: () => void; onRemove?: () => void; onReset?: () => void;
 }) {
     return (
         <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-2 py-2.5 sm:grid-cols-[minmax(0,1fr)_50px_130px_auto]">
@@ -73,16 +91,17 @@ function PersonItem({ row, siteCode, canRemind, reminded, busy, onRemind, onRese
             </span>
             <span className="hidden sm:block"><SiteBadge code={siteCode} /></span>
             <span className="hidden sm:block"><Status done={row.done} /></span>
-            <span className="justify-self-end"><RowAction row={row} canRemind={canRemind} reminded={reminded} busy={busy} onRemind={onRemind} onReset={onReset} /></span>
+            <span className="justify-self-end"><RowAction row={row} canRemind={canRemind} reminded={reminded} busy={busy} onRemind={onRemind} onRemove={onRemove} onReset={onReset} /></span>
         </li>
     );
 }
 
-/** Tabs Semua | Belum | Sudah (with counts), site filter, search; not-yet first; per-row reminder & anonymous reset. */
-export function PersonList({ scope, rows, sites, canRemind, reminded, remindingId, onRemind, onResetResponse }: PersonListProps) {
+/** Tabs Semua | Belum | Sudah (with counts), site filter, search, Excel export; not-yet first; per-row reminder, remove pending & reset. */
+export function PersonList({ scope, periodTitle, rows, sites, canRemind, reminded, remindingId, onRemind, onRemovePending, onResetResponse }: PersonListProps) {
     const [filter, setFilter] = useState<PersonFilter>('all');
     const [site, setSite] = useState<string>(ALL_SITES);
     const [search, setSearch] = useState('');
+    const [exporting, setExporting] = useState(false);
     const groups = mergedSiteGroups(scope ?? 'hc', sites);
     const selectedGroup = site === ALL_SITES ? null : groups.find((group) => group.id === site) ?? null;
     const base = filterRows(rows, { site: site === ALL_SITES ? null : site, siteIds: selectedGroup?.sourceSiteIds ?? null, search });
@@ -93,6 +112,19 @@ export function PersonList({ scope, rows, sites, canRemind, reminded, remindingI
         value: key, label: <>{FILTER_LABELS[key]} <b className="tabular-nums">{counts[key]}</b></>, ariaLabel: `${FILTER_LABELS[key]} ${counts[key]}`,
     }));
     const siteOptions = [{ value: ALL_SITES, label: 'Semua site' }, ...groups.map((group) => ({ value: group.id, label: group.tabLabel }))];
+    const handleExport = async () => {
+        if (!visible.length || exporting) return;
+        setExporting(true);
+        try {
+            const filterTag = filter === 'todo' ? 'belum' : filter === 'done' ? 'sudah' : '';
+            const suffix = [filterTag, selectedGroup?.tabLabel ?? ''].filter(Boolean).join('-') || undefined;
+            await exportRespondentsExcel({ rows: visible, sites, scope: scope ?? 'hc', periodTitle, suffix });
+        } catch {
+            toast.error('Gagal mengekspor daftar responden');
+        } finally {
+            setExporting(false);
+        }
+    };
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -103,6 +135,9 @@ export function PersonList({ scope, rows, sites, canRemind, reminded, remindingI
                     <input type="search" aria-label="Cari responden" placeholder="Cari nama atau departemen…" value={search}
                         onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none" />
                 </label>
+                <Button variant="soft" size="sm" onClick={() => void handleExport()} disabled={!visible.length || exporting} loading={exporting}>
+                    {!exporting && <Download aria-hidden="true" />}Ekspor Excel
+                </Button>
             </div>
             {visible.length ? (
                 <ul aria-label="Daftar responden" className="divide-y divide-[hsl(var(--idesk-border)/.5)]">
@@ -110,6 +145,9 @@ export function PersonList({ scope, rows, sites, canRemind, reminded, remindingI
                         <PersonItem key={row.key} row={row} siteCode={codeOf(row.siteId)} canRemind={canRemind}
                             reminded={!!row.userId && reminded.has(row.userId)} busy={!!row.userId && remindingId === row.userId}
                             onRemind={() => row.userId && onRemind(row.userId)}
+                            onRemove={!row.done && row.userId && onRemovePending
+                                ? () => onRemovePending({ userId: row.userId!, name: row.name })
+                                : undefined}
                             onReset={row.done && row.responseId && onResetResponse
                                 ? () => onResetResponse({ responseId: row.responseId!, name: row.name })
                                 : undefined} />

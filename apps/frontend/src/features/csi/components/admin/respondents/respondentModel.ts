@@ -9,6 +9,7 @@ export interface PersonRow {
     userId: string | null;
     name: string;
     detail: string;
+    department: string | null;
     siteId: string | null;
     done: boolean;
     responseId: string | null;
@@ -41,12 +42,12 @@ export function overallProgress(data: CsiRespondents, sla: CsiSla): Progress {
 export function personRows(data: CsiRespondents): PersonRow[] {
     const pending: PersonRow[] = (data.pending ?? []).map((person) => ({
         key: `u:${person.userId}`, userId: person.userId, name: person.fullName, detail: person.department ?? '',
-        siteId: person.siteId, done: false, responseId: null, submittedAt: null,
+        department: person.department ?? null, siteId: person.siteId, done: false, responseId: null, submittedAt: null,
     }));
     const submitted: PersonRow[] = data.submitted.map((item) => ({
         key: `r:${item.responseId}`, userId: item.userId, name: item.respondentName,
-        detail: `${item.departmentName} · Akun: ${item.accountName}`, siteId: item.siteId, done: true,
-        responseId: item.responseId, submittedAt: item.submittedAt,
+        detail: `${item.departmentName} · Akun: ${item.accountName}`, department: item.departmentName ?? null,
+        siteId: item.siteId, done: true, responseId: item.responseId, submittedAt: item.submittedAt,
     }));
     return [...pending, ...submitted];
 }

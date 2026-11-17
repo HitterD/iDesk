@@ -156,6 +156,17 @@ export function useUpdateCsiPeriodQuestions(scope: CsiScopeParam, id: string) {
 export function useSetCsiRaters(scope: CsiScopeParam, id: string) {
     return useCsiMutation((payload: CsiUserIds) => CsiApi.setRaters(scope, id, payload), () => memberKeys(scope, id));
 }
+export function useRemoveCsiPeriodRater(scope: CsiScopeParam, id: string) {
+    return useCsiMutation(
+        ({ userId, removeFromMaster }: { userId: string; removeFromMaster?: boolean }) =>
+            CsiApi.removePeriodRater(scope, id, userId, { removeFromMaster }),
+        ({ removeFromMaster }) => [
+            ...memberKeys(scope, id),
+            keys.dashboard(scope),
+            ...(removeFromMaster ? [keys.raters(scope)] : []),
+        ],
+    );
+}
 export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
     return useCsiMutation(({ periodRateeId, payload }: { periodRateeId: string; payload: UpdateCsiPeriodRatee }) =>
         CsiApi.updatePeriodRatee(scope, id, periodRateeId, payload), () => memberKeys(scope, id));

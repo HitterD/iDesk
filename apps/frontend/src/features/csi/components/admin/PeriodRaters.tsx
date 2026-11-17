@@ -22,12 +22,17 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
     const { data: master = [], isLoading } = useCsiRaters(scope);
     const save = useSetCsiRaters(scope, period.id);
     const saved = useMemo(() => period.raters.map((rater) => rater.userId), [period.raters]);
+    const answeredSet = useMemo(
+        () => new Set(period.raters.filter((rater) => rater.answered !== false).map((rater) => rater.userId)),
+        [period.raters],
+    );
     const savedSet = useMemo(() => new Set(saved), [saved]);
     const [selected, setSelected] = useServerDraft<string[]>(() => saved, ratersSignature(period));
     const [search, setSearch] = useState('');
     const [siteFilter, setSiteFilter] = useState<string>(FILTER_ALL);
     const addOnlyMode = period.locked && isRaterAdditionOpen(period);
     const fullyLocked = period.locked && !addOnlyMode;
+    const lockedSet = useMemo(() => (addOnlyMode ? answeredSet : new Set<string>()), [addOnlyMode, answeredSet]);
     const dirty = !sameIds(selected, saved);
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
@@ -70,10 +75,10 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
     const visibleIds = visible.map((row) => row.rater.userId);
     const selectedSet = new Set(selected);
     const inPeriodIds = rows.filter((row) => row.inPeriod).map((row) => row.rater.userId);
-    const selectableVisibleIds = addOnlyMode ? visibleIds.filter((id) => !savedSet.has(id)) : visibleIds;
+    const selectableVisibleIds = addOnlyMode ? visibleIds.filter((id) => !lockedSet.has(id)) : visibleIds;
     const visibleChecked = visibleIds.length > 0 && visibleIds.every((id) => selectedSet.has(id));
     const toggle = (id: string, on: boolean) => {
-        if (addOnlyMode && savedSet.has(id) && !on) return;
+        if (addOnlyMode && lockedSet.has(id) && !on) return;
         setSelected((current) => (on ? (current.includes(id) ? current : [...current, id]) : current.filter((item) => item !== id)));
     };
     const toggleVisible = (on: boolean) => setSelected((current) => {
@@ -105,7 +110,7 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                                     aria-label="Cari penilai" className="h-9 rounded-xl pl-9" />
                             </div>
                             {!fullyLocked && countBySite.outside > 0 && inPeriodIds.length > 0 && (
-                                <Button type="button" size="sm" variant="subtle" onClick={() => setSelected(addOnlyMode ? [...new Set([...saved, ...inPeriodIds])] : inPeriodIds)}>
+                                <Button type="button" size="sm" variant="subtle" onClick={() => setSelected(addOnlyMode ? [...new Set([...lockedSet, ...inPeriodIds])] : inPeriodIds)}>
                                     {`Pilih sesuai site survei (${inPeriodIds.length})`}
                                 </Button>
                             )}
@@ -144,7 +149,8 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                             {visible.length ? visible.map(({ rater, siteId, inPeriod, handlerCode }) => {
                                 const id = `rater-${rater.userId}`;
                                 const outsideSite = !inPeriod && period.sites.length > 0 && Boolean(rater.user.site?.code || siteId);
-                                const rowLocked = fullyLocked || (addOnlyMode && savedSet.has(rater.userId));
+                                const rowAnswered = addOnlyMode && lockedSet.has(rater.userId);
+                                const rowLocked = fullyLocked || rowAnswered;
                                 return (
                                     <li key={rater.id} className="flex items-center gap-2.5 px-4 py-2.5">
                                         <Checkbox id={id} checked={selectedSet.has(rater.userId)} disabled={rowLocked}
@@ -154,7 +160,7 @@ export function PeriodRaters({ scope, period, onDirtyChange }: {
                                                 <span>{rater.user.fullName}</span>
                                                 {addOnlyMode && savedSet.has(rater.userId) && (
                                                     <span className={cn('rounded-full px-2 py-px text-[11px] font-semibold', toneClasses('neutral').soft, MUTED_TEXT)}>
-                                                        Terdaftar
+                                                        {rowAnswered ? 'Sudah mengisi' : 'Terdaftar'}
                                                     </span>
                                                 )}
                                                 {handlerCode && (
