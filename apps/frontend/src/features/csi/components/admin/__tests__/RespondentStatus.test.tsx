@@ -9,15 +9,19 @@ const fx = vi.hoisted(() => ({
     respondents: null as unknown as CsiRespondents,
     report: null as unknown as CsiReport,
     mutate: vi.fn(),
+    removeMutate: vi.fn(),
     resetMutate: vi.fn(),
+    exportExcel: vi.fn(async () => 'responden.xlsx'),
     toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../../../hooks/useCsi', () => ({
     useCsiRespondents: () => ({ data: fx.respondents, isLoading: false, isError: false, refetch: vi.fn() }),
     useCsiReport: () => ({ data: fx.report }),
     useSendCsiReminders: () => ({ mutate: fx.mutate, isPending: false }),
+    useRemoveCsiPeriodRater: () => ({ mutate: fx.removeMutate, isPending: false }),
     useResetCsiResponse: () => ({ mutate: fx.resetMutate, isPending: false }),
 }));
+vi.mock('../respondents/respondentExcel', () => ({ exportRespondentsExcel: fx.exportExcel }));
 vi.mock('sonner', () => ({ toast: fx.toast }));
 
 const LISTED: CsiRespondents = {
@@ -160,5 +164,59 @@ describe('RespondentStatus', () => {
         expect(names()).toEqual(['Dina', 'Rina']);
         const list = screen.getByRole('list', { name: 'Daftar responden' });
         expect(within(list).getByText('SKD')).toBeInTheDocument();
+    });
+
+    it('exports currently filtered respondent rows to Excel and exports all when summary is collapsed', async () => {
+        const user = userEvent.setup();
+        render(<RespondentStatus scope="ict" periodId="p1" periodTitle="Survei CSI - ICT" sites={PERIOD.sites} />);
+
+        await user.click(screen.getByRole('button', { name: 'Belum 2' }));
+        await user.click(within(screen.getByRole('group', { name: 'Filter site responden' })).getByRole('button', { name: 'KRW' }));
+        await user.click(screen.getByRole('button', { name: 'Ekspor Excel' }));
+
+        expect(fx.exportExcel).toHaveBeenCalledTimes(1);
+        expect(fx.exportExcel).toHaveBeenCalledWith(expect.objectContaining({
+            scope: 'ict',
+            periodTitle: 'Survei CSI - ICT',
+            suffix: 'belum-KRW',
+            rows: [expect.objectContaining({ name: 'Citra', done: false, department: 'HRGA' })],
+        }));
+
+        cleanup();
+        fx.exportExcel.mockClear();
+        fx.respondents = { ...LISTED, pendingByDepartment: [{ department: 'GUDANG', pending: 1, total: 1 }] };
+        render(<RespondentStatus scope="ict" periodId="p1" periodTitle="Survei CSI - ICT" sites={PERIOD.sites} />);
+        await user.click(screen.getByRole('button', { name: 'Ekspor Excel' }));
+        expect(fx.exportExcel).toHaveBeenCalledWith(expect.objectContaining({
+            rows: expect.arrayContaining([
+                expect.objectContaining({ name: 'Andi', done: false }),
+                expect.objectContaining({ name: 'Rina', done: true, department: 'Finance' }),
+            ]),
+        }));
+    });
+
+    it('removes a pending rater after confirmation (with optional master deletion) and hides remove when ended or OPEN', async () => {
+        const user = userEvent.setup();
+        fx.removeMutate.mockImplementation((_vars, opts) => opts?.onSuccess?.());
+        renderStatus();
+
+        // Only pending rows get the remove action; submitted rows keep Reset only.
+        expect(screen.queryByRole('button', { name: 'Hapus penilai Rina' })).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Hapus penilai Andi' }));
+        const dialog = await screen.findByRole('alertdialog');
+        await user.click(within(dialog).getByRole('checkbox', { name: /Sekalian hapus dari Daftar penilai/ }));
+        await user.click(within(dialog).getByRole('button', { name: 'Hapus penilai' }));
+
+        expect(fx.removeMutate).toHaveBeenCalledWith({ userId: 'u1', removeFromMaster: true }, expect.anything());
+        expect(fx.toast.success).toHaveBeenCalledWith('Andi dihapus dari survei dan Daftar penilai');
+
+        cleanup();
+        render(<RespondentStatus scope="ict" periodId="p1" sites={PERIOD.sites} canEditRaters={false} />);
+        expect(screen.queryByRole('button', { name: /Hapus penilai/ })).not.toBeInTheDocument();
+
+        cleanup();
+        fx.respondents = OPEN;
+        renderStatus();
+        expect(screen.queryByRole('button', { name: /Hapus penilai/ })).not.toBeInTheDocument();
     });
 });

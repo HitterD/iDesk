@@ -7,6 +7,8 @@ import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
+import { CsiRater } from '../entities/csi-rater.entity';
+import { CsiResponseDraft } from '../entities/csi-response-draft.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiPeriodService, computeReadiness, computeStatus } from './csi-period.service';
 
@@ -695,30 +697,54 @@ describe('CsiPeriodService', () => {
             await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: [] }])).rejects.toBeInstanceOf(BadRequestException);
         });
 
-        it('setRatees throws 409 when locked, while setRaters allows additions on active surveys and blocks removals or ended surveys', async () => {
-            responses.rows.push({ id: 'resp', periodId: 'p1' });
+        it('setRatees throws 409 when locked, while setRaters allows removing unanswered raters and blocks answered raters or ended surveys', async () => {
+            responses.rows.push({ id: 'resp', periodId: 'p1', respondentId: 'u1' });
             await expect(service.setRatees(ICT, 'p1', [{ userId: 'u1', dimensionIds: ['d1'] }])).rejects.toThrow(new ConflictException('Periode sudah memiliki jawaban'));
             // p1 in basePeriod ended in 2026-09-30 -> still locked.
             await expect(service.setRaters(ICT, 'p1', ['u2'])).rejects.toBeInstanceOf(ConflictException);
             await expect(service.remove(ICT, 'p1')).rejects.toBeInstanceOf(ConflictException);
             expect(periods.delete).not.toHaveBeenCalled();
 
-            // Active survey with answers: adding a new rater succeeds; removing an existing one throws 409.
+            // Active survey with answers: adding new raters and removing unanswered raters succeed; removing answered raters throws 409.
             periods.rows[0] = basePeriod({ startDate: '2026-11-01', endDate: '2099-12-31' });
-            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
-            await expect(service.setRaters(ICT, 'p1', ['u2'])).rejects.toThrow(new ConflictException('Penilai yang sudah terdaftar tidak dapat dihapus setelah ada jawaban'));
+            users.rows.push({ id: 'u-pending', fullName: 'Pending', jobTitle: 'Staff', siteId: 'site-a', isActive: true });
+            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' }, { id: 'pr-u3', periodId: 'p1', userId: 'u-pending' });
+            await expect(service.setRaters(ICT, 'p1', ['u2', 'u-pending'])).rejects.toThrow(new ConflictException('Penilai yang sudah mengisi tidak dapat dihapus dari survei'));
 
-            manager.repositories.get(CsiPeriodRater); // same manager repositories
             await service.setRaters(ICT, 'p1', ['u1', 'u2']);
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRater, { id: In(['pr-u3']) });
+            expect(manager.delete).toHaveBeenCalledWith(CsiResponseDraft, { periodId: 'p1', respondentId: In(['u-pending']) });
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value).toEqual([expect.objectContaining({ periodId: 'p1', userId: 'u2' })]);
+
+            const detail = await service.get(ICT, 'p1');
+            expect(detail.raters.find((row: any) => row.userId === 'u1')?.answered).toBe(true);
+            expect(detail.raters.find((row: any) => row.userId === 'u-pending')?.answered).toBe(false);
+        });
+
+        it('removeRater removes an unanswered rater (with optional master deletion) and blocks answered raters', async () => {
+            periods.rows[0] = basePeriod({ startDate: '2026-11-01', endDate: '2099-12-31' });
+            periodRaters.rows.push(
+                { id: 'pr-answered', periodId: 'p1', userId: 'u1' },
+                { id: 'pr-dummy', periodId: 'p1', userId: 'u-dummy' },
+            );
+            responses.rows.push({ id: 'resp-1', periodId: 'p1', respondentId: 'u1' });
+
+            await expect(service.removeRater(ICT, 'p1', 'missing-user')).rejects.toBeInstanceOf(NotFoundException);
+            await expect(service.removeRater(ICT, 'p1', 'u1')).rejects.toThrow(new ConflictException('Penilai yang sudah mengisi tidak dapat dihapus dari survei'));
+
+            const result = await service.removeRater(ICT, 'p1', 'u-dummy', { removeFromMaster: true });
+            expect(result).toEqual({ removed: true, removedFromMaster: true });
+            expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRater, { id: 'pr-dummy', periodId: 'p1' });
+            expect(manager.delete).toHaveBeenCalledWith(CsiResponseDraft, { periodId: 'p1', respondentId: 'u-dummy' });
+            expect(manager.delete).toHaveBeenCalledWith(CsiRater, { scope: ICT, userId: 'u-dummy' });
         });
 
         it('setRaters diffs by userId (keeps, removes, adds) and rejects inactive users', async () => {
             periodRaters.rows.push({ id: 'pr-u2', periodId: 'p1', userId: 'u2' }, { id: 'pr-gone', periodId: 'p1', userId: 'u-gone' });
             await expect(service.setRaters(ICT, 'p1', ['u-off'])).rejects.toBeInstanceOf(BadRequestException);
             await service.setRaters(ICT, 'p1', ['u1', 'u2', 'u1']);
-            expect(manager.delete).toHaveBeenCalledTimes(1);
             expect(manager.delete).toHaveBeenCalledWith(CsiPeriodRater, { id: In(['pr-gone']) });
+            expect(manager.delete).toHaveBeenCalledWith(CsiResponseDraft, { periodId: 'p1', respondentId: In(['u-gone']) });
             expect(manager.saved.find((entry) => entry.target === CsiPeriodRater)!.value).toEqual([expect.objectContaining({ periodId: 'p1', userId: 'u1' })]);
         });
 

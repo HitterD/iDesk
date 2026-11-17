@@ -83,7 +83,7 @@ export const CSI_SCORE_MIN = 1;
 export const CSI_SCORE_MAX = 5;
 
 export const CSI_LOCKED_NOTE = 'Terkunci karena sudah ada jawaban';
-export const CSI_ADD_RATERS_LOCKED_NOTE = 'Sudah ada jawaban · hanya bisa tambah penilai baru';
+export const CSI_ADD_RATERS_LOCKED_NOTE = 'Sudah ada jawaban · penilai yang sudah mengisi terkunci';
 export const CSI_ASSIGNMENT_PARTIAL_LOCK_NOTE = 'Sudah ada jawaban · baris penilai yang sudah mengisi terkunci';
 export const CSI_HC_ADD_RATERS_NOTE = 'Sudah ada jawaban · tambah & ubah penilai belum mengisi tersedia di "Cari nama"';
 export const CSI_SEARCH_DEBOUNCE_MS = 300;

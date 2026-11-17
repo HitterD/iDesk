@@ -41,6 +41,7 @@ vi.mock('../../../hooks/useCsi', () => ({
     useCsiDimensions: () => ({ data: [], isLoading: false, isError: false }),
     useUpdateCsiPeriodQuestions: () => ({ mutate: vi.fn(), isPending: false }),
     useSendCsiReminders: () => ({ mutate: vi.fn(), isPending: false }),
+    useRemoveCsiPeriodRater: () => ({ mutate: vi.fn(), isPending: false }),
     useResetCsiResponse: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock('sonner', () => ({ toast: fx.toast }));

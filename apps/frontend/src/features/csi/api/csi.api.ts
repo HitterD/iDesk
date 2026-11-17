@@ -3,7 +3,7 @@ import type { SignoffLayout } from '@/features/reports/signoff';
 import type {
     ConfirmCsiPeriodAction, CsiPairMode,
     CsiActivePeriod, CsiAssignments, CsiDashboard, CsiDepartment, CsiDimension, CsiForm, CsiPeriod, CsiPeriodDetail,
-    CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
+    CsiPeriodListItem, CsiRater, CsiReminderResult, CsiRemovePeriodRaterResult, CsiRemovedRater, CsiReport, CsiResetResult, CsiRespondents,
     CsiPeriodOverlap, CsiQuestionSet, CsiRaterDepartmentOption, CsiRaterGroupFilter, CsiRaterGroupPreview, CsiRaterImportResult, CsiScopeParam, CsiSubjectGroup, SaveCsiQuestionSet, CsiSubjectView, CsiSubmitResult, CsiTicketRaterFilter, CsiTicketRaterPreview, CsiUserIds, CsiUserSearchResult,
     CreateCsiDepartment, CreateCsiDimension, CreateCsiPeriod, CreateCsiTeam, CreateCsiCustomTeam, UpdateCsiCustomTeam, CsiTeamMemberInput, CsiTeamDeleteImpact, CsiMemoHeader, CsiMemoRequest, CsiReorder,
     ResetCsiResponse, SendCsiReminders, SetCsiAssignments, SetCsiRatees, SetCsiTeamQuestions, SubmitCsiResponse,
@@ -157,6 +157,17 @@ export const CsiApi = {
     },
     async setRaters(scope: CsiScopeParam, id: string, payload: CsiUserIds): Promise<CsiPeriodDetail> {
         return (await api.put<CsiPeriodDetail>(`${periodPath(scope, id)}/raters`, payload)).data;
+    },
+    async removePeriodRater(
+        scope: CsiScopeParam,
+        id: string,
+        userId: string,
+        options: { removeFromMaster?: boolean } = {},
+    ): Promise<CsiRemovePeriodRaterResult> {
+        return (await api.delete<CsiRemovePeriodRaterResult>(
+            `${periodPath(scope, id)}/raters/${encodeURIComponent(userId)}`,
+            options.removeFromMaster ? { params: { removeFromMaster: true } } : undefined,
+        )).data;
     },
     async updatePeriodRatee(scope: CsiScopeParam, id: string, periodRateeId: string, payload: UpdateCsiPeriodRatee): Promise<CsiPeriodDetail> {
         return (await api.patch<CsiPeriodDetail>(`${periodPath(scope, id)}/ratees/${encodeURIComponent(periodRateeId)}`, payload)).data;
