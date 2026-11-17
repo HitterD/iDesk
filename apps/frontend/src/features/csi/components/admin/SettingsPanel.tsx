@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { EditOnly } from '../../lib/CsiReadOnly';
 import { Check, CircleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCsiDepartments, useCsiDimensions, useCsiRaters, useCsiSubjects } from '../../hooks/useCsi';
@@ -138,7 +139,7 @@ export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initia
                         </div>
                     </header>
                 )}
-                <Body scope={scope} section={activeSection} onSection={setSection} templateFocus={templateFocus} onFix={openTemplate} />
+                <EditOnly><Body scope={scope} section={activeSection} onSection={setSection} templateFocus={templateFocus} onFix={openTemplate} /></EditOnly>
             </div>
         </div>
     );

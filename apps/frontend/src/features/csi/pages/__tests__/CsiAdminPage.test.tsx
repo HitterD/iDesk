@@ -189,7 +189,7 @@ describe('CsiAdminPage', () => {
         renderAt('/csi/admin/ict');
         expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
         expect(screen.getByText(/Hanya lihat/)).toBeInTheDocument();
-        expect(screen.getByRole('group', { name: 'Tampilan hanya lihat' })).toBeDisabled();
+        expect(screen.queryByRole('group', { name: 'Tampilan hanya lihat' })).not.toBeInTheDocument();
     });
 
     it('MANAGER tanpa kunci tidak pernah mendapat HC: /csi/admin/hc dialihkan ke ICT', () => {

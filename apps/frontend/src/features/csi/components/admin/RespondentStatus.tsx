@@ -12,6 +12,7 @@ import { PendingByDepartment } from './hc/PendingByDepartment';
 import { PersonList } from './respondents/PersonList';
 import { exportRespondentsExcel } from './respondents/respondentExcel';
 import { RemovePeriodRaterDialog, type RemovePeriodRaterTarget } from './RemovePeriodRaterDialog';
+import { useCsiReadOnly } from '../../lib/CsiReadOnly';
 import { ResetResponseDialog, type ResetResponseTarget } from './ResetResponseDialog';
 import { RespondentHero, type SiteProgress } from './respondents/RespondentHero';
 import { overallProgress, personRows, progressOf, type PersonRow } from './respondents/respondentModel';
@@ -56,11 +57,12 @@ function useReminders(scope: CsiScopeParam, periodId: string) {
     return { reminded, rowId, remindOne, remindAll, allPending: send.isPending && rowId === null };
 }
 
-function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminders, onRemovePending, onResetResponse, basis, hcTarget, namesHidden }: {
+function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminders, onRemovePending, onResetResponse, basis, hcTarget, namesHidden, readOnly }: {
     scope: CsiScopeParam; periodTitle?: string; data: CsiRespondents; rows: PersonRow[]; sites: readonly CsiSiteSummary[]; targetPct: number;
     reminders: ReturnType<typeof useReminders>;
     onRemovePending?: (target: RemovePeriodRaterTarget) => void;
-    onResetResponse: (target: ResetResponseTarget) => void;
+    onResetResponse?: (target: ResetResponseTarget) => void;
+    readOnly: boolean;
     basis: CsiSla | undefined;
     hcTarget?: boolean;
     /** HC: the statistic shows departments only until the admin asks for the names (follow-up). */
@@ -77,7 +79,7 @@ function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminder
             )}
             {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
             {!(data.pendingByDepartment && namesHidden) && (
-                <PersonList scope={scope} periodTitle={periodTitle} rows={rows} sites={sites} canRemind={listed}
+                <PersonList scope={scope} periodTitle={periodTitle} rows={rows} sites={sites} canRemind={listed && !readOnly}
                     reminded={reminders.reminded} remindingId={reminders.rowId} onRemind={reminders.remindOne}
                     onRemovePending={onRemovePending} onResetResponse={onResetResponse} />
             )}
@@ -95,6 +97,7 @@ export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget
     const { data, isLoading, isError, refetch } = useCsiRespondents(scope, periodId);
     const { data: report } = useCsiReport(scope, periodId);
     const reminders = useReminders(scope, periodId);
+    const readOnly = useCsiReadOnly();
     const [showNames, setShowNames] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [removeTarget, setRemoveTarget] = useState<RemovePeriodRaterTarget | null>(null);
@@ -116,7 +119,7 @@ export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget
             setExporting(false);
         }
     };
-    const remindAll = listed && pendingIds.length > 0 && (
+    const remindAll = !readOnly && listed && pendingIds.length > 0 && (
         <Button variant="soft" onClick={() => reminders.remindAll(pendingIds)} loading={reminders.allPending}>
             {!reminders.allPending && <BellRing aria-hidden="true" />}Ingatkan semua yang belum
         </Button>
@@ -139,8 +142,8 @@ export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget
                 {data && (
                     <StatusBody scope={scope} periodTitle={periodTitle} data={data} rows={rows} sites={sites}
                         targetPct={report?.sla.targetPct ?? 0} reminders={reminders}
-                        onRemovePending={listed && canEditRaters ? setRemoveTarget : undefined}
-                        onResetResponse={setResetTarget} basis={report?.sla} hcTarget={hcTarget} namesHidden={namesHidden} />
+                        onRemovePending={listed && canEditRaters && !readOnly ? setRemoveTarget : undefined}
+                        onResetResponse={readOnly ? undefined : setResetTarget} readOnly={readOnly} basis={report?.sla} hcTarget={hcTarget} namesHidden={namesHidden} />
                 )}
             </AdminSection>
             <RemovePeriodRaterDialog scope={scope} periodId={periodId} target={removeTarget} onClose={() => setRemoveTarget(null)} />
