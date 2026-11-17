@@ -160,7 +160,7 @@ describe('BentoSidebar', () => {
         expect(screen.queryByRole('link', { name: 'Report CSI' })).not.toBeInTheDocument();
     });
 
-    it('ADMIN always sees Admin CSI HC (Human Capital group); Admin CSI ICT still needs its key', () => {
+    it('ADMIN sees Admin CSI HC and ICT (ICT read-only without its key)', () => {
         pageAccess.current = { ...pageAccess.defaults, csi_admin_ict: true };
         const { unmount } = renderSidebar('/dashboard');
         expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/csi/admin/ict');
@@ -170,7 +170,15 @@ describe('BentoSidebar', () => {
         pageAccess.current = { ...pageAccess.defaults };
         renderSidebar('/dashboard');
         expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: 'Admin CSI ICT' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toBeInTheDocument();
+    });
+
+    it('MANAGER without any CSI key still sees both Admin CSI entries (read-only)', () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manager', role: 'MANAGER' };
+        pageAccess.current = { ...pageAccess.defaults };
+        renderSidebar('/manager/dashboard');
+        expect(screen.getByRole('link', { name: 'Admin CSI HC' })).toHaveAttribute('href', '/manager/csi/admin/hc');
+        expect(screen.getByRole('link', { name: 'Admin CSI ICT' })).toHaveAttribute('href', '/manager/csi/admin/ict');
     });
 
     it('HC_ADMIN sees only the Human Capital group (no tickets, management or administration)', () => {

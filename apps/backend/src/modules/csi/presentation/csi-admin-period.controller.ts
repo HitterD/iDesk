@@ -6,9 +6,10 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { ConfirmPeriodActionDto, CreatePeriodDto, PeriodListQueryDto, PeriodOverlapQueryDto, SetPairModeDto, SetPeriodRatersDto, SetRateesDto, SetPeriodPicsDto, SetTeamQuestionsDto, UpdatePeriodDto, UpdatePeriodQuestionsDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { redactRaters } from '../guards/csi-read-only.util';
 import { CsiPeriodService } from '../services/csi-period.service';
 
-type CsiAdminRequest = Request & { csiScope: ServiceScope; user: { userId: string } };
+type CsiAdminRequest = Request & { csiScope: ServiceScope; csiReadOnly?: boolean; user: { userId: string } };
 const PERIOD_ENTITY = 'csi_period';
 const CSI_ID_PIPE = new ParseUUIDPipe({
     exceptionFactory: () => new BadRequestException('ID harus berupa UUID'),
@@ -36,8 +37,9 @@ export class CsiAdminPeriodController {
     }
 
     @Get(':id')
-    get(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
-        return this.periods.get(req.csiScope, id);
+    async get(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        const period = await this.periods.get(req.csiScope, id);
+        return req.csiReadOnly ? { ...period, raters: redactRaters(period.raters) } : period;
     }
 
     @Patch(':id')

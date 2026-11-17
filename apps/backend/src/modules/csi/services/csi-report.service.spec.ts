@@ -651,4 +651,21 @@ describe('CsiReportService', () => {
             expect(allReport.ratees.map((r) => r.displayName)).toEqual(['Budi', 'Sari', 'Kusmanto']);
         });
     });
+
+    describe('legacyIctServices', () => {
+        it('derives the layanan of ICT ratees without one from the rated account role, nothing else', async () => {
+            const find = jest.fn(async () => [{ id: 'u-agent', role: 'AGENT_ORACLE' }, { id: 'u-user', role: 'USER' }]);
+            dataSource.getRepository.mockReturnValueOnce({ find });
+            const map = await service.legacyIctServices([
+                { id: 'r-a', userId: 'u-agent', serviceCode: null }, { id: 'r-u', userId: 'u-user', serviceCode: null },
+                { id: 'r-kept', userId: 'u-agent', serviceCode: 'WEB' }, { id: 'r-team', userId: null, serviceCode: null },
+            ]);
+            expect([...map]).toEqual([['r-a', 'ORACLE']]);
+        });
+
+        it('does not query when every ratee already has a layanan', async () => {
+            expect((await service.legacyIctServices([{ id: 'r', userId: 'u', serviceCode: 'OPS' }])).size).toBe(0);
+            expect(dataSource.getRepository).not.toHaveBeenCalledWith(User);
+        });
+    });
 });

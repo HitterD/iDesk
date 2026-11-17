@@ -9,7 +9,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { MasterListQueryDto } from '../dto/master.dto';
 import { PicAccountSuggestionsQueryDto, UpdatePicDto } from '../dto/pic.dto';
-import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { CsiAdminGuard, CsiWriterOnly } from '../guards/csi-admin.guard';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiUnitRulesService } from '../org/csi-unit-rules.service';
 import { SetRaterPicsDto, SetUnitRulesDto } from '../dto/unit-rules.dto';
@@ -47,6 +47,7 @@ export class CsiAdminOrgController {
         private readonly rename: CsiPicRenameService, @Optional() @InjectDataSource() private readonly dataSource?: DataSource) { }
 
     /** "Siapa menilai siapa" as Excel (one row per rater → PIC). */
+    @CsiWriterOnly()
     @Get('periods/:periodId/pairs.xlsx')
     async exportPairs(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @Res() res: Response) {
         const { filename, buffer } = await this.pairsExcel.exportWorkbook(hc(req), periodId);
@@ -75,6 +76,7 @@ export class CsiAdminOrgController {
         return this.rules.preview(hc(req), periodId, dto.rules);
     }
 
+    @CsiWriterOnly()
     @Get('periods/:periodId/raters')
     raterList(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string) {
         return this.rules.raterList(hc(req), periodId);
@@ -109,6 +111,7 @@ export class CsiAdminOrgController {
         return this.org.listPics(hc(req), query.includeInactive);
     }
 
+    @CsiWriterOnly()
     @Get('pics/account-suggestions')
     picAccountSuggestions(@Req() req: CsiAdminRequest, @Query() query: PicAccountSuggestionsQueryDto) {
         hc(req);

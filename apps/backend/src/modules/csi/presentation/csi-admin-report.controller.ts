@@ -5,11 +5,12 @@ import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { ReportExportQueryDto, ReportQueryDto, ResetResponseDto, SaveSignoffDto, SendRemindersDto } from '../dto/report.dto';
 import { ReportSignoffService } from '../../reports/services/report-signoff.service';
 import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { redactRespondents } from '../guards/csi-read-only.util';
 import { csiSignoffType, CsiExportService } from '../services/csi-export.service';
 import { CsiReminderService } from '../services/csi-reminder.service';
 import { CsiReportService } from '../services/csi-report.service';
 
-type CsiAdminRequest = Request & { csiScope: ServiceScope; user: { userId: string } };
+type CsiAdminRequest = Request & { csiScope: ServiceScope; csiReadOnly?: boolean; user: { userId: string } };
 const CSI_ID_PIPE = new ParseUUIDPipe({
     exceptionFactory: () => new BadRequestException('ID harus berupa UUID'),
 });
@@ -42,8 +43,9 @@ export class CsiAdminReportController {
     }
 
     @Get('respondents')
-    respondents(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
-        return this.reports.getRespondents(req.csiScope, id);
+    async respondents(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
+        const result = await this.reports.getRespondents(req.csiScope, id);
+        return req.csiReadOnly ? redactRespondents(result) : result;
     }
 
     @Delete('responses/:responseId')

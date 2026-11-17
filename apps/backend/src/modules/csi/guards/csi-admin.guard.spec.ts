@@ -7,7 +7,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { PermissionPreset } from '../../permissions/entities/permission-preset.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { CsiAdminGuard } from './csi-admin.guard';
+import { CsiAdminGuard, CsiWriterOnly } from './csi-admin.guard';
 
 const USER_ID = 'user-1';
 const PRESET_ID = 'preset-1';
@@ -16,6 +16,7 @@ type CachedAccess = { user: User; pageAccess: PageAccess } | null;
 describe('CsiAdminGuard', () => {
     const userRepo = { findOne: jest.fn() };
     const presetRepo = { findOne: jest.fn() };
+    const ownerRepo = { count: jest.fn() };
     const entries = new Map<string, CachedAccess>();
     const cache = {
         getOrSet: jest.fn(async (key: string, factory: () => Promise<CachedAccess>) => {
@@ -35,12 +36,14 @@ describe('CsiAdminGuard', () => {
             presetRepo as unknown as Repository<PermissionPreset>,
             cache as unknown as CacheService,
             new ConfigService({ PAGE_ACCESS_CACHE_TTL: '123' }),
+            ownerRepo as never,
         );
+        ownerRepo.count.mockResolvedValue(0);
     });
 
-    function context(scope: string, user: { userId?: string; role?: UserRole } = { userId: USER_ID }) {
-        const request = { params: { scope }, user, csiScope: undefined as ServiceScope | undefined };
-        const executionContext = { switchToHttp: () => ({ getRequest: () => request }) } as ExecutionContext;
+    function context(scope: string, user: { userId?: string; role?: UserRole } = { userId: USER_ID }, method = 'GET', handler: () => void = () => undefined) {
+        const request = { params: { scope }, user, method, csiScope: undefined as ServiceScope | undefined, csiReadOnly: undefined as boolean | undefined };
+        const executionContext = { switchToHttp: () => ({ getRequest: () => request }), getHandler: () => handler } as unknown as ExecutionContext;
         return { request, executionContext };
     }
 
@@ -68,9 +71,56 @@ describe('CsiAdminGuard', () => {
         await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('MANAGER still needs the explicit hc key', async () => {
+    it('MANAGER without the key reads (GET) in read-only mode, in both scopes', async () => {
         withPreset(UserRole.MANAGER, {});
-        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        for (const scope of ['hc', 'ict']) {
+            const { request, executionContext } = context(scope);
+            await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+            expect(request.csiReadOnly).toBe(true);
+        }
+    });
+
+    it('MANAGER with the key writes normally (not read-only)', async () => {
+        withPreset(UserRole.MANAGER, { csi_admin_ict: true });
+        const { request, executionContext } = context('ict', { userId: USER_ID }, 'DELETE');
+        await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+        expect(request.csiReadOnly).toBe(false);
+    });
+
+    it.each(['POST', 'PUT', 'PATCH', 'DELETE'])('read-only viewer is refused %s', async (method) => {
+        withPreset(UserRole.MANAGER, {});
+        await expect(guard.canActivate(context('hc', { userId: USER_ID }, method).executionContext)).rejects.toThrow('Hanya lihat');
+    });
+
+    it('read-only viewer is refused on a @CsiWriterOnly GET (rater names / raw data)', async () => {
+        withPreset(UserRole.MANAGER, {});
+        class Probe { @CsiWriterOnly() sensitive() { return 1; } }
+        const handler = Probe.prototype.sensitive;
+        await expect(guard.canActivate(context('hc', { userId: USER_ID }, 'GET', handler).executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('a @CsiWriterOnly GET still works for a writer', async () => {
+        class Probe { @CsiWriterOnly() sensitive() { return 1; } }
+        await expect(guard.canActivate(context('hc', { userId: USER_ID }, 'GET', Probe.prototype.sensitive).executionContext)).resolves.toBe(true);
+    });
+
+    it('a service report owner of any role reads the scope read-only', async () => {
+        withPreset(UserRole.USER, {});
+        ownerRepo.count.mockResolvedValue(1);
+        const { request, executionContext } = context('ict');
+        await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+        expect(request.csiReadOnly).toBe(true);
+        expect(ownerRepo.count).toHaveBeenCalledWith({ where: { scope: ServiceScope.ICT, userId: USER_ID } });
+    });
+
+    it('a non-owner USER stays denied', async () => {
+        withPreset(UserRole.USER, {});
+        await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('HC_ADMIN never reads ICT through the role (only as an owner)', async () => {
+        withPreset(UserRole.HC_ADMIN, {});
+        await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('allows ADMIN default for ict', async () => {
@@ -79,7 +129,7 @@ describe('CsiAdminGuard', () => {
         expect(request.csiScope).toBe(ServiceScope.ICT);
     });
 
-    it.each([UserRole.USER, UserRole.AGENT])('denies %s with csi_admin_ict in preset', async (role) => {
+    it.each([UserRole.USER, UserRole.AGENT])('denies %s with csi_admin_ict in preset (not an owner)', async (role) => {
         withPreset(role, { csi_admin_ict: true });
         await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -106,13 +156,13 @@ describe('CsiAdminGuard', () => {
     it.each([{}, { csi_admin_ict: false }, { csi_admin_ict: 'true' }])(
         'does not merge ADMIN defaults into preset %j', async (pageAccess) => {
             withPreset(UserRole.ADMIN, pageAccess as PageAccess);
-            await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+            await expect(guard.canActivate(context('ict', { userId: USER_ID }, 'POST').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
         },
     );
 
-    it('does not grant HC from an ICT-only preset', async () => {
+    it('does not grant HC writes from an ICT-only preset', async () => {
         withPreset(UserRole.MANAGER, { csi_admin_ict: true });
-        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(guard.canActivate(context('hc', { userId: USER_ID }, 'PUT').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('falls back to ADMIN defaults when applied preset is missing', async () => {
@@ -129,7 +179,7 @@ describe('CsiAdminGuard', () => {
         expect(userRepo.findOne).not.toHaveBeenCalled();
         entries.delete(`pageAccess:${USER_ID}`);
         userRepo.findOne.mockResolvedValue({ id: USER_ID, role: UserRole.MANAGER });
-        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(guard.canActivate(context('hc', { userId: USER_ID }, 'POST').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
         expect(cache.getOrSet).toHaveBeenLastCalledWith(`pageAccess:${USER_ID}`, expect.any(Function), 123);
         expect(userRepo.findOne).toHaveBeenCalledWith({
             where: { id: USER_ID }, select: ['id', 'role', 'appliedPresetId', 'isActive'],
