@@ -44,18 +44,30 @@ export class CsiServiceReportService {
             where: { scope, publishStatus: Not(CsiPeriodPublishStatus.DRAFT), cancelledAt: IsNull() }, order: { startDate: 'DESC' },
             select: { id: true, title: true, startDate: true, endDate: true },
         });
-        const withServices = await this.periodsWithServices(rows.map((row) => row.id));
+        const withServices = await this.periodsWithServices(rows.map((row) => row.id), scope);
         return {
             services,
             periods: rows.filter((row) => withServices.has(row.id)).map((row) => ({ id: row.id, title: row.title, startDate: row.startDate, endDate: row.endDate })),
         };
     }
 
-    /** Surveys where somebody is rated under a layanan (older ICT surveys have none, so their report would be empty). */
-    private async periodsWithServices(periodIds: string[]): Promise<Set<string>> {
+    /**
+     * Surveys where somebody is rated under a layanan. Older ICT surveys stored none: their layanan comes from the
+     * rated account's role (same rule as the report), so they are listed too.
+     */
+    private async periodsWithServices(periodIds: string[], scope: ServiceScope): Promise<Set<string>> {
         if (!periodIds.length) return new Set();
         const rows = await this.ratees.find({ where: { periodId: In(periodIds), serviceCode: Not(IsNull()) }, select: { periodId: true } });
-        return new Set(rows.map((row) => row.periodId));
+        const found = new Set(rows.map((row) => row.periodId));
+        if (scope !== ServiceScope.ICT) return found;
+        const rest = periodIds.filter((id) => !found.has(id));
+        if (!rest.length) return found;
+        const legacy = await this.ratees.find({
+            where: { periodId: In(rest), serviceCode: IsNull(), userId: Not(IsNull()) }, select: { id: true, periodId: true, userId: true },
+        });
+        const derived = await this.reports.legacyIctServices(legacy);
+        legacy.filter((ratee) => derived.has(ratee.id)).forEach((ratee) => found.add(ratee.periodId));
+        return found;
     }
 
     async get(userId: string, periodId: string, serviceCode: string, scope: ServiceScope): Promise<CsiServiceReport> {

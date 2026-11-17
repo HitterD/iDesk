@@ -278,7 +278,7 @@ export default function AppRoutes() {
                         <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
                         <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei CSI" />} />
-                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER', 'HC_ADMIN']} />} />
+                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" />} />
                     </Route>
 
                     {/* Manager Routes - Using BentoLayout */}
@@ -321,7 +321,7 @@ export default function AppRoutes() {
                         <Route path="csi/report" element={<LazyRoute component={CsiServiceReportPage} featureName="Report CSI layanan" />} />
                         <Route path="csi/hasil-saya" element={<LazyRoute component={CsiMyResultsPage} featureName="Hasil penilaian saya" />} />
                         <Route path="csi/:id" element={<LazyRoute component={CsiSurveyPage} featureName="Survei CSI" />} />
-                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" allowedRoles={['ADMIN', 'MANAGER']} />} />
+                        <Route path="csi/admin/:scope" element={<LazyRoute component={CsiAdminPage} featureName="Admin CSI" />} />
                     </Route>
 
                     {/* Client Routes - Lazy loaded portal */}

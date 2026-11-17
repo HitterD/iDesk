@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post,
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { SetAssignmentsDto } from '../dto/assignment.dto';
-import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { CsiAdminGuard, CsiWriterOnly } from '../guards/csi-admin.guard';
 import { CsiAssignmentService } from '../services/csi-assignment.service';
 
 type CsiAdminRequest = { csiScope: ServiceScope; user: { userId: string } };
@@ -15,6 +15,7 @@ const CSI_ID_PIPE = new ParseUUIDPipe({
 export class CsiAdminAssignmentController {
     constructor(private readonly assignments: CsiAssignmentService) { }
 
+    @CsiWriterOnly()
     @Get()
     get(@Req() req: CsiAdminRequest, @Param('id', CSI_ID_PIPE) id: string) {
         return this.assignments.get(req.csiScope, id);

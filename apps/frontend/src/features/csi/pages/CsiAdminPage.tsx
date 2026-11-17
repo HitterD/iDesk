@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { ShieldAlert, Star } from 'lucide-react';
+import { Eye, ShieldAlert, Star } from 'lucide-react';
 import { ResHead } from '@/components/resources/ResourceParts';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ function NotAuthorized() {
                 <ShieldAlert className="h-7 w-7 opacity-70" aria-hidden="true" />
             </span>
             <p className="text-[15px] font-semibold">Anda tidak memiliki akses Admin CSI</p>
-            <p className={cn(MUTED_TEXT, 'mt-1')}>Minta Admin iDesk menambahkan akses Admin CSI ke preset Anda.</p>
+            <p className={cn(MUTED_TEXT, 'mt-1')}>Akun Anda belum dapat melihat Admin CSI. Hubungi Admin iDesk.</p>
         </div>
     );
 }
@@ -72,7 +72,21 @@ function AreaBody({ area, scope, route }: { area: AdminArea; scope: CsiScopePara
 
 const DEFAULT_STICKY_TOP = 47;
 
-function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
+/** Read-only viewers (managers, report owners) see everything; every control inside is disabled and the server refuses writes. */
+function ReadOnlyBody({ readOnly, children }: { readOnly: boolean; children: ReactNode }) {
+    if (!readOnly) return <>{children}</>;
+    return (
+        <>
+            <p className={cn(ADMIN_PANEL, 'flex items-center gap-2 px-4 py-2.5 text-[13px]')} role="status">
+                <Eye className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Hanya lihat — akun Anda dapat melihat semua data tetapi tidak dapat mengubahnya. Nama penilai tidak ditampilkan.
+            </p>
+            <fieldset disabled className="m-0 min-w-0 border-0 p-0" aria-label="Tampilan hanya lihat">{children}</fieldset>
+        </>
+    );
+}
+
+function ScopeAdmin({ scope, readOnly }: { scope: CsiScopeParam; readOnly: boolean }) {
     const route = useAdminRoute();
     const [area, setArea] = useState<AdminArea>('dashboard');
     const navRef = useRef<HTMLDivElement>(null);
@@ -114,7 +128,9 @@ function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
                     value={inSurvey ? 'surveys' : area} onValueChange={selectArea} />
             </div>
             <CsiLiveProvider scope={scope}>
-                <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
+                <ReadOnlyBody readOnly={readOnly}>
+                    <AreaBody area={inSurvey ? 'surveys' : area} scope={scope} route={route} />
+                </ReadOnlyBody>
             </CsiLiveProvider>
             <ScrollToTopButton />
         </div>
@@ -124,9 +140,9 @@ function ScopeAdmin({ scope }: { scope: CsiScopeParam }) {
 export function CsiAdminPage() {
     const { scope } = useParams<{ scope: string }>();
     const basePath = useCsiBasePath();
-    const { scopes, isLoading } = useCsiAdminAccess();
+    const { scopes, readOnly, isLoading } = useCsiAdminAccess();
     if (isLoading) return <div className={cn(ADMIN_PANEL, 'h-40 animate-pulse motion-reduce:animate-none')} aria-busy="true" aria-label="Memuat akses" />;
-    if (isCsiScopeParam(scope) && scopes.includes(scope)) return <ScopeAdmin key={scope} scope={scope} />;
+    if (isCsiScopeParam(scope) && scopes.includes(scope)) return <ScopeAdmin key={scope} scope={scope} readOnly={readOnly(scope)} />;
     // Unknown or unauthorised scope: fall back to the first scope this user may administer.
     if (scopes.length) return <Navigate to={csiAdminPath(basePath, scopes[0])} replace />;
     return <NotAuthorized />;

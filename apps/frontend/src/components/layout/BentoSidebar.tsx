@@ -41,10 +41,10 @@ import { usePendingApprovals } from '@/features/request-center/api/eform-request
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useCsiActive, useCsiMyResults } from '@/features/csi/hooks/useCsi';
-import { useCsiOwnerReportAccess } from '@/features/csi/hooks/useCsiHc';
+import { useCsiMyReportAccess, useCsiOwnerReportAccess } from '@/features/csi/hooks/useCsiHc';
 import { CSI_PATHS } from '@/features/csi/lib/useCsiBasePath';
 import { csiAdminPath, CSI_ADMIN_PAGE_KEYS } from '@/features/csi/lib/csiAdmin';
-import { canAdminCsi } from '@/features/csi/lib/useCsiAdminAccess';
+import { canReadCsi } from '@/features/csi/lib/useCsiAdminAccess';
 import {
     SidebarNavigation,
     SidebarFooter,
@@ -158,6 +158,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const hasMyResults = (myResults?.length ?? 0) > 0;
     const pendingSurveyCount = activeSurveys?.filter((survey) => !survey.submitted).length ?? 0;
     const hasOwnerReport = useCsiOwnerReportAccess();
+    const hcOwner = (useCsiMyReportAccess('hc').data?.services.length ?? 0) > 0;
+    const ictOwner = (useCsiMyReportAccess('ict').data?.services.length ?? 0) > 0;
 
     // Badge resolution helper for navigation items
     const getItemBadge = (key: string): BadgeInfo | null => {
@@ -313,9 +315,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
     // Page access check - uses pageAccess from applied preset
     const canAccessPage = (pageKey: string): boolean => {
-        // CSI admin keys never get the ADMIN bypass: the backend guard requires the explicit page key.
-        if (pageKey === CSI_ADMIN_PAGE_KEYS.ict) return canAdminCsi(user?.role, myPermissions?.pageAccess, 'ict');
-        if (pageKey === CSI_ADMIN_PAGE_KEYS.hc) return canAdminCsi(user?.role, myPermissions?.pageAccess, 'hc');
+        // CSI admin entries: writers by key/role, read-only viewers (managers, report owners) by canReadCsi.
+        if (pageKey === CSI_ADMIN_PAGE_KEYS.ict) return canReadCsi(user?.role, myPermissions?.pageAccess, 'ict', ictOwner);
+        if (pageKey === CSI_ADMIN_PAGE_KEYS.hc) return canReadCsi(user?.role, myPermissions?.pageAccess, 'hc', hcOwner);
 
         // Personal dashboard exists only for agents (the API rejects everyone else)
         if (pageKey === 'my_dashboard' && !isAgentRole(user?.role)) return false;

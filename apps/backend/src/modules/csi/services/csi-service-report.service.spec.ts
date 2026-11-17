@@ -23,7 +23,7 @@ const input = () => ({
 
 describe('CsiServiceReportService', () => {
     const access = { assertService: jest.fn(), servicesFor: jest.fn() };
-    const reports = { hcRecapInput: jest.fn(async () => input()), getRespondents: jest.fn(async () => ({ pendingByDepartment: [{ department: 'PROD', pending: 1, total: 2 }], pending: [{ fullName: 'SECRET' }] })) };
+    const reports = { legacyIctServices: jest.fn(async () => new Map<string, string>()), hcRecapInput: jest.fn(async () => input()), getRespondents: jest.fn(async () => ({ pendingByDepartment: [{ department: 'PROD', pending: 1, total: 2 }], pending: [{ fullName: 'SECRET' }] })) };
     const rows = [
         { id: 'p1', scope: 'HC', title: 'CSI HC 2026 – Semarang', startDate: '2026-11-01', endDate: '2026-11-30', publishStatus: 'PUBLISHED', cancelledAt: null },
         { id: 'p-cancel', scope: 'HC', title: 'Batal', startDate: '2026-10-01', endDate: '2026-10-30', publishStatus: 'PUBLISHED', cancelledAt: new Date() },
@@ -137,13 +137,19 @@ describe('CsiServiceReportService', () => {
         await expect(service.get('u-agus', 'p1', 'ORACLE', ServiceScope.ICT)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('ICT owners only see ICT surveys that carry team data (older ICT surveys have none)', async () => {
+    it('ICT: older surveys without a stored layanan are listed when it can be derived from the rated role, others are not', async () => {
         rows.push(
             { id: 'p-ict-old', scope: 'ICT', title: 'Lama', startDate: '2026-10-01', endDate: '2026-10-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
             { id: 'p-ict-new', scope: 'ICT', title: 'Baru', startDate: '2026-12-01', endDate: '2026-12-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
+            { id: 'p-ict-none', scope: 'ICT', title: 'Tanpa', startDate: '2026-09-01', endDate: '2026-09-05', publishStatus: 'PUBLISHED', cancelledAt: null } as any,
         );
-        rateeRows.rows = [{ periodId: 'p-ict-new' }];
+        // 1st query: ratees that store a layanan; 2nd: ratees without one (legacy), checked against the role.
+        ratees.find.mockResolvedValueOnce([{ periodId: 'p-ict-new' }] as any);
+        ratees.find.mockResolvedValueOnce([
+            { id: 'old-1', periodId: 'p-ict-old', userId: 'u-agent' }, { id: 'none-1', periodId: 'p-ict-none', userId: 'u-user' },
+        ] as any);
+        reports.legacyIctServices.mockResolvedValueOnce(new Map([['old-1', 'OPS']]));
         access.servicesFor.mockResolvedValueOnce({ admin: false, services: ['OPS'] });
-        expect((await service.listPeriods('u-x', ServiceScope.ICT)).periods.map((row) => row.id)).toEqual(['p-ict-new']);
+        expect((await service.listPeriods('u-x', ServiceScope.ICT)).periods.map((row) => row.id)).toEqual(['p-ict-old', 'p-ict-new']);
     });
 });

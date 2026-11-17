@@ -73,9 +73,11 @@ export function CsiServiceReportPage() {
                             {owned.scopes.map((code) => <option key={code} value={code}>{code === 'hc' ? 'HC' : 'ICT'}</option>)}
                         </select>
                     )}
-                    <select aria-label="Survei" className={SELECT} value={period ?? ''} onChange={(event) => setPeriodId(event.target.value)}>
-                        {access.periods.map((row) => <option key={row.id} value={row.id}>{`${row.title} (${formatDate(row.startDate)} – ${formatDate(row.endDate)})`}</option>)}
-                    </select>
+                    {access.periods.length > 0 && (
+                        <select aria-label="Survei" className={SELECT} value={period ?? ''} onChange={(event) => setPeriodId(event.target.value)}>
+                            {access.periods.map((row) => <option key={row.id} value={row.id}>{`${row.title} (${formatDate(row.startDate)} – ${formatDate(row.endDate)})`}</option>)}
+                        </select>
+                    )}
                     {access.services.length > 1 && (
                         <select aria-label="Layanan" className={SELECT} value={service ?? ''} onChange={(event) => setServiceCode(event.target.value)}>
                             {access.services.map((code) => <option key={code} value={code}>{serviceLabel(scope, code)}</option>)}

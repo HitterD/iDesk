@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPip
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
 import { AddRatersDto, CreateDepartmentDto, CreateDimensionDto, MasterListQueryDto, ReorderDto, UpdateDepartmentDto, UpdateDimensionDto, UserSearchQueryDto } from '../dto/master.dto';
-import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { CsiAdminGuard, CsiWriterOnly } from '../guards/csi-admin.guard';
 import { CsiMasterService } from '../services/csi-master.service';
 
 type CsiAdminRequest = { csiScope: ServiceScope };
@@ -71,6 +71,7 @@ export class CsiAdminMasterController {
         return this.master.deactivateDepartment(req.csiScope, id);
     }
 
+    @CsiWriterOnly()
     @Get('raters')
     listRaters(@Req() req: CsiAdminRequest) {
         return this.master.listRaters(req.csiScope);
@@ -86,6 +87,7 @@ export class CsiAdminMasterController {
         return this.master.removeRater(req.csiScope, id);
     }
 
+    @CsiWriterOnly()
     @Get('users')
     searchUsers(@Query() query: UserSearchQueryDto) {
         return this.master.searchUsers(query.search, query.limit);

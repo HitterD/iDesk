@@ -8,7 +8,7 @@ import { validate } from 'class-validator';
 import { AddTemplatePicDto, AddTemplateRaterDto, ApplyTemplatesToPeriodDto, CreatePeriodFromTemplateDto, CreatePeriodFromTemplatesDto, ConfirmTemplateRatersDto, ImportOptionsDto, PicResolutionInput,
     PreviewPeriodFromTemplatesDto, SetTemplateRaterAccountsDto, SetTemplateRaterAccountDto, TemplateAccountSuggestionsQueryDto, UpdateTemplatePicDto } from '../dto/template.dto';
 import { PicResolution } from '../org/csi-template-identity';
-import { CsiAdminGuard } from '../guards/csi-admin.guard';
+import { CsiAdminGuard, CsiWriterOnly } from '../guards/csi-admin.guard';
 import { CsiAssignmentTemplateService } from '../services/csi-assignment-template.service';
 import { CsiTemplateApplyService } from '../services/csi-template-apply.service';
 import { CsiTemplateImportService } from '../services/csi-template-import.service';
@@ -86,6 +86,7 @@ export class CsiAdminTemplateController {
         return this.templates.list(hc(req));
     }
 
+    @CsiWriterOnly()
     @Get(':id/account-suggestions')
     accountSuggestions(@Req() req: CsiAdminRequest, @Param('id', ID_PIPE) id: string, @Query() query: TemplateAccountSuggestionsQueryDto) {
         return this.templates.accountSuggestions(hc(req), id, query.name);

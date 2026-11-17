@@ -7,6 +7,10 @@ import { CsiAdminPage } from '../CsiAdminPage';
 const access = vi.hoisted(() => ({ role: 'ADMIN', pageAccess: {} as Record<string, boolean> }));
 
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'a1', role: access.role } }) }));
+const owner = vi.hoisted(() => ({ hc: 0, ict: 0 }));
+vi.mock('../../hooks/useCsiHc', () => ({
+    useCsiMyReportAccess: (scope: 'hc' | 'ict') => ({ data: { admin: false, services: Array.from({ length: owner[scope] }, () => 'X') }, isLoading: false }),
+}));
 vi.mock('@/hooks/usePermissions', () => ({
     useMyPermissions: () => ({ data: { pageAccess: access.pageAccess }, isLoading: false, isError: false }),
 }));
@@ -58,7 +62,7 @@ const renderAt = (path: string) => render(
     </MemoryRouter>,
 );
 
-beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; settings.pending = 0; });
+beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; settings.pending = 0; owner.hc = 0; owner.ict = 0; });
 afterEach(cleanup);
 
 describe('CsiAdminPage', () => {
@@ -156,12 +160,14 @@ describe('CsiAdminPage', () => {
         expect(screen.queryByText('hc-wizard')).not.toBeInTheDocument();
     });
 
-    it('ADMIN selalu bisa membuka Admin HC; ICT tanpa key dialihkan ke HC', () => {
+    it('ADMIN selalu bisa mengubah Admin HC; ICT tanpa key hanya bisa dilihat (hanya lihat)', () => {
         const { unmount } = renderAt('/csi/admin/hc');
         expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+        expect(screen.queryByText(/Hanya lihat/)).not.toBeInTheDocument();
         unmount();
         renderAt('/csi/admin/ict');
-        expect(screen.getByText('dashboard:hc')).toBeInTheDocument();
+        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        expect(screen.getByText(/Hanya lihat/)).toBeInTheDocument();
     });
 
     it('HC_ADMIN hanya HC, walau preset memberi key ICT', () => {
@@ -178,8 +184,31 @@ describe('CsiAdminPage', () => {
         expect(screen.getByRole('heading', { name: 'Survei Kepuasan — HC' })).toBeInTheDocument();
     });
 
-    it('tanpa akses apa pun menampilkan keadaan tidak berwenang', () => {
+    it('MANAGER tanpa kunci preset melihat Admin CSI dalam mode hanya lihat', () => {
         access.role = 'MANAGER';
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        expect(screen.getByText(/Hanya lihat/)).toBeInTheDocument();
+        expect(screen.getByRole('group', { name: 'Tampilan hanya lihat' })).toBeDisabled();
+    });
+
+    it('MANAGER dengan kunci preset tetap bisa mengubah (tanpa banner hanya lihat)', () => {
+        access.role = 'MANAGER';
+        access.pageAccess = { csi_admin_ict: true };
+        renderAt('/csi/admin/ict');
+        expect(screen.queryByText(/Hanya lihat/)).not.toBeInTheDocument();
+    });
+
+    it('penanggung jawab report (role apa pun) melihat scope-nya hanya lihat', () => {
+        access.role = 'AGENT';
+        owner.ict = 1;
+        renderAt('/csi/admin/ict');
+        expect(screen.getByText('dashboard:ict')).toBeInTheDocument();
+        expect(screen.getByText(/Hanya lihat/)).toBeInTheDocument();
+    });
+
+    it('akun biasa tanpa akses apa pun menampilkan keadaan tidak berwenang', () => {
+        access.role = 'USER';
         renderAt('/csi/admin/ict');
         expect(screen.getByText('Anda tidak memiliki akses Admin CSI')).toBeInTheDocument();
     });

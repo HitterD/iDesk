@@ -22,6 +22,7 @@ import { CsiAssignmentService } from './csi-assignment.service';
 import { commentOrder } from './csi-report-pdf-sections';
 import { CsiSlaReporter, CsiSlaService } from './csi-sla.service';
 import { User } from '../../users/entities/user.entity';
+import { ictServiceOfRole } from '../org/csi-services';
 import { Site } from '../../sites/entities/site.entity';
 import { buildReportModel, CsiReportModel, previousSubjectMap } from './csi-report-model';
 import { bandsOf, CsiScoreBands } from './csi-score-bands';
@@ -416,9 +417,11 @@ export class CsiReportService {
         });
         // ICT has no bagian: its people are grouped by the site they serve.
         const rateeSites = scope === ServiceScope.ICT ? await this.siteCodes(people.map((ratee) => ratee.siteId).filter((id): id is string => !!id)) : new Map<string, string>();
+        const legacyService = scope === ServiceScope.ICT ? await this.legacyIctServices(people) : new Map<string, string>();
         const pics: CsiHcPic[] = [
             ...people.map((ratee) => ({
-                periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle, serviceCode: ratee.serviceCode ?? null, picId: ratee.picId ?? null,
+                periodRateeId: ratee.id, name: ratee.displayName, jobTitle: ratee.jobTitle,
+                serviceCode: ratee.serviceCode ?? legacyService.get(ratee.id) ?? null, picId: ratee.picId ?? null,
                 bagian: ratee.bagian ?? (ratee.siteId ? rateeSites.get(ratee.siteId) ?? null : null), serviceFunction: ratee.serviceFunction ?? null,
             })),
             ...teams.map((ratee) => ({
@@ -437,6 +440,23 @@ export class CsiReportService {
             period: { id: period.id, title: period.title, startDate: period.startDate, endDate: period.endDate },
             scoreBands: bandsOf(period), pics, ratings, dimensions, ownersOf: new Map([...pic, ...team]),
         };
+    }
+
+    /**
+     * ICT surveys made before ratees carried a serviceCode: the layanan is derived from the rated account's role now
+     * (nothing is written), so their service report is not empty. Keyed by period ratee id.
+     */
+    async legacyIctServices(people: Array<{ id: string; userId: string | null; serviceCode?: string | null }>): Promise<Map<string, string>> {
+        const missing = people.filter((ratee) => !ratee.serviceCode && ratee.userId);
+        if (!missing.length) return new Map();
+        const users = await this.dataSource.getRepository(User).find({
+            where: { id: In([...new Set(missing.map((ratee) => ratee.userId!))]) }, select: { id: true, role: true },
+        });
+        const roleOf = new Map(users.map((user) => [user.id, user.role]));
+        return new Map(missing.flatMap((ratee): Array<[string, string]> => {
+            const code = ictServiceOfRole(roleOf.get(ratee.userId!));
+            return code ? [[ratee.id, code]] : [];
+        }));
     }
 
     /** Member accounts of each custom team now (a member is part of the rated team, like a PIC is their own row). */
