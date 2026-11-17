@@ -34,15 +34,21 @@ function SubjectCards({ ratees, siteCodeOf, bands, onOpen }: {
 }
 
 /** Readable report: hero, site filter, ranked subject cards (or heatmap) and a detail drawer per subject. */
-export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
-    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[]; initialSiteId?: string | null;
+export function PeriodReport({ scope, periodId, sites, initialSiteId, onSiteChange }: {
+    scope: CsiScopeParam; periodId: string; sites: readonly CsiSiteSummary[];
+    initialSiteId?: string | null; onSiteChange?: (siteId: string | null) => void;
 }) {
     const groups = mergedSiteGroups(scope, sites);
     const handlers = siteHandlerMapOf(scope, sites);
     const resolvedInitial = initialSiteId
         ? groups.find((group) => group.sourceSiteIds.has(initialSiteId))?.id ?? ALL_SITES
         : ALL_SITES;
-    const [site, setSite] = useState<string>(resolvedInitial);
+    const [localSite, setLocalSite] = useState<string>(resolvedInitial);
+    const site = onSiteChange ? resolvedInitial : localSite;
+    const changeSite = (next: string) => {
+        setLocalSite(next);
+        onSiteChange?.(next === ALL_SITES ? null : next);
+    };
     const siteParam = site === ALL_SITES ? undefined : site;
     const [view, setView] = useState<ReportView>('cards');
     const [openId, setOpenId] = useState<string | null>(null);
@@ -64,7 +70,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId }: {
             )}>
             <div className="grid gap-4">
                 {groups.length > 1 && (
-                    <SegmentedControl aria-label="Filter site laporan" className="dash-seg w-fit" options={siteOptions} value={site} onValueChange={setSite} />
+                    <SegmentedControl aria-label="Filter site laporan" className="dash-seg w-fit" options={siteOptions} value={site} onValueChange={changeSite} />
                 )}
                 {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat laporan" />}
                 {isError && <ErrorState compact message="Gagal memuat laporan." onRetry={() => refetch()} />}

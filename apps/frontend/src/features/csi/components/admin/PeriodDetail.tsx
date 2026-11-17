@@ -25,16 +25,16 @@ const DETAIL_TABS = [
 ] as const;
 export const UNSAVED_LEAVE_TITLE = 'Perubahan belum disimpan. Tinggalkan?';
 
-function ReportPanel({ scope, periodId, periodTitle, sites, initialSiteId, hcTarget, canEditRaters }: {
+function ReportPanel({ scope, periodId, periodTitle, sites, initialSiteId, onSiteChange, hcTarget, canEditRaters }: {
     scope: CsiScopeParam; periodId: string; periodTitle?: string; sites: readonly CsiSiteSummary[];
-    initialSiteId?: string | null; hcTarget?: boolean; canEditRaters?: boolean;
+    initialSiteId?: string | null; onSiteChange?: (siteId: string | null) => void; hcTarget?: boolean; canEditRaters?: boolean;
 }) {
     return (
         <div className="grid gap-5">
             {/* Progress first: "who has not filled it yet" is what admins look for while a survey runs. */}
             <RespondentStatus scope={scope} periodId={periodId} periodTitle={periodTitle} sites={sites}
                 hcTarget={hcTarget} canEditRaters={canEditRaters} />
-            <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} />
+            <PeriodReport scope={scope} periodId={periodId} sites={sites} initialSiteId={initialSiteId} onSiteChange={onSiteChange} />
         </div>
     );
 }
@@ -48,9 +48,10 @@ interface PeriodDetailProps {
     /** Deep link from the dashboard: open this tab (and site filter) first. */
     initialTab?: DetailTab | null;
     initialSiteId?: string | null;
+    onSiteChange?: (siteId: string | null) => void;
 }
 
-export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, initialSiteId }: PeriodDetailProps) {
+export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, initialSiteId, onSiteChange }: PeriodDetailProps) {
     const { data: period, isLoading, isError, refetch } = useCsiPeriod(scope, periodId);
     const { data: listed } = useCsiPeriods(scope);
     const responseCount = listed?.find((row) => row.id === periodId)?.responseCount ?? 0;
@@ -101,7 +102,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
             {tab === 'raters' && (isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
                 : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />)}
             {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} periodTitle={period.title} sites={period.sites} initialSiteId={initialSiteId}
-                hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents}
+                onSiteChange={onSiteChange} hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents}
                 canEditRaters={isRaterAdditionOpen(period)} />}
             <ConfirmationDialog isOpen={pendingAction !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"

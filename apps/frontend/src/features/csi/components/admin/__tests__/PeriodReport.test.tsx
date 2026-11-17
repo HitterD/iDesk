@@ -110,4 +110,17 @@ describe('PeriodReport', () => {
         expect(within(filter).getAllByRole('button').map((btn) => btn.textContent)).toEqual(['Semua site', 'SPJ', 'KRW']);
         expect(fx.useCsiReport).toHaveBeenLastCalledWith('ict', 'p1', 's1');
     });
+
+    it('syncs site filter changes back to URL via onSiteChange', async () => {
+        const user = userEvent.setup();
+        const onSiteChange = vi.fn();
+        render(<PeriodReport scope="ict" periodId="p1" sites={PERIOD.sites} initialSiteId="s2" onSiteChange={onSiteChange} />);
+
+        const filter = screen.getByRole('group', { name: 'Filter site laporan' });
+        await user.click(within(filter).getByRole('button', { name: 'Semua site' }));
+        expect(onSiteChange).toHaveBeenCalledWith(null);
+
+        await user.click(within(filter).getByRole('button', { name: 'SPJ' }));
+        expect(onSiteChange).toHaveBeenCalledWith('s1');
+    });
 });

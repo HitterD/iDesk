@@ -29,6 +29,8 @@ export interface AdminRoute {
     /** "Buat lagi untuk periode berikutnya". */
     openCopy: (sourceId: string) => void;
     openDetail: (id: string, options?: { tab?: DetailTabParam; siteId?: string | null }) => void;
+    /** Keeps the URL `?site=` filter in sync when the user switches report site tabs. */
+    setSiteId: (siteId: string | null) => void;
     openWizard: (id: string | null, step?: WizardStepKey, options?: { replace?: boolean }) => void;
     setStep: (step: WizardStepKey, options?: { replace?: boolean }) => void;
     /** Back to the survey list (closes detail and wizard). */
@@ -62,6 +64,10 @@ export function useAdminRoute(): AdminRoute {
             if (options?.tab) next.set(TAB_PARAM, options.tab);
             if (options?.siteId) next.set(SITE_PARAM, options.siteId);
         }),
+        setSiteId: (siteId) => update((next) => {
+            if (siteId) next.set(SITE_PARAM, siteId);
+            else next.delete(SITE_PARAM);
+        }, true),
         openWizard: (id, step, options) => update((next) => {
             clear(next);
             next.set(WIZARD_PARAM, id ?? NEW_WIZARD);
