@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FileSpreadsheet, Play } from 'lucide-react';
+import { FileSpreadsheet, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { cn } from '@/lib/utils';
 import { CsiHcApi } from '../../../../api/csiHc.api';
+import { useCsiPeriods } from '../../../../hooks/useCsi';
 import { useCsiTemplateMutation, useCsiTemplates } from '../../../../hooks/useCsiHc';
 import type { CsiTemplate } from '../../../../hcTypes';
 import type { CsiScopeParam } from '../../../../types';
@@ -33,8 +34,11 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
     scope: CsiScopeParam; template: CsiTemplate; location: TemplateLocation; onImport: () => void;
     view: TemplateView; onViewChange: (view: TemplateView) => void;
 }) {
-    const [applying, setApplying] = useState(false);
+    const [applying, setApplying] = useState<{ initialPeriodId?: string } | null>(null);
     const [creating, setCreating] = useState(false);
+    const { data: periods = [] } = useCsiPeriods(scope);
+    const runningSurvey = periods.find((period) =>
+        period.publishStatus === 'PUBLISHED' && period.status === 'ACTIVE' && period.sites?.some((site) => site.code === template.locationCode));
     const update = useCsiTemplateMutation(scope, ({ id, serviceFunction }: { id: string; serviceFunction: string | null }) => CsiHcApi.updateTemplatePic(scope, id, { serviceFunction }));
     const addRater = useCsiTemplateMutation(scope, ({ id, body }: { id: string; body: AddRaterBody }) => CsiHcApi.addTemplateRater(scope, id, body));
     const removeRater = useCsiTemplateMutation(scope, (raterId: string) => CsiHcApi.removeTemplateRater(scope, raterId));
@@ -58,9 +62,19 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                     <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         <BlankTemplateButton scope={scope} location={location} variant="subtle" />
                         <Button variant="soft" onClick={onImport}><FileSpreadsheet aria-hidden="true" />Impor Excel</Button>
-                        <Button variant="primary" onClick={() => setApplying(true)}><Play aria-hidden="true" />Gunakan template</Button>
+                        <Button variant="primary" onClick={() => setApplying({})}><Play aria-hidden="true" />Gunakan template</Button>
                     </div>
                 </div>
+                {runningSurvey && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[hsl(var(--idesk-sapphire)/.08)] px-3 py-2 text-[12.5px]">
+                        <span className="text-[hsl(var(--idesk-text-secondary))]">
+                            Survei berjalan memakai lokasi ini: <b className="text-[hsl(var(--foreground))]">{runningSurvey.title}</b>
+                        </span>
+                        <Button variant="soft" size="sm" onClick={() => setApplying({ initialPeriodId: runningSurvey.id })}>
+                            <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />Sinkronkan ke survei berjalan
+                        </Button>
+                    </div>
+                )}
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
             {view === 'rater' && <RaterTableView scope={scope} template={template} />}
@@ -83,8 +97,8 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
                     </section>
                 );
             })}
-            {applying && <TemplateApplyDialog scope={scope} template={template} open={applying} onOpenChange={setApplying}
-                onNewSurvey={() => { setApplying(false); setCreating(true); }} />}
+            {applying && <TemplateApplyDialog scope={scope} template={template} open onOpenChange={(next) => !next && setApplying(null)}
+                initialPeriodId={applying.initialPeriodId} onNewSurvey={() => { setApplying(null); setCreating(true); }} />}
             {creating && <HcSurveyWizard scope={scope} open={creating} onOpenChange={setCreating} initialLocation={template.locationCode} />}
         </div>
     );

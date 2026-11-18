@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,11 +17,12 @@ import { LocationStep, PreviewStep, selectedTemplateIds } from './HcSurveyWizard
 const FAILED = 'Gagal memproses template.';
 const ALERT_RED = 'rounded-xl bg-[hsl(var(--ticket-red)/.12)] px-3 py-2 text-[13px] text-[hsl(var(--ticket-red-ink))]';
 const NOTE_AMBER = 'flex items-start gap-2 rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[13px] text-[hsl(var(--ticket-amber-ink))]';
+const NOTE_SAFE = 'rounded-xl bg-[hsl(var(--idesk-sapphire)/.08)] px-3 py-2 text-[12.5px] text-[hsl(var(--idesk-text-secondary))]';
 
 /**
- * "Ambil dari template" in an HC survey without answers: tick locations (only those with a template), preview what the
- * templates add, then Terapkan (add-only sync of PICs, raters and pairs). People picked from user accounts (no PIC) are
- * not reported in HC; when the survey has some, the admin must confirm they are replaced by the template's PICs.
+ * "Ambil dari template": tick locations (only those with a template), auto-preview what the templates add, then Terapkan
+ * (add-only sync of PICs, raters and pairs; safe on active answered surveys). People picked from user accounts (no PIC)
+ * are not reported in HC; before answers exist, the admin may confirm replacing them with template PICs.
  */
 export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
     scope: CsiScopeParam; period: CsiPeriodDetail; open: boolean; onOpenChange: (open: boolean) => void;
@@ -38,6 +39,9 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
     const locations = picked.filter((code) => templates.some((row) => row.locationCode === code));
     const templateIds = selectedTemplateIds(templates, locations);
     const nonPic = report?.nonPicRatees ?? 0;
+    const effectiveReplace = !period.locked && replace;
+    const requestKey = `${templateIds.join(',')}|${effectiveReplace}`;
+    const previewKeyRef = useRef<string | null>(null);
 
     const run = async (commit: boolean, replaceNonPic: boolean) => {
         setBusy(true);
@@ -47,7 +51,7 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
             setReport(result);
             if (commit) {
                 await client.invalidateQueries({ queryKey: ['csi', scope] });
-                toast.success('Template diterapkan ke survei.');
+                toast.success('Template disinkronkan ke survei tanpa mengubah jawaban lama.');
             }
         } catch (caught) {
             setError(errorMessage(caught) ?? FAILED);
@@ -55,15 +59,35 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
             setBusy(false);
         }
     };
+
+    useEffect(() => {
+        if (!open) {
+            previewKeyRef.current = null;
+            return;
+        }
+        if (!templateIds.length || previewKeyRef.current === requestKey) return;
+        previewKeyRef.current = requestKey;
+        void run(false, effectiveReplace);
+    });
+
     const toggle = (code: string, checked: boolean) => {
         setPicked((current) => checked ? [...current, code] : current.filter((row) => row !== code));
         setReport(null);
+        setError(null);
         setReplace(false);
+        previewKeyRef.current = null;
     };
-    // The preview is re-run with the replacement so its numbers match what Terapkan will do.
-    const confirmReplace = (checked: boolean) => { setReplace(checked); void run(false, checked); };
-    const effectiveReplace = !period.locked && replace;
-    const canApply = !!report && !report.committed && !report.blockedReason && (period.locked || nonPic === 0 || effectiveReplace);
+    const refreshPreview = () => {
+        previewKeyRef.current = requestKey;
+        void run(false, effectiveReplace);
+    };
+    const confirmReplace = (checked: boolean) => {
+        setReplace(checked);
+        setReport(null);
+        previewKeyRef.current = null;
+    };
+    const hasChanges = !!report && (report.picsAdded + report.teamsAdded + report.ratersAdded + report.pairsAdded > 0 || Boolean(report.siteAdded));
+    const canApply = !!report && !report.committed && !report.blockedReason && hasChanges && (period.locked || nonPic === 0 || effectiveReplace);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,9 +100,18 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
                             : 'PIC, penilai dan pasangan dari template lokasi yang dipilih ditambahkan ke survei ini.'}
                     </DialogDescription>
                 </DialogHeader>
+                {period.locked && (
+                    <p className={NOTE_SAFE}>
+                        Aman untuk survei berjalan: data dan jawaban yang sudah masuk tidak dihapus atau diubah. Penilai yang sudah mengisi akan otomatis diminta menilai PIC baru yang belum mereka nilai.
+                    </p>
+                )}
                 <LocationStep templates={templates} selected={locations} onToggle={toggle} />
-                <Button variant="soft" className="justify-self-start" disabled={!templateIds.length || busy} onClick={() => void run(false, effectiveReplace)}>Pratinjau</Button>
+                <Button variant="soft" className="justify-self-start" disabled={!templateIds.length || busy} onClick={refreshPreview}>Pratinjau</Button>
+                {busy && !report && <PreviewStep report={undefined} loading failed={false} />}
                 {report && <PreviewStep report={report} loading={false} failed={false} />}
+                {report && !report.blockedReason && !hasChanges && !report.committed && (
+                    <p className={NOTE_SAFE}>Semua PIC dan penilai dari lokasi terpilih sudah sinkron dengan survei ini.</p>
+                )}
                 {report?.committed && <p className="text-[13.5px] font-semibold">Tersimpan.</p>}
                 {!period.locked && report && nonPic > 0 && !report.committed && (
                     <label className={NOTE_AMBER}>

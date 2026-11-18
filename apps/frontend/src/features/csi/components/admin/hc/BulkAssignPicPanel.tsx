@@ -1,19 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Check, Copy, Users } from 'lucide-react';
+import { Check, Copy, Download, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useAssignRatersToPics } from '../../../hooks/useCsiHc';
+import { isHcDecided } from '../../../lib/hcMode';
 import type { CsiHcRater } from '../../../hcTypes';
 import type { DraftUser } from '../../../lib/csiAdmin';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import { MUTED_TEXT, UserMultiPicker } from '../AdminParts';
 import { titleCase } from './hcFormat';
+import { TemplatePullDialog } from './templates/TemplatePullDialog';
 
 type PicRatee = CsiPeriodDetail['ratees'][number];
-type SourceMode = 'copy' | 'manual';
+type SourceMode = 'copy' | 'manual' | 'template';
 
 const subjectLabel = (subject: PicRatee) =>
     (subject.kind === 'TEAM' ? `${subject.displayName ?? ''} (Tim)` : titleCase(subject.displayName ?? ''));
@@ -47,6 +49,8 @@ export function BulkAssignPicPanel({ scope, period, subjects, raters, onClose }:
     const [sourceRateeId, setSourceRateeId] = useState<string>(() => subjects.find((s) => (counts.get(s.id)?.total ?? 0) > 0)?.id ?? '');
     const [manualPeople, setManualPeople] = useState<DraftUser[]>([]);
     const [includeAnswered, setIncludeAnswered] = useState(false);
+    const [pullOpen, setPullOpen] = useState(false);
+    const decided = isHcDecided(scope, period);
 
     const toggleTarget = (id: string) => setTargetIds((prev) => {
         const next = new Set(prev);
@@ -125,9 +129,25 @@ export function BulkAssignPicPanel({ scope, period, subjects, raters, onClose }:
                     <Button type="button" size="sm" variant={mode === 'manual' ? 'primary' : 'soft'} onClick={() => setMode('manual')}>
                         <Users className="h-3.5 w-3.5" aria-hidden="true" />Pilih penilai manual
                     </Button>
+                    {decided && (
+                        <Button type="button" size="sm" variant={mode === 'template' ? 'primary' : 'soft'} onClick={() => setMode('template')}>
+                            <Download className="h-3.5 w-3.5" aria-hidden="true" />Dari Template lokasi
+                        </Button>
+                    )}
                 </div>
 
-                {mode === 'copy' ? (
+                {mode === 'template' ? (
+                    <div className="grid gap-2 rounded-xl bg-[hsl(var(--idesk-sapphire)/.08)] p-3 text-[12.5px]">
+                        <p className="text-[hsl(var(--idesk-text-secondary))]">
+                            Tarik otomatis daftar penilai yang sudah diatur di <b>Pengaturan → Template lokasi</b> untuk PIC terkait (mode tambah-saja, jawaban yang sudah masuk tetap aman).
+                        </p>
+                        <div>
+                            <Button type="button" size="sm" variant="primary" onClick={() => setPullOpen(true)}>
+                                <Download className="h-3.5 w-3.5" aria-hidden="true" />Sinkronkan dari Template Lokasi
+                            </Button>
+                        </div>
+                    </div>
+                ) : mode === 'copy' ? (
                     <div className="grid gap-1.5">
                         <Select value={sourceRateeId} onValueChange={setSourceRateeId}>
                             <SelectTrigger className="h-9" aria-label="PIC sumber penilai"><SelectValue placeholder="Pilih PIC sumber..." /></SelectTrigger>
@@ -156,24 +176,29 @@ export function BulkAssignPicPanel({ scope, period, subjects, raters, onClose }:
                 )}
             </div>
 
-            <label className="flex cursor-pointer items-start gap-2 rounded-xl bg-[hsl(var(--muted)/.35)] px-3 py-2 text-[12.5px]">
-                <Checkbox checked={includeAnswered} onCheckedChange={(state) => setIncludeAnswered(state === true)} className="mt-0.5" />
-                <span>
-                    Sertakan penilai yang sudah terlanjur mengisi
-                    <span className="block text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">
-                        Nilai sebelumnya tetap tersimpan; hanya PIC tambahan yang belum dinilai yang akan muncul kembali lewat popup.
-                    </span>
-                </span>
-            </label>
+            {mode !== 'template' && (
+                <>
+                    <label className="flex cursor-pointer items-start gap-2 rounded-xl bg-[hsl(var(--muted)/.35)] px-3 py-2 text-[12.5px]">
+                        <Checkbox checked={includeAnswered} onCheckedChange={(state) => setIncludeAnswered(state === true)} className="mt-0.5" />
+                        <span>
+                            Sertakan penilai yang sudah terlanjur mengisi
+                            <span className="block text-[11.5px] text-[hsl(var(--idesk-text-secondary))]">
+                                Nilai sebelumnya tetap tersimpan; hanya PIC tambahan yang belum dinilai yang akan muncul kembali lewat popup.
+                            </span>
+                        </span>
+                    </label>
 
-            <div className="flex items-center gap-2">
-                <span className={MUTED_TEXT}>{`${targetIds.size} PIC tujuan dipilih`}</span>
-                <span className="flex-1" />
-                <Button variant="subtle" onClick={onClose}>Batal</Button>
-                <Button variant="primary" disabled={!canSubmit || assign.isPending} onClick={() => void submit()}>
-                    <Check aria-hidden="true" />{`Terapkan ke ${targetIds.size} PIC`}
-                </Button>
-            </div>
+                    <div className="flex items-center gap-2">
+                        <span className={MUTED_TEXT}>{`${targetIds.size} PIC tujuan dipilih`}</span>
+                        <span className="flex-1" />
+                        <Button variant="subtle" onClick={onClose}>Batal</Button>
+                        <Button variant="primary" disabled={!canSubmit || assign.isPending} onClick={() => void submit()}>
+                            <Check aria-hidden="true" />{`Terapkan ke ${targetIds.size} PIC`}
+                        </Button>
+                    </div>
+                </>
+            )}
+            {pullOpen && <TemplatePullDialog scope={scope} period={period} open onOpenChange={setPullOpen} />}
         </div>
     );
 }

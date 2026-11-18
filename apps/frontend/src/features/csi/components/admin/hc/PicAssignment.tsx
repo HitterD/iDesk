@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Lock, Search } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useCsiDimensions } from '../../../hooks/useCsi';
-import { useCsiPics, useSetCsiPeriodPics } from '../../../hooks/useCsiHc';
+import { useCsiHcRaters, useCsiPics, useSetCsiPeriodPics } from '../../../hooks/useCsiHc';
 import { CSI_ADD_PICS_LOCKED_NOTE, isRaterAdditionOpen } from '../../../lib/csiAdmin';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
@@ -84,6 +85,12 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     const questionLocked = period.locked;
     const lockedIds = addOnlyLocked ? initialPics : EMPTY_LOCKED_IDS;
     const decided = isHcDecided(scope, period);
+    const { data: hcRaters, isLoading: ratersLoading } = useCsiHcRaters(scope, period.id, decided && current.length > 0);
+    const unpairedNames = useMemo(() => {
+        if (!decided || ratersLoading || !hcRaters) return [];
+        const paired = new Set(hcRaters.flatMap((rater) => rater.periodRateeIds));
+        return current.filter((ratee) => !paired.has(ratee.id)).map((ratee) => titleCase(ratee.displayName));
+    }, [decided, ratersLoading, hcRaters, current]);
     const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((id) => b.has(id));
     const dirty = !sameSet(selected, initialPics) || (chosenQuestions !== null && !sameSet(chosenQuestions, initialQuestions));
     useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -106,7 +113,12 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     });
     const submit = () => save.mutate({
         picIds: [...selected], dimensionIds: questions.filter((question) => questionIds.has(question.id)).map((question) => question.id),
-    }, { onSuccess: () => setChosenQuestions(null) });
+    }, {
+        onSuccess: () => {
+            setChosenQuestions(null);
+            toast.success(decided ? 'PIC tersimpan · Penilai di Template lokasi ikut disinkronkan.' : 'PIC survei tersimpan.');
+        },
+    });
     const addedCount = Math.max(0, selected.size - initialPics.size);
     const hasMutableFiltered = filteredIds.some((id) => !lockedIds.has(id) && selected.has(id));
 
@@ -137,6 +149,19 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
                         ))}
                     </div>
                 </div>
+                {decided && addOnlyLocked && (
+                    <p className="rounded-xl bg-[hsl(var(--idesk-sapphire)/.08)] px-3 py-2 text-[12.5px] text-[hsl(var(--idesk-text-secondary))]">
+                        Penilai terkonfirmasi di <b>Template lokasi</b> otomatis ikut ditambahkan saat Anda klik <b>Simpan tambahan PIC</b> (jawaban lama tetap aman). Bila Template lokasi diperbarui belakangan, klik <b>Ambil dari template</b>.
+                    </p>
+                )}
+                {unpairedNames.length > 0 && (
+                    <p role="status" className="rounded-xl bg-[hsl(var(--ticket-amber)/.14)] px-3 py-2 text-[12.5px] text-[hsl(var(--ticket-amber-ink))]">
+                        {`${unpairedNames.length} PIC terpilih belum punya penilai (${unpairedNames.slice(0, 4).join(', ')}${unpairedNames.length > 4 ? `, +${unpairedNames.length - 4} lainnya` : ''}). Klik `}
+                        <b>Ambil dari template</b>
+                        {' atau atur di tab '}
+                        <b>Siapa menilai siapa</b>.
+                    </p>
+                )}
                 {isLoading && <div className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}
                 {!isLoading && !pics.length && <EmptyNote>{COPY.noPics}</EmptyNote>}
                 {!isLoading && pics.length > 0 && (

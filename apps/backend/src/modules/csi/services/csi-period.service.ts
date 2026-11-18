@@ -32,6 +32,7 @@ import { assertPeriodInScope } from './csi-scope.util';
 import { CsiSubjectService } from './csi-subject.service';
 import { assertBandOrder, bandsOf } from './csi-score-bands';
 import { CsiOrgService } from '../org/csi-org.service';
+import { normalizeName } from '../org/csi-name-match';
 import { CsiPic } from '../entities/csi-pic.entity';
 import { ictServiceOfRole } from '../org/csi-services';
 import {
@@ -592,13 +593,22 @@ export class CsiPeriodService {
 
         const picIds = [...new Set(addedRatees.map((row) => row.picId).filter((id): id is string => Boolean(id)))];
         if (!picIds.length) return;
-        const tplPics = await tplPicRepo.find({
-            where: { templateId: In(templates.map((row) => row.id)), picId: In(picIds) },
-            select: { id: true, picId: true },
+        const picSet = new Set(picIds);
+        const picIdByName = new Map(addedRatees.filter((row) => row.picId && row.displayName).map((row) => [normalizeName(row.displayName), row.picId!]));
+        const allTplPics = await tplPicRepo.find({
+            where: { templateId: In(templates.map((row) => row.id)) },
+            select: { id: true, picId: true, picName: true },
         });
-        if (!tplPics.length) return;
+        const picIdByTplPic = new Map<string, string>();
+        for (const row of allTplPics) {
+            const matchedPicId = row.picId && picSet.has(row.picId)
+                ? row.picId
+                : (!row.picId && row.picName ? picIdByName.get(normalizeName(row.picName)) : undefined);
+            if (matchedPicId) picIdByTplPic.set(row.id, matchedPicId);
+        }
+        if (!picIdByTplPic.size) return;
         const tplRaters = await tplRaterRepo.find({
-            where: { templatePicId: In(tplPics.map((row) => row.id)), userId: Not(IsNull()) },
+            where: { templatePicId: In([...picIdByTplPic.keys()]), userId: Not(IsNull()) },
             select: { templatePicId: true, userId: true },
         });
         const candidateUsers = [...new Set(tplRaters.map((row) => row.userId).filter((id): id is string => Boolean(id)))];
@@ -606,7 +616,6 @@ export class CsiPeriodService {
 
         const activeUsers = await this.activeUsers(candidateUsers);
         const raterUsersByPic = new Map<string, Set<string>>();
-        const picIdByTplPic = new Map(tplPics.map((row) => [row.id, row.picId!]));
         tplRaters.forEach((row) => {
             if (!row.userId || !activeUsers.has(row.userId)) return;
             const picId = picIdByTplPic.get(row.templatePicId);

@@ -14,6 +14,7 @@ const fx = vi.hoisted(() => ({
 vi.mock('../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         raters: vi.fn(async () => fx.raters),
+        templates: vi.fn(async () => ({ templates: [], bundledAvailable: [] })),
         setRater: fx.setRater,
         assignRatersToPics: fx.assignRatersToPics,
     },
@@ -85,8 +86,9 @@ describe('HcPairsPanel & RaterPicEditor subjects', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Simpan' }));
         expect(fx.setRater).toHaveBeenCalledWith('hc', 'p-1', 'u-done', ['r-pic', 'r-team']);
 
-        // Bulk assign / copy panel works and sends includeAnswered toggle when ticked.
+        // Bulk assign / copy panel works and sends includeAnswered toggle when ticked, and offers Template lokasi option.
         await userEvent.click(screen.getByRole('button', { name: /Atur penilai PIC baru|Atur \/ Salin penilai ke PIC/i }));
+        expect(screen.getByRole('button', { name: /Dari Template lokasi/i })).toBeInTheDocument();
         await userEvent.click(screen.getByRole('checkbox', { name: /Sertakan penilai yang sudah terlanjur mengisi/i }));
         await userEvent.click(screen.getByRole('button', { name: /Terapkan ke 1 PIC/i }));
         expect(fx.assignRatersToPics).toHaveBeenCalledWith('hc', 'p-1', expect.objectContaining({
