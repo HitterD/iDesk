@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
@@ -23,7 +24,8 @@ import { normalizeName } from '../org/csi-name-match';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiTemplatePicView, CsiTemplateView } from '../org/csi-template-view';
 import { CsiAssignmentTemplateService } from './csi-assignment-template.service';
-import { CsiPeriodService, samePeriodTitle } from './csi-period.service';
+import { emitCsiUpdated } from '../csi.events';
+import { computeStatus, CsiPeriodService, samePeriodTitle } from './csi-period.service';
 import { enableSectionsWithRatees } from './csi-period-sections.util';
 import { assertHcScope, assertPeriodInScope } from './csi-scope.util';
 import { CsiMasterSeed, existingMaster, loadMasterContext, mastersIndex, newMasterOf } from './csi-template-import.service';
@@ -56,6 +58,7 @@ const BLOCKED = {
     picks: 'Di survei ini responden memilih PIC sendiri. Template hanya bisa dipakai di survei yang siapa-menilai-siapa ditetapkan HC.',
     unmapped: 'Survei ini memakai "semua orang menilai semua PIC" untuk penilai yang sudah terdaftar. Menambah pasangan akan menyembunyikan survei dari mereka; buat survei baru dari template.',
     cancelled: 'Survei ini sudah dibatalkan.',
+    ended: 'Survei ini sudah berakhir.',
 } as const;
 const ANSWERED_MESSAGE = 'Survei sudah ada jawaban; ambil template hanya untuk survei tanpa jawaban';
 const NO_QUESTIONS_MESSAGE = 'Belum ada pertanyaan HC aktif. Buat template 5 dimensi dulu.';
@@ -149,29 +152,35 @@ export class CsiTemplateApplyService {
         @InjectRepository(Site) private readonly sites: Repository<Site>,
         private readonly periodService: CsiPeriodService,
         @InjectDataSource() private readonly dataSource: DataSource,
+        @Optional() private readonly eventEmitter?: EventEmitter2,
     ) { }
 
     async applyToPeriod(scope: ServiceScope, templateId: string, periodId: string, commit: boolean): Promise<CsiTemplateApplyReport> {
         const view = await this.templates.get(scope, templateId);
         const questions = await this.hcQuestions(scope);
-        return this.dataSource.transaction(async (manager) => {
+        const report = await this.dataSource.transaction(async (manager) => {
             await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-schedule:${scope}`]);
             const repos = this.repos(manager);
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
             await manager.query?.('SELECT "id" FROM "csi_periods" WHERE "id" = $1 FOR UPDATE', [periodId]);
             const plan = await this.plan(scope, view, repos, await this.stateOf(repos, periodId), commit);
             const missing = await this.missingSite(manager, period, view.locationCode);
-            const blockedReason = period.cancelledAt ? BLOCKED.cancelled : missing.blockedReason ?? await this.blockedReason(period, repos);
+            const closedReason = await this.closedPeriodReason(manager, period);
+            const blockedReason = closedReason ?? missing.blockedReason ?? await this.blockedReason(period, repos);
             const siteIds = [...(period.sites ?? []).map((row) => row.siteId), ...(missing.site ? [missing.site.id] : [])];
             const ratersOutsideSites = await this.ratersOutside(repos, plan.raterNames, siteIds);
-            const report = toReport(plan.tally, { ratersOutsideSites, siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
-            if (!commit) return report;
+            const out = toReport(plan.tally, { ratersOutsideSites, siteAdded: missing.site?.code ?? null, blockedReason, committed: commit });
+            if (!commit) return out;
             if (blockedReason) throw new BadRequestException(blockedReason);
             if (plan.newSubjects.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
             if (missing.site) await manager.getRepository(CsiPeriodSite).save({ periodId, siteId: missing.site.id });
             await this.write(manager, repos, period, plan, questions);
-            return report;
+            return out;
         });
+        if (commit && (report.picsAdded > 0 || report.teamsAdded > 0 || report.ratersAdded > 0 || report.pairsAdded > 0)) {
+            emitCsiUpdated(this.eventEmitter, scope, periodId);
+        }
+        return report;
     }
 
     /**
@@ -183,7 +192,7 @@ export class CsiTemplateApplyService {
         assertHcScope(scope);
         const views = await Promise.all(templateIds.map((id) => this.templates.get(scope, id)));
         const questions = await this.hcQuestions(scope);
-        return this.dataSource.transaction(async (manager) => {
+        const report = await this.dataSource.transaction(async (manager) => {
             await manager.query?.('SELECT pg_advisory_xact_lock(hashtext($1))', [`csi-schedule:${scope}`]);
             const repos = this.repos(manager);
             const period = assertPeriodInScope(await repos.periods.findOne({ where: { id: periodId }, relations: { sites: { site: true } } }), scope);
@@ -193,16 +202,21 @@ export class CsiTemplateApplyService {
             const nonPic = new Set(before.ratees.filter(isNonPicPerson).map((row) => row.id));
             const state = replaceNonPic ? withoutRatees(before, nonPic) : before;
             const sites = await this.missingSites(manager, period, views);
-            const blockedReason = period.cancelledAt ? BLOCKED.cancelled : sites.blockedReason ?? this.blockedReasonOf(period, state);
+            const closedReason = await this.closedPeriodReason(manager, period);
+            const blockedReason = closedReason ?? sites.blockedReason ?? this.blockedReasonOf(period, state);
             const siteIds = [...(period.sites ?? []).map((row) => row.siteId), ...sites.added.map((site) => site.id)];
             const extra = { siteAdded: sites.added.map((site) => site.code).join(', ') || null, blockedReason, committed: commit };
             if (!commit) return { ...await this.mergedReport(repos, views, state, siteIds, extra), nonPicRatees: nonPic.size };
             if (blockedReason) throw new BadRequestException(blockedReason);
             if (replaceNonPic) await this.removeRatees(repos, before, state);
             if (sites.added.length) await manager.getRepository(CsiPeriodSite).save(sites.added.map((site) => ({ periodId, siteId: site.id })));
-            const report = await this.applyAll(manager, repos, period, views, questions, siteIds, extra);
-            return { ...report, nonPicRatees: nonPic.size };
+            const out = await this.applyAll(manager, repos, period, views, questions, siteIds, extra);
+            return { ...out, nonPicRatees: nonPic.size };
         });
+        if (commit && (report.picsAdded > 0 || report.teamsAdded > 0 || report.ratersAdded > 0 || report.pairsAdded > 0)) {
+            emitCsiUpdated(this.eventEmitter, scope, periodId);
+        }
+        return report;
     }
 
     /**
@@ -477,27 +491,48 @@ export class CsiTemplateApplyService {
         await enableSectionsWithRatees(manager, periodId, [...new Set(plan.newSubjects.map((subject) => (subject.team ? CsiRateeKind.TEAM : CsiRateeKind.PERSON)))]);
     }
 
+    private async closedPeriodReason(manager: EntityManager, period: CsiPeriod): Promise<string | null> {
+        if (period.cancelledAt || period.publishStatus === CsiPeriodPublishStatus.CANCELLED) return BLOCKED.cancelled;
+        if (period.endDate && computeStatus(period) === 'ENDED') {
+            const responseCount = await manager.getRepository(CsiResponse).count({ where: { periodId: period.id } });
+            if (responseCount > 0) return BLOCKED.ended;
+        }
+        return null;
+    }
+
     private async writeRatees(repos: Repos, periodId: string, subjects: Subject[], questions: CsiDimension[], templateSiteId: string | null) {
         if (!subjects.length) return;
         const rows = subjects.map((subject) => rateeFields(subject, templateSiteId));
+        const existingRatees = await repos.ratees.find({ where: { periodId }, select: { id: true, userId: true } });
         const newUsers = rows.flatMap((row) => (row.userId ? [row.userId] : []));
         if (newUsers.length) {
             if (new Set(newUsers).size !== newUsers.length) {
                 throw new BadRequestException('Dua PIC pada template terhubung ke akun iDesk yang sama');
             }
-            const existingRatees = await repos.ratees.find({ where: { periodId }, select: { userId: true } });
             const existingUsers = new Set(existingRatees.flatMap((row) => (row.userId ? [row.userId] : [])));
             if (newUsers.some((userId) => existingUsers.has(userId))) {
                 throw new BadRequestException('Akun iDesk milik PIC sudah terdaftar pada periode ini');
             }
         }
+        const existingDims = existingRatees.length
+            ? (await repos.rateeDims.find({ where: { periodRateeId: existingRatees[0].id } }))
+                .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            : [];
         const offset = await repos.ratees.count({ where: { periodId } });
         const saved = await repos.ratees.save(rows.map((fields, index) => ({
             periodId, photoUrl: null, tagline: null, sortOrder: offset + index, ...fields,
         })));
-        await repos.rateeDims.save(saved.flatMap((ratee) => questions.map((question, order) => ({
-            periodRateeId: ratee.id, dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
-            type: question.type, required: question.required, options: question.options, sortOrder: order,
+        const dimTemplates = existingDims.length
+            ? existingDims.map((dim) => ({
+                dimensionId: dim.dimensionId, dimensionName: dim.dimensionName, shortLabel: dim.shortLabel ?? null,
+                type: dim.type, required: dim.required, options: dim.options,
+            }))
+            : questions.map((question) => ({
+                dimensionId: question.id, dimensionName: question.name, shortLabel: question.shortLabel ?? null,
+                type: question.type, required: question.required, options: question.options,
+            }));
+        await repos.rateeDims.save(saved.flatMap((ratee) => dimTemplates.map((dim, order) => ({
+            periodRateeId: ratee.id, ...dim, sortOrder: order,
         }))));
     }
 

@@ -91,7 +91,14 @@ export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: 
     }, [pics]);
     return (
         <AdminSection title="Siapa menilai siapa" description="HC menentukan karyawan mana menilai PIC mana. Responden hanya melihat PIC yang ditetapkan untuknya."
-            actions={period.locked ? <LockedNote>{isRaterAdditionOpen(period) ? CSI_HC_ADD_RATERS_NOTE : undefined}</LockedNote> : <span className={MUTED_TEXT}>{`${period.raters.length} penilai · ${pics.length} PIC`}</span>}>
+            actions={(
+                <div className="flex flex-wrap items-center gap-3">
+                    {pics.length > 0 && <TemplatePullButton scope={scope} period={period} />}
+                    {period.locked
+                        ? <LockedNote>{isRaterAdditionOpen(period) ? CSI_HC_ADD_RATERS_NOTE : undefined}</LockedNote>
+                        : <span className={MUTED_TEXT}>{`${period.raters.length} penilai · ${pics.length} PIC`}</span>}
+                </div>
+            )}>
             {!pics.length ? (
                 <div className="grid gap-3">
                     <EmptyNote>Pilih PIC yang dinilai dulu (langkah "Orang yang dinilai"), atau ambil PIC dan penilainya dari template lokasi.</EmptyNote>

@@ -9,10 +9,14 @@ import { User } from '../../users/entities/user.entity';
 import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_SLA_TARGET_DEFAULT_HC, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CSI_TAGLINE_MAX } from '../dto/subject.dto';
+import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiDepartment } from '../entities/csi-department.entity';
 import { CsiDimension } from '../entities/csi-dimension.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
@@ -524,6 +528,7 @@ export class CsiPeriodService {
                     await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) =>
                         (templateDims ?? addedSnapshots[index].dimensions).map((dimension, order) => dimensionRow(row.id, dimension, order))));
                     await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
+                    await this.syncTemplateRatersForNewPics(manager, scope, id, saved);
                     return;
                 }
                 if (!addedSnapshots.length) return;
@@ -546,9 +551,104 @@ export class CsiPeriodService {
             await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) => snapshots[index].dimensions.map((dimension, order) =>
                 dimensionRow(row.id, dimension, order))));
             await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
+            const newlyAdded = saved.filter((row) => row.picId && !keep.has(row.picId));
+            await this.syncTemplateRatersForNewPics(manager, scope, id, newlyAdded);
         });
         emitCsiUpdated(this.eventEmitter, scope, id);
         return this.get(scope, id);
+    }
+
+    /**
+     * When new PICs are added to a mapped HC survey, copies confirmed/matched active raters for those PICs from the
+     * location templates covering the period's sites so newly added PICs automatically inherit their template raters.
+     */
+    private async syncTemplateRatersForNewPics(
+        manager: EntityManager,
+        scope: ServiceScope,
+        periodId: string,
+        addedRatees: CsiPeriodRatee[],
+    ) {
+        if (!addedRatees.length || scope !== ServiceScope.HC) return;
+        const tplRepo = manager.getRepository?.(CsiAssignmentTemplate);
+        const tplPicRepo = manager.getRepository?.(CsiAssignmentTemplatePic);
+        const tplRaterRepo = manager.getRepository?.(CsiAssignmentTemplateRater);
+        const pairRepo = manager.getRepository?.(CsiPeriodRaterRatee);
+        const periodSiteRepo = manager.getRepository?.(CsiPeriodSite);
+        if (!tplRepo || !tplPicRepo || !tplRaterRepo || !pairRepo || !periodSiteRepo) return;
+
+        const period = await manager.getRepository(CsiPeriod).findOne({
+            where: { id: periodId },
+            select: { id: true, respondentMode: true, pairMode: true, respondentPicks: true },
+        });
+        if (!period || period.respondentMode !== CsiRespondentMode.LISTED || period.respondentPicks) return;
+        const existingPairCount = await pairRepo.count({ where: { periodId } });
+        if (period.pairMode !== CsiPairMode.CUSTOM && existingPairCount === 0) return;
+
+        const periodSites = await periodSiteRepo.find({ where: { periodId }, relations: { site: true } });
+        const siteCodes = [...new Set(periodSites.map((row) => row.site?.code).filter((code): code is string => Boolean(code)))];
+        if (!siteCodes.length) return;
+        const templates = await tplRepo.find({ where: { scope, locationCode: In(siteCodes) }, select: { id: true } });
+        if (!templates.length) return;
+
+        const picIds = [...new Set(addedRatees.map((row) => row.picId).filter((id): id is string => Boolean(id)))];
+        if (!picIds.length) return;
+        const tplPics = await tplPicRepo.find({
+            where: { templateId: In(templates.map((row) => row.id)), picId: In(picIds) },
+            select: { id: true, picId: true },
+        });
+        if (!tplPics.length) return;
+        const tplRaters = await tplRaterRepo.find({
+            where: { templatePicId: In(tplPics.map((row) => row.id)), userId: Not(IsNull()) },
+            select: { templatePicId: true, userId: true },
+        });
+        const candidateUsers = [...new Set(tplRaters.map((row) => row.userId).filter((id): id is string => Boolean(id)))];
+        if (!candidateUsers.length) return;
+
+        const activeUsers = await this.activeUsers(candidateUsers);
+        const raterUsersByPic = new Map<string, Set<string>>();
+        const picIdByTplPic = new Map(tplPics.map((row) => [row.id, row.picId!]));
+        tplRaters.forEach((row) => {
+            if (!row.userId || !activeUsers.has(row.userId)) return;
+            const picId = picIdByTplPic.get(row.templatePicId);
+            if (!picId) return;
+            const set = raterUsersByPic.get(picId) ?? new Set<string>();
+            set.add(row.userId);
+            raterUsersByPic.set(picId, set);
+        });
+
+        const neededUsers = [...new Set([...raterUsersByPic.values()].flatMap((set) => [...set]))];
+        if (!neededUsers.length) return;
+        const raterRepo = manager.getRepository(CsiPeriodRater);
+        const existingRaters = await raterRepo.find({ where: { periodId } });
+        const raterByUser = new Map(existingRaters.map((row) => [row.userId, row]));
+        const missingUsers = neededUsers.filter((userId) => !raterByUser.has(userId));
+        if (missingUsers.length) {
+            const created = await manager.save(CsiPeriodRater, missingUsers.map((userId) => ({ periodId, userId })));
+            created.forEach((row) => raterByUser.set(row.userId, row));
+        }
+
+        const existingPairs = await pairRepo.find({ where: { periodId }, select: { periodRaterId: true, periodRateeId: true } });
+        const seen = new Set(existingPairs.map((pair) => `${pair.periodRaterId}:${pair.periodRateeId}`));
+        const toSave: Array<{ periodId: string; periodRaterId: string; periodRateeId: string }> = [];
+        for (const ratee of addedRatees) {
+            const users = ratee.picId ? raterUsersByPic.get(ratee.picId) : undefined;
+            if (!users) continue;
+            for (const userId of users) {
+                if (ratee.userId === userId) continue;
+                const rater = raterByUser.get(userId);
+                if (!rater) continue;
+                const key = `${rater.id}:${ratee.id}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                toSave.push({ periodId, periodRaterId: rater.id, periodRateeId: ratee.id });
+            }
+        }
+        if (toSave.length) {
+            await manager.save(CsiPeriodRaterRatee, toSave);
+            if (period.pairMode !== CsiPairMode.CUSTOM) {
+                await manager.update(CsiPeriod, { id: periodId }, { pairMode: CsiPairMode.CUSTOM });
+            }
+        }
     }
 
     /**

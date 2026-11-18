@@ -114,7 +114,8 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
         <AdminSection title={COPY.title} description={decided ? COPY.decidedDescription : COPY.description}
             actions={fullyLocked ? <LockedNote /> : (
                 <div className="flex flex-wrap items-center gap-3">
-                    {addOnlyLocked ? <LockedNote>{CSI_ADD_PICS_LOCKED_NOTE}</LockedNote> : (decided && <TemplatePullButton scope={scope} period={period} />)}
+                    {addOnlyLocked && <LockedNote>{CSI_ADD_PICS_LOCKED_NOTE}</LockedNote>}
+                    {decided && <TemplatePullButton scope={scope} period={period} />}
                     <span role="status" className={cn('text-[12.5px] font-medium', dirty ? 'text-[hsl(var(--ticket-amber-ink))]' : 'text-[hsl(var(--idesk-text-secondary))]')}>
                         {dirty ? (addOnlyLocked ? `+${addedCount} PIC baru belum disimpan` : COPY.unsaved) : `${initialPics.size} PIC · ${COPY.saved}`}
                     </span>

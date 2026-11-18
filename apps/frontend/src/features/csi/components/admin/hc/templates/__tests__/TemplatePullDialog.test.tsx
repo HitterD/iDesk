@@ -20,6 +20,7 @@ const fx = vi.hoisted(() => ({ nonPic: 0, fail: null as string | null }));
 vi.mock('../../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         templates: vi.fn(async () => ({ templates: [template('t-smg', 'SMG'), template('t-krw', 'KRW')], bundledAvailable: [] })),
+        raters: vi.fn(async () => []),
         applyTemplates: vi.fn(async (_scope: string, _id: string, _body: unknown, commit: boolean) => {
             if (fx.fail) throw { response: { data: { message: fx.fail } } };
             return report({ committed: commit, nonPicRatees: fx.nonPic });
@@ -84,7 +85,7 @@ describe('TemplatePullDialog', () => {
     });
 });
 
-describe('HcPairsPanel empty state', () => {
+describe('HcPairsPanel empty state & active add-only template pull', () => {
     it('offers "Ambil dari template" when the survey has no PIC yet', async () => {
         renderWithQuery(<HcPairsPanel scope="hc" period={period({ ratees: [{ id: 'r', kind: 'PERSON', picId: null } as CsiPeriodDetail['ratees'][number]] })} />);
         expect(screen.getByText(/0 PIC/)).toBeInTheDocument();
@@ -92,8 +93,21 @@ describe('HcPairsPanel empty state', () => {
         expect(await screen.findByRole('dialog', { name: 'Ambil dari template' })).toBeInTheDocument();
     });
 
-    it('hides the button once the survey has answers', () => {
-        renderWithQuery(<HcPairsPanel scope="hc" period={period({ locked: true })} />);
+    it('keeps "Ambil dari template" available in add-only mode on active answered surveys and hides when ended', async () => {
+        fx.nonPic = 2;
+        renderWithQuery(<HcPairsPanel scope="hc" period={period({
+            locked: true, status: 'ACTIVE', publishStatus: 'PUBLISHED',
+            ratees: [{ id: 'r1', kind: 'PERSON', picId: 'pic-1', displayName: 'DEVI' } as CsiPeriodDetail['ratees'][number]],
+        })} />);
+        await userEvent.click(screen.getByRole('button', { name: /ambil dari template/i }));
+        const dialog = await screen.findByRole('dialog', { name: 'Ambil dari template' });
+        expect(within(dialog).getByText(/Mode tambah-saja/i)).toBeInTheDocument();
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Pratinjau' }));
+        expect(within(dialog).queryByRole('checkbox', { name: /ganti 2 orang non-PIC/i })).not.toBeInTheDocument();
+        await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeEnabled());
+
+        cleanup();
+        renderWithQuery(<HcPairsPanel scope="hc" period={period({ locked: true, status: 'ENDED', publishStatus: 'PUBLISHED' })} />);
         expect(screen.queryByRole('button', { name: /ambil dari template/i })).not.toBeInTheDocument();
     });
 });
