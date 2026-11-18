@@ -90,7 +90,21 @@ export interface CsiUnitOption { division: string; department: string | null; ba
 export interface CsiHcRater {
     userId: string; nik: string | null; fullName: string; siteCode: string | null;
     division: string | null; department: string | null; bagian: string | null; periodRateeIds: string[];
+    ratedRateeIds?: string[];
     answered?: boolean;
+}
+export interface AssignRatersToPicsInput {
+    targetRateeIds: string[];
+    sourceRateeId?: string;
+    raterUserIds?: string[];
+    includeAnswered?: boolean;
+}
+export interface AssignRatersToPicsResult {
+    addedPairs: number;
+    addedRaters: number;
+    reopenedRaters: number;
+    skippedAnswered: number;
+    skippedSelf: number;
 }
 export interface CsiPairsImportReport {
     rows: number; pairs: number; raters: number; problems: Array<{ row: number; message: string }>; problemCount: number; committed: boolean;

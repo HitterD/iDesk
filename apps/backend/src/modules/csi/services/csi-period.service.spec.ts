@@ -223,6 +223,7 @@ describe('CsiPeriodService', () => {
         manager.repositories.set(CsiPeriod, periods);
         manager.repositories.set(CsiResponse, responses);
         manager.repositories.set(CsiPeriodRatee, ratees);
+        manager.repositories.set(CsiPeriodRateeDimension, rateeDimensions);
         manager.repositories.set(CsiPeriodRater, periodRaters);
         const dataSource = { transaction: jest.fn(async (work: any) => work(manager)) };
         assignments = {
@@ -601,6 +602,27 @@ describe('CsiPeriodService', () => {
             await service.setPics(HC, 'p1', ['pic-1'], ['d-hc']);
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toEqual([expect.objectContaining({ picId: 'pic-1', serviceCode: 'HCD', serviceFunction: 'People & Organization Development' })]);
+        });
+
+        it('setPics after answers exist on active survey: appends new PICs add-only and blocks removing existing PICs or changing questions', async () => {
+            const pic1 = { id: 'pic-1', scope: HC, nik: '1001', fullName: 'DEVI', jobTitle: 'Staff', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-a', userId: null, isActive: true };
+            const pic2 = { id: 'pic-2', scope: HC, nik: '1002', fullName: 'AGI INDRA PRASTYAWAN', jobTitle: 'IR & Legal Supervisor', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-a', userId: null, isActive: true };
+            periods.rows[0] = basePeriod({ scope: HC, endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.PUBLISHED });
+            ratees.rows.push({ id: 'rt-1', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-1', userId: null, siteId: 'site-a', displayName: 'DEVI', sortOrder: 0 });
+            rateeDimensions.rows.push({ id: 'dim-1', periodRateeId: 'rt-1', dimensionId: 'd-hc', dimensionName: 'HC', shortLabel: 'HC', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0 });
+            responses.rows.push({ id: 'resp-1', periodId: 'p1', respondentId: 'u1' });
+            dimensions.rows.push({ id: 'd-hc-2', scope: HC, name: 'HC 2', isActive: true, ...STAR_SNAPSHOT });
+            (service as any).org = { ...NO_PICS, findPics: async (_s: string, ids: string[]) => [pic1, pic2].filter((p) => ids.includes(p.id)) };
+
+            await expect(service.setPics(HC, 'p1', ['pic-2'], ['d-hc'])).rejects.toBeInstanceOf(ConflictException);
+            await expect(service.setPics(HC, 'p1', ['pic-1', 'pic-2'], ['d-hc', 'd-hc-2'])).rejects.toBeInstanceOf(ConflictException);
+
+            await service.setPics(HC, 'p1', ['pic-1', 'pic-2'], ['d-hc']);
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRatee, expect.anything());
+            expect(manager.delete).not.toHaveBeenCalledWith(CsiPeriodRateeDimension, expect.anything());
+            const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
+            expect(savedRatees).toHaveLength(1);
+            expect(savedRatees[0]).toMatchObject({ picId: 'pic-2', displayName: 'AGI INDRA PRASTYAWAN', sortOrder: 1 });
         });
 
         describe('sections follow the picked ratees', () => {

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import { Check, Lock, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useCsiDimensions } from '../../../hooks/useCsi';
 import { useCsiPics, useSetCsiPeriodPics } from '../../../hooks/useCsiHc';
+import { CSI_ADD_PICS_LOCKED_NOTE, isRaterAdditionOpen } from '../../../lib/csiAdmin';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../types';
 import type { CsiPicView } from '../../../hcTypes';
 import { AdminSection, EmptyNote, LockedNote, MUTED_TEXT } from '../AdminParts';
@@ -50,6 +51,8 @@ const stateOf = (ids: string[], selected: ReadonlySet<string>) => {
     return count === 0 ? 'none' : count === ids.length ? 'all' : 'some';
 };
 
+const EMPTY_LOCKED_IDS: ReadonlySet<string> = new Set();
+
 export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void }) {
     const { data: pics = [], isLoading: picsLoading } = useCsiPics(scope);
     const { data: questions = [] } = useCsiDimensions(scope);
@@ -76,7 +79,10 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     const { filtered, filteredIds, selectedInFilter, outsideFilter } = filter;
     // The list waits for the templates too, so the default location filter never makes the counter jump.
     const isLoading = picsLoading || filter.loading;
-    const locked = period.locked;
+    const addOnlyLocked = period.locked && isRaterAdditionOpen(period);
+    const fullyLocked = period.locked && !addOnlyLocked;
+    const questionLocked = period.locked;
+    const lockedIds = addOnlyLocked ? initialPics : EMPTY_LOCKED_IDS;
     const decided = isHcDecided(scope, period);
     const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((id) => b.has(id));
     const dirty = !sameSet(selected, initialPics) || (chosenQuestions !== null && !sameSet(chosenQuestions, initialQuestions));
@@ -87,7 +93,10 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
         || (pic.bagian ?? '').toLowerCase().includes(needle));
     const setMany = (ids: string[], on: boolean) => setSelected((previous) => {
         const next = new Set(previous);
-        ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+        ids.forEach((id) => {
+            if (on) next.add(id);
+            else if (!lockedIds.has(id)) next.delete(id);
+        });
         return next;
     });
     const toggleQuestion = (id: string) => setChosenQuestions(() => {
@@ -98,16 +107,20 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     const submit = () => save.mutate({
         picIds: [...selected], dimensionIds: questions.filter((question) => questionIds.has(question.id)).map((question) => question.id),
     }, { onSuccess: () => setChosenQuestions(null) });
+    const addedCount = Math.max(0, selected.size - initialPics.size);
+    const hasMutableFiltered = filteredIds.some((id) => !lockedIds.has(id) && selected.has(id));
 
     return (
         <AdminSection title={COPY.title} description={decided ? COPY.decidedDescription : COPY.description}
-            actions={locked ? <LockedNote /> : (
+            actions={fullyLocked ? <LockedNote /> : (
                 <div className="flex flex-wrap items-center gap-3">
-                    {decided && <TemplatePullButton scope={scope} period={period} />}
+                    {addOnlyLocked ? <LockedNote>{CSI_ADD_PICS_LOCKED_NOTE}</LockedNote> : (decided && <TemplatePullButton scope={scope} period={period} />)}
                     <span role="status" className={cn('text-[12.5px] font-medium', dirty ? 'text-[hsl(var(--ticket-amber-ink))]' : 'text-[hsl(var(--idesk-text-secondary))]')}>
-                        {dirty ? COPY.unsaved : `${initialPics.size} PIC · ${COPY.saved}`}
+                        {dirty ? (addOnlyLocked ? `+${addedCount} PIC baru belum disimpan` : COPY.unsaved) : `${initialPics.size} PIC · ${COPY.saved}`}
                     </span>
-                    <Button onClick={submit} disabled={!dirty || save.isPending || (selected.size > 0 && !questionIds.size)}>{COPY.save}</Button>
+                    <Button onClick={submit} disabled={!dirty || save.isPending || (selected.size > 0 && !questionIds.size)}>
+                        {addOnlyLocked ? 'Simpan tambahan PIC' : COPY.save}
+                    </Button>
                 </div>
             )}>
             <div className="grid gap-4">
@@ -115,7 +128,7 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
                     <h3 className="mb-2 text-[13px] font-semibold">{COPY.questions}</h3>
                     <div className="flex flex-wrap gap-2">
                         {questions.map((question) => (
-                            <button key={question.id} type="button" disabled={locked} onClick={() => toggleQuestion(question.id)} aria-pressed={questionIds.has(question.id)}
+                            <button key={question.id} type="button" disabled={questionLocked} onClick={() => toggleQuestion(question.id)} aria-pressed={questionIds.has(question.id)}
                                 className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-medium transition-colors',
                                     questionIds.has(question.id) ? 'bg-[hsl(var(--idesk-sapphire)/.12)] text-[hsl(var(--idesk-sapphire))] ring-1 ring-[hsl(var(--idesk-sapphire)/.4)]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--idesk-text-secondary))]')}>
                                 {questionIds.has(question.id) && <Check className="h-3.5 w-3.5" aria-hidden="true" />}{question.shortLabel || question.name}
@@ -134,14 +147,14 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
                                 <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama, jabatan atau bagian" aria-label="Cari PIC"
                                     className="h-9 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] pl-9 pr-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" />
                             </div>
-                            <Button variant="soft" disabled={locked} onClick={() => setMany(filteredIds, true)}>{COPY.all}</Button>
-                            <Button variant="ghost" disabled={locked} onClick={() => setMany(filteredIds, false)}>{COPY.none}</Button>
+                            <Button variant="soft" disabled={fullyLocked} onClick={() => setMany(filteredIds, true)}>{COPY.all}</Button>
+                            <Button variant="ghost" disabled={fullyLocked || (addOnlyLocked && !hasMutableFiltered)} onClick={() => setMany(filteredIds, false)}>{COPY.none}</Button>
                             <span className={MUTED_TEXT}>{`${selectedInFilter} dari ${filteredIds.length} PIC dipilih`}</span>
                         </div>
                         {outsideFilter > 0 && <p className={MUTED_TEXT}>{PIC_FILTER_COPY.outside(outsideFilter)}</p>}
                         <div className="grid gap-3 lg:grid-cols-2">
                             {groupBy(visible, (pic) => pic.serviceCode).map(([service, servicePics]) => (
-                                <ServiceColumn key={service} service={service} pics={servicePics} selected={selected} locked={locked} onSet={setMany} />
+                                <ServiceColumn key={service} service={service} pics={servicePics} selected={selected} locked={fullyLocked} lockedIds={lockedIds} onSet={setMany} />
                             ))}
                         </div>
                     </>
@@ -151,14 +164,16 @@ export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScop
     );
 }
 
-function ServiceColumn({ service, pics, selected, locked, onSet }: {
-    service: string; pics: CsiPicView[]; selected: ReadonlySet<string>; locked: boolean; onSet: (ids: string[], on: boolean) => void;
+function ServiceColumn({ service, pics, selected, locked, lockedIds, onSet }: {
+    service: string; pics: CsiPicView[]; selected: ReadonlySet<string>; locked: boolean; lockedIds: ReadonlySet<string>; onSet: (ids: string[], on: boolean) => void;
 }) {
     const ids = pics.map((pic) => pic.id);
+    const mutableIds = ids.filter((id) => !lockedIds.has(id));
     const state = stateOf(ids, selected);
+    const allMutableOn = mutableIds.length > 0 && mutableIds.every((id) => selected.has(id));
     return (
         <section className="rounded-2xl bg-[hsl(var(--muted)/.45)] p-3">
-            <button type="button" disabled={locked} onClick={() => onSet(ids, state !== 'all')} className="mb-2 flex w-full items-center gap-2 text-left">
+            <button type="button" disabled={locked || !mutableIds.length} onClick={() => onSet(mutableIds, !allMutableOn)} className="mb-2 flex w-full items-center gap-2 text-left">
                 <Tick state={state} />
                 <span className="text-[14px] font-bold">{service}</span>
                 <span className="text-[12.5px] text-[hsl(var(--idesk-text-secondary))]">{`· ${pics[0]?.serviceName ?? ''} · ${ids.filter((id) => selected.has(id)).length}/${ids.length}`}</span>
@@ -166,26 +181,33 @@ function ServiceColumn({ service, pics, selected, locked, onSet }: {
             <div className="grid max-h-[460px] gap-2 overflow-auto pr-1">
                 {groupBy(pics, (pic) => pic.bagian ?? '-').map(([bagian, people]) => {
                     const bagianIds = people.map((pic) => pic.id);
+                    const mutableBagianIds = bagianIds.filter((id) => !lockedIds.has(id));
                     const bagianState = stateOf(bagianIds, selected);
+                    const allBagianMutableOn = mutableBagianIds.length > 0 && mutableBagianIds.every((id) => selected.has(id));
                     return (
                         <div key={bagian} className="rounded-xl bg-[hsl(var(--idesk-surface))] p-2">
-                            <button type="button" disabled={locked} onClick={() => onSet(bagianIds, bagianState !== 'all')} className="mb-1 flex w-full items-center gap-2 text-left">
+                            <button type="button" disabled={locked || !mutableBagianIds.length} onClick={() => onSet(mutableBagianIds, !allBagianMutableOn)} className="mb-1 flex w-full items-center gap-2 text-left">
                                 <Tick state={bagianState} />
                                 <span className="text-[12px] font-bold uppercase tracking-wide text-[hsl(var(--idesk-text-secondary))]">{`${titleCase(bagian)} · ${people.length}`}</span>
                             </button>
                             <ul className="grid gap-0.5">
-                                {people.map((pic) => (
-                                    <li key={pic.id}>
-                                        <button type="button" disabled={locked} onClick={() => onSet([pic.id], !selected.has(pic.id))}
-                                            className="flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-[hsl(var(--muted)/.6)]">
-                                            <Tick state={selected.has(pic.id) ? 'all' : 'none'} />
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block break-words text-[13px] leading-snug">{titleCase(pic.fullName)}</span>
-                                                <span className="block break-words text-[11.5px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                ))}
+                                {people.map((pic) => {
+                                    const itemLocked = locked || lockedIds.has(pic.id);
+                                    return (
+                                        <li key={pic.id}>
+                                            <button type="button" disabled={itemLocked} onClick={() => onSet([pic.id], !selected.has(pic.id))}
+                                                className={cn('flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left',
+                                                    itemLocked ? 'cursor-not-allowed opacity-70' : 'hover:bg-[hsl(var(--muted)/.6)]')}>
+                                                <Tick state={selected.has(pic.id) ? 'all' : 'none'} />
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block break-words text-[13px] leading-snug">{titleCase(pic.fullName)}</span>
+                                                    <span className="block break-words text-[11.5px] leading-snug text-[hsl(var(--idesk-text-secondary))]">{titleCase(pic.jobTitle ?? '')}</span>
+                                                </span>
+                                                {!locked && lockedIds.has(pic.id) && <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-50" aria-label="PIC terkunci" />}
+                                            </button>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         </div>
                     );

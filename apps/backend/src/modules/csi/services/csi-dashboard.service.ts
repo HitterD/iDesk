@@ -110,10 +110,17 @@ export class CsiDashboardService {
         const periodIds = listed.map((period) => period.id);
         const [raters, responses, paired] = await Promise.all([
             this.periodRaters.find({ where: { periodId: In(periodIds) }, relations: { user: { department: true } } }),
-            this.responses.find({ where: { periodId: In(periodIds) }, select: { periodId: true, respondentId: true } }),
+            this.responses.find({ where: { periodId: In(periodIds) }, select: { id: true, periodId: true, respondentId: true } }),
             Promise.all(periodIds.map(async (periodId) => [periodId, await this.assignments.ratersWithPairs(periodId)] as const)),
         ]);
-        const answered = new Set(responses.map((row) => `${row.periodId}:${row.respondentId}`));
+        const answered = new Set<string>();
+        await Promise.all(listed.map(async (period) => {
+            const periodResponses = responses.filter((row) => row.periodId === period.id);
+            const completed = this.assignments.fullyAnsweredUserIds
+                ? await this.assignments.fullyAnsweredUserIds(period, periodResponses)
+                : new Set(periodResponses.map((row) => row.respondentId));
+            completed.forEach((userId) => answered.add(`${period.id}:${userId}`));
+        }));
         const pairedBy = new Map(paired);
         const sitesBy = new Map(listed.map((period) => [period.id, rawSiteIdsOf(period)]));
         const inAudience = (rater: CsiPeriodRater) => isRaterInAudience(rater, sitesBy.get(rater.periodId) ?? [], pairedBy.get(rater.periodId) ?? null);

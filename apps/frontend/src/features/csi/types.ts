@@ -164,6 +164,8 @@ export interface CsiActivePeriod {
     submittedAt?: string | null;
     /** Whether this account has an unsent draft saved on the server. */
     hasDraft?: boolean;
+    /** Set when an earlier answer exists and newly added PICs remain unrated. */
+    partialRemainingCount?: number;
 }
 
 export interface CsiFormDimension {
@@ -206,6 +208,8 @@ export interface CsiForm {
     teamLabel: string;
     /** HC per PIC: the respondent first picks the PICs who served them and rates only those. */
     respondentPicks?: boolean;
+    /** Number of ratees already submitted earlier when completing follow-up unrated PICs. */
+    additionalForCount?: number;
     /** `departmentId`: the department the account is locked to in this list (null = choose once). */
     respondent: { fullName: string; departmentId?: string | null };
     /** When this account answered (ISO), or null / absent when it has not. */

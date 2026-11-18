@@ -12,7 +12,7 @@ import { PicAccountSuggestionsQueryDto, UpdatePicDto } from '../dto/pic.dto';
 import { CsiAdminGuard, CsiWriterOnly } from '../guards/csi-admin.guard';
 import { CsiOrgService } from '../org/csi-org.service';
 import { CsiUnitRulesService } from '../org/csi-unit-rules.service';
-import { SetRaterPicsDto, SetUnitRulesDto } from '../dto/unit-rules.dto';
+import { AssignRatersToPicsDto, SetRaterPicsDto, SetUnitRulesDto } from '../dto/unit-rules.dto';
 import { CsiPairsExcelService } from '../org/csi-pairs-excel.service';
 import { Response } from 'express';
 import { CsiPicRenameService } from '../services/csi-pic-rename.service';
@@ -85,6 +85,11 @@ export class CsiAdminOrgController {
     @Put('periods/:periodId/raters/:userId')
     setRater(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @Param('userId', ID_PIPE) userId: string, @Body() dto: SetRaterPicsDto) {
         return this.rules.setRater(hc(req), periodId, userId, dto.periodRateeIds);
+    }
+
+    @Post('periods/:periodId/raters/assign-pics')
+    assignRatersToPics(@Req() req: CsiAdminRequest, @Param('periodId', ID_PIPE) periodId: string, @Body() dto: AssignRatersToPicsDto) {
+        return this.rules.assignRatersToPics(hc(req), periodId, dto);
     }
 
     @Put('periods/:periodId/unit-rules')

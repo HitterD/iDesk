@@ -3,14 +3,16 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiPairMode, CsiRateeKind } from '../csi.constants';
+import { CsiPairMode, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { Site } from '../../sites/entities/site.entity';
 import { AssignmentPairDto } from '../dto/assignment.dto';
+import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
 import { CsiRaterAssignment } from '../entities/csi-rater-assignment.entity';
+import { CsiResponseItem } from '../entities/csi-response-item.entity';
 import { CsiResponse } from '../entities/csi-response.entity';
 import { CsiSubjectProfile } from '../entities/csi-subject-profile.entity';
 import { LOCKED_MESSAGE, lockPeriodForRaterAdditions, lockUnlockedPeriod } from './csi-period-lock.util';
@@ -265,6 +267,73 @@ export class CsiAssignmentService {
         if (!rater) return new Set();
         const rows = await this.pairs.find({ where: { periodId, periodRaterId: rater.id } });
         return new Set(rows.map((row) => row.periodRateeId));
+    }
+
+    /**
+     * Respondent user IDs whose submitted response covers all currently assigned visible ratees. In LISTED + CUSTOM
+     * non-picks periods, a user who already submitted earlier but later received additional unrated PIC assignments is
+     * excluded here until those follow-up PICs are scored too.
+     */
+    async fullyAnsweredUserIds(
+        period: Pick<CsiPeriod, 'id' | 'respondentMode' | 'pairMode' | 'respondentPicks' | 'teamEnabled' | 'individualEnabled'>,
+        responses: ReadonlyArray<Pick<CsiResponse, 'id' | 'respondentId'>>,
+    ): Promise<Set<string>> {
+        if (!responses.length) return new Set();
+        const allRespondents = new Set(responses.map((row) => row.respondentId));
+        if (period.respondentMode !== CsiRespondentMode.LISTED || period.pairMode !== CsiPairMode.CUSTOM || period.respondentPicks) {
+            return allRespondents;
+        }
+        const itemRepo = this.dataSource?.getRepository?.(CsiResponseItem);
+        const dimRepo = this.dataSource?.getRepository?.(CsiPeriodRateeDimension);
+        if (!itemRepo || !dimRepo) return allRespondents;
+
+        const [raters, pairs, ratees, items] = await Promise.all([
+            this.periodRaters.find({ where: { periodId: period.id }, select: { id: true, userId: true } }),
+            this.pairs.find({ where: { periodId: period.id }, select: { periodRaterId: true, periodRateeId: true } }),
+            this.ratees.find({ where: { periodId: period.id }, select: { id: true, kind: true, userId: true } }),
+            itemRepo.find({ where: { responseId: In(responses.map((row) => row.id)) }, select: { responseId: true, periodRateeId: true } }),
+        ]);
+        const rateeIds = ratees.map((row) => row.id);
+        const dims = rateeIds.length
+            ? await dimRepo.find({ where: { periodRateeId: In(rateeIds) }, select: { periodRateeId: true } })
+            : [];
+        const withQuestions = new Set(dims.map((row) => row.periodRateeId));
+        const visibleById = new Map(ratees
+            .filter((row) => withQuestions.has(row.id) && (isTeam(row) ? period.teamEnabled === true : period.individualEnabled !== false))
+            .map((row) => [row.id, row]));
+
+        const ratedByResp = new Map<string, Set<string>>();
+        items.forEach((item) => {
+            const set = ratedByResp.get(item.responseId) ?? new Set<string>();
+            set.add(item.periodRateeId);
+            ratedByResp.set(item.responseId, set);
+        });
+
+        const raterIdByUser = new Map(raters.map((rater) => [rater.userId, rater.id]));
+        const pairedByRater = new Map<string, string[]>();
+        pairs.forEach((pair) => {
+            const list = pairedByRater.get(pair.periodRaterId) ?? [];
+            list.push(pair.periodRateeId);
+            pairedByRater.set(pair.periodRaterId, list);
+        });
+
+        const completed = new Set<string>();
+        responses.forEach((resp) => {
+            const rated = ratedByResp.get(resp.id);
+            if (!rated) {
+                completed.add(resp.respondentId);
+                return;
+            }
+            const raterId = raterIdByUser.get(resp.respondentId);
+            const expected = (raterId ? pairedByRater.get(raterId) ?? [] : []).filter((rateeId) => {
+                const ratee = visibleById.get(rateeId);
+                return Boolean(ratee && (isTeam(ratee) || ratee.userId !== resp.respondentId));
+            });
+            if (expected.every((rateeId) => rated.has(rateeId))) {
+                completed.add(resp.respondentId);
+            }
+        });
+        return completed;
     }
 
     private async loadSiteHandlers(scope: ServiceScope): Promise<Record<string, string>> {

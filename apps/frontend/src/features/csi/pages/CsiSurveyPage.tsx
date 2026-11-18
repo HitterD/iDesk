@@ -101,6 +101,11 @@ function SurveyForm({ form, basePath, userId }: { form: CsiOpenForm; basePath: s
     return (
         <div className={PAGE_WIDTH}>
             <FadeIn className="mb-4 pt-1"><BackLink to={basePath} /></FadeIn>
+            {form.additionalForCount ? (
+                <div role="status" className="mb-4 rounded-xl border border-[hsl(var(--idesk-sapphire)/.25)] bg-[hsl(var(--idesk-sapphire)/.08)] px-4 py-3 text-[13.5px] text-foreground">
+                    {`Penilaian Anda sebelumnya untuk ${form.additionalForCount} PIC sudah tersimpan. Silakan lengkapi penilaian untuk ${form.ratees.length} PIC tambahan berikut.`}
+                </div>
+            ) : null}
             <RespondentFlow form={form} userId={userId}
                 onSaveDraft={handleSaveDraft}
                 onSaveDraftKeepalive={(payload) => CsiApi.saveDraftKeepalive?.(form.id, payload)}

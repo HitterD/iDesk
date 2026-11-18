@@ -54,6 +54,8 @@ type AssignmentReaders = {
     ratees: Repository<CsiPeriodRatee>;
     rateeDimensions: Repository<CsiPeriodRateeDimension>;
     departments: Repository<CsiDepartment>;
+    responses?: Repository<CsiResponse>;
+    items?: Repository<CsiResponseItem>;
     /** Only set inside the submit transaction (outside it, CsiAssignmentService reads the pairs). */
     pairs?: Repository<CsiPeriodRaterRatee>;
 };
@@ -63,6 +65,8 @@ const readersOf = (manager: EntityManager): AssignmentReaders => ({
     ratees: manager.getRepository(CsiPeriodRatee),
     rateeDimensions: manager.getRepository(CsiPeriodRateeDimension),
     departments: manager.getRepository(CsiDepartment),
+    responses: manager.getRepository(CsiResponse),
+    items: manager.getRepository(CsiResponseItem),
     pairs: manager.getRepository(CsiPeriodRaterRatee),
 });
 
@@ -85,7 +89,10 @@ export class CsiRespondentService {
     ) { }
 
     private get readers(): AssignmentReaders {
-        return { periodRaters: this.periodRaters, ratees: this.ratees, rateeDimensions: this.rateeDimensions, departments: this.departments };
+        return {
+            periodRaters: this.periodRaters, ratees: this.ratees, rateeDimensions: this.rateeDimensions,
+            departments: this.departments, responses: this.responses, items: this.dataSource?.getRepository?.(CsiResponseItem),
+        };
     }
 
     async listActive(user: CsiRespondentRef, now: Date = new Date()) {
@@ -105,11 +112,22 @@ export class CsiRespondentService {
         const candidates = matching.length ? await this.periods.find({
             where: { id: In(matching.map((row) => row.id)) }, relations: { sites: true }, order: { startDate: 'DESC' },
         }) : [];
-        const result: Array<{ id: string; scope: CsiPeriod['scope']; title: string; intro: string; endDate: string; submitted: boolean; submittedAt: Date | null }> = [];
+        const result: Array<{
+            id: string; scope: CsiPeriod['scope']; title: string; intro: string; endDate: string;
+            submitted: boolean; submittedAt: Date | null; partialRemainingCount?: number;
+        }> = [];
         for (const period of candidates) {
-            if (computeStatus(period, now) !== 'ACTIVE' || !(await this.audienceFor(this.readers, respondent, period))) continue;
-            const submittedAt = await this.submittedAt(period.id, respondent.id);
-            result.push({ id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate, submitted: submittedAt !== null, submittedAt });
+            if (computeStatus(period, now) !== 'ACTIVE') continue;
+            const audience = await this.audienceFor(this.readers, respondent, period);
+            if (!audience) continue;
+            const state = await this.unratedState(this.readers, period, respondent.id, audience);
+            const hasFollowUp = Boolean(state.existingResponse && state.ratees.length > 0);
+            const submittedAt = hasFollowUp ? null : (state.existingResponse?.submittedAt ?? null);
+            result.push({
+                id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate,
+                submitted: submittedAt !== null, submittedAt,
+                ...(hasFollowUp ? { partialRemainingCount: state.ratees.length } : {}),
+            });
         }
         return result;
     }
@@ -117,29 +135,37 @@ export class CsiRespondentService {
     async getForm(user: CsiRespondentRef, periodId: string, now: Date = new Date()) {
         const { period, audience } = await this.resolveEligible(user, periodId);
         if (computeStatus(period, now) !== 'ACTIVE') throw new NotFoundException(NOT_FOUND_MESSAGE);
-        const [departments, views, submittedAt] = await Promise.all([
+        const state = await this.unratedState(this.readers, period, audience.respondent.id, audience);
+        const isFollowUp = Boolean(state.existingResponse && state.ratees.length > 0);
+        const visibleRatees = isFollowUp ? state.ratees : audience.ratees;
+        const visibleDimensions = isFollowUp ? state.dimensions : audience.dimensions;
+        const submittedAt = isFollowUp ? null : (state.existingResponse?.submittedAt ?? null);
+        const [departments, views] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, order: { sortOrder: 'ASC', name: 'ASC' } }),
-            this.subjects.viewsFor(period.scope, audience.ratees),
-            this.submittedAt(period.id, audience.respondent.id),
+            this.subjects.viewsFor(period.scope, visibleRatees),
         ]);
         const [descriptions, lockedDepartment] = await Promise.all([
-            this.descriptionsOf(audience.dimensions),
-            this.lockedDepartmentIn(departments, audience.respondent),
+            this.descriptionsOf(visibleDimensions),
+            isFollowUp ? Promise.resolve(null) : this.lockedDepartmentIn(departments, audience.respondent),
         ]);
         return {
             id: period.id, scope: period.scope, title: period.title, intro: period.intro, endDate: period.endDate,
             teamLabel: period.teamLabel,
             ...(period.respondentPicks ? { respondentPicks: true } : {}),
-            respondent: { fullName: audience.respondent.fullName, departmentId: lockedDepartment?.id ?? null },
+            ...(isFollowUp ? { additionalForCount: state.ratedCount } : {}),
+            respondent: {
+                fullName: audience.respondent.fullName,
+                departmentId: (isFollowUp ? state.existingResponse?.departmentId : lockedDepartment?.id) ?? null,
+            },
             submittedAt,
             /** Kept for older clients: the account name once it has answered. */
             submittedNames: submittedAt ? [audience.respondent.fullName] : [],
             departments: departments.map((department) => ({ id: department.id, name: department.name })),
-            ratees: audience.ratees.map((ratee) => ({
+            ratees: visibleRatees.map((ratee) => ({
                 ...formProfile(ratee, views.get(ratee.id)),
                 // HC PIC fields only on PIC ratees, so other forms keep their exact shape.
                 ...(ratee.picId ? { picId: ratee.picId, serviceCode: ratee.serviceCode, serviceName: serviceName(ratee.serviceCode), bagian: ratee.bagian } : {}),
-                dimensions: audience.dimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
+                dimensions: visibleDimensions.filter((row) => row.periodRateeId === ratee.id).map((row) => ({
                     periodRateeDimensionId: row.id, name: row.dimensionName, description: descriptions.get(row.dimensionId) ?? null,
                     type: row.type, required: row.required, options: row.options ?? [],
                 })),
@@ -162,31 +188,43 @@ export class CsiRespondentService {
                 const locked = await lockPeriodRow(manager, period.id, 'pessimistic_read');
                 if (!locked) throw new NotFoundException(NOT_FOUND_MESSAGE);
                 assertSubmittable(locked, now);
-                // One response per account and period; older periods may still hold several (left untouched).
-                if (await manager.getRepository(CsiResponse).count({ where: { periodId: period.id, respondentId } })) {
-                    throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
-                }
                 // All reads go through the transaction's connection: a submit holds exactly one pooled connection.
                 const readers = readersOf(manager);
                 // The locked row carries no relations and admins can edit the period sites: re-read them after the lock.
                 const sites = await manager.getRepository(CsiPeriodSite).find({ where: { periodId: period.id } });
-                const current = await this.audienceFor(readers, audience.respondent, { ...locked, sites });
+                const hydrated = { ...locked, sites };
+                const current = await this.audienceFor(readers, audience.respondent, hydrated);
                 if (!current) throw new NotFoundException(NOT_FOUND_MESSAGE);
-                const department = await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
+                const state = await this.unratedState(readers, hydrated, respondentId, current);
+                // One complete response per account and period; only newly paired unrated ratees may be appended later.
+                if (state.existingResponse && !state.ratees.length) {
+                    throw new ConflictException(ALREADY_SUBMITTED_MESSAGE);
+                }
+                const targetRatees = state.existingResponse ? state.ratees : current.ratees;
+                const targetDimensions = state.existingResponse ? state.dimensions : current.dimensions;
+                const department = state.existingResponse && dto.departmentId === state.existingResponse.departmentId
+                    ? { id: state.existingResponse.departmentId, name: state.existingResponse.departmentName }
+                    : await readers.departments.findOne({ where: { id: dto.departmentId, scope: locked.scope, isActive: true } });
                 if (!department) throw new BadRequestException('Departemen tidak ditemukan atau tidak aktif');
-                const active = await readers.departments.find({ where: { scope: locked.scope, isActive: true } });
-                const lockedDepartment = await this.lockedDepartmentIn(active, audience.respondent, manager);
-                if (lockedDepartment && lockedDepartment.id !== department.id) throw new BadRequestException(DEPARTMENT_LOCKED_MESSAGE);
+                if (!state.existingResponse) {
+                    const active = await readers.departments.find({ where: { scope: locked.scope, isActive: true } });
+                    const lockedDepartment = await this.lockedDepartmentIn(active, audience.respondent, manager);
+                    if (lockedDepartment && lockedDepartment.id !== department.id) throw new BadRequestException(DEPARTMENT_LOCKED_MESSAGE);
+                }
                 // "Respondent picks": only the PICs answered are rated (all their required questions), at least one.
-                const rated = locked.respondentPicks ? pickedRatees(dto.items ?? [], current.dimensions) : null;
+                const rated = locked.respondentPicks ? pickedRatees(dto.items ?? [], targetDimensions) : null;
                 if (rated && !rated.size) throw new BadRequestException(PICK_ONE_MESSAGE);
-                const dimensions = rated ? current.dimensions.filter((row) => rated.has(row.periodRateeId)) : current.dimensions;
-                const ratees = rated ? current.ratees.filter((ratee) => rated.has(ratee.id)) : current.ratees;
+                const dimensions = rated ? targetDimensions.filter((row) => rated.has(row.periodRateeId)) : targetDimensions;
+                const ratees = rated ? targetRatees.filter((ratee) => rated.has(ratee.id)) : targetRatees;
                 const items = validateItems(dto.items ?? [], dimensions);
                 if (rated && !items.length) throw new BadRequestException(PICK_ONE_MESSAGE);
                 const comments = validateComments(dto.comments ?? [], ratees);
-                const org = orgSnapshot(await this.org.respondentOrg(respondentId), department.name, audience.respondent.profileDepartment);
-                await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now, org });
+                if (state.existingResponse) {
+                    await this.appendResponseItems(manager, state.existingResponse, { items, comments, now });
+                } else {
+                    const org = orgSnapshot(await this.org.respondentOrg(respondentId), department.name, audience.respondent.profileDepartment);
+                    await this.writeResponse(manager, { periodId: period.id, respondentId, respondentName, department, items, comments, now, org });
+                }
                 await manager.delete?.(CsiResponseDraft, { periodId: period.id, respondentId });
             });
         } catch (error) {
@@ -203,17 +241,18 @@ export class CsiRespondentService {
     async draftContext(user: CsiRespondentRef, periodId: string, now: Date = new Date()) {
         const { period, audience } = await this.resolveEligible(user, periodId);
         assertSubmittable(period, now);
-        const [departments, submittedAt] = await Promise.all([
+        const [departments, state] = await Promise.all([
             this.departments.find({ where: { scope: period.scope, isActive: true }, select: { id: true } }),
-            this.submittedAt(period.id, audience.respondent.id),
+            this.unratedState(this.readers, period, audience.respondent.id, audience),
         ]);
+        const isFollowUp = Boolean(state.existingResponse && state.ratees.length > 0);
         return {
             period,
             respondentId: audience.respondent.id,
-            ratees: audience.ratees,
-            dimensions: audience.dimensions,
+            ratees: isFollowUp ? state.ratees : audience.ratees,
+            dimensions: isFollowUp ? state.dimensions : audience.dimensions,
             departmentIds: new Set(departments.map((row) => row.id)),
-            submittedAt,
+            submittedAt: isFollowUp ? null : (state.existingResponse?.submittedAt ?? null),
         };
     }
 
@@ -307,14 +346,51 @@ export class CsiRespondentService {
         return new Map(rows.map((dimension) => [dimension.id, dimension.description ?? null]));
     }
 
-    /** When the account first answered the period, or null when it has not. */
-    private async submittedAt(periodId: string, respondentId: string): Promise<Date | null> {
-        const first = await this.responses.findOne({ where: { periodId, respondentId }, order: { submittedAt: 'ASC' } });
-        return first?.submittedAt ?? null;
+    /** Computes whether the account has already answered and, for mapped CUSTOM periods, which assigned ratees remain unrated. */
+    private async unratedState(readers: AssignmentReaders, period: CsiPeriod, respondentId: string, audience: Audience): Promise<{
+        existingResponse: CsiResponse | null;
+        ratees: CsiPeriodRatee[];
+        dimensions: CsiPeriodRateeDimension[];
+        ratedCount: number;
+    }> {
+        const repo = readers.responses ?? this.responses;
+        const existingResponse = await repo.findOne({ where: { periodId: period.id, respondentId }, order: { submittedAt: 'ASC' } });
+        if (!existingResponse) {
+            return { existingResponse: null, ratees: audience.ratees, dimensions: audience.dimensions, ratedCount: 0 };
+        }
+        const canReopen = period.respondentMode === CsiRespondentMode.LISTED
+            && period.pairMode === CsiPairMode.CUSTOM
+            && !period.respondentPicks;
+        if (!canReopen || !existingResponse.id || !readers.items) {
+            return { existingResponse, ratees: [], dimensions: [], ratedCount: audience.ratees.length };
+        }
+        const existingItems = await readers.items.find({
+            where: { responseId: existingResponse.id },
+            select: { periodRateeId: true },
+        });
+        if (!existingItems.length) {
+            return { existingResponse, ratees: [], dimensions: [], ratedCount: audience.ratees.length };
+        }
+        const ratedRateeIds = new Set(existingItems.map((item) => item.periodRateeId));
+        const ratees = audience.ratees.filter((ratee) => !ratedRateeIds.has(ratee.id));
+        const dimensions = audience.dimensions.filter((dimension) => !ratedRateeIds.has(dimension.periodRateeId));
+        return { existingResponse, ratees, dimensions, ratedCount: ratedRateeIds.size };
+    }
+
+    private async appendResponseItems(manager: EntityManager, existing: CsiResponse, input: {
+        items: ResolvedItem[]; comments: CommentRow[]; now: Date;
+    }) {
+        await manager.save(CsiResponseItem, input.items.map(({ dimension, score, answerLabel, answerText }) => ({
+            responseId: existing.id, periodRateeId: dimension.periodRateeId, periodRateeDimensionId: dimension.id, score, answerLabel, answerText,
+        })));
+        if (input.comments.length) {
+            await manager.save(CsiResponseComment, input.comments.map((row) => ({ responseId: existing.id, ...row })));
+        }
+        await manager.update?.(CsiResponse, { id: existing.id }, { submittedAt: input.now });
     }
 
     private async writeResponse(manager: EntityManager, input: {
-        periodId: string; respondentId: string; respondentName: string; department: CsiDepartment;
+        periodId: string; respondentId: string; respondentName: string; department: Pick<CsiDepartment, 'id' | 'name'>;
         items: ResolvedItem[]; comments: CommentRow[]; now: Date; org: OrgSnapshot;
     }) {
         const response = await manager.save(CsiResponse, {

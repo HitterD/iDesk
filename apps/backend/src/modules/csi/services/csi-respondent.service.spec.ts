@@ -83,6 +83,7 @@ describe('CsiRespondentService', () => {
     let teams: ReturnType<typeof memoryRepository>;
     let profiles: ReturnType<typeof memoryRepository>;
     let sites: ReturnType<typeof memoryRepository>;
+    let responseItems: ReturnType<typeof memoryRepository>;
     let txResponses: ReturnType<typeof memoryRepository>;
     let txRepos: Map<unknown, ReturnType<typeof memoryRepository>>;
     let periodSiteRows: Array<{ id: string; periodId: string; siteId: string }>;
@@ -128,6 +129,7 @@ describe('CsiRespondentService', () => {
         teams = memoryRepository<any>([]);
         profiles = memoryRepository<any>([]);
         sites = memoryRepository<any>([{ id: 'site-a', code: 'SPJ', name: 'Sepanjang' }, { id: 'site-b', code: 'KRW', name: 'Karawang' }]);
+        responseItems = memoryRepository<any>([]);
         txResponses = memoryRepository<any>(responses.rows);
         saved = [];
         // Transaction-scoped repositories share rows with the injected ones but are distinct mocks,
@@ -140,10 +142,12 @@ describe('CsiRespondentService', () => {
             [CsiPeriodRater, memoryRepository<any>(periodRaters.rows)],
             [CsiDepartment, memoryRepository<any>(departments.rows)],
             [CsiPeriodRaterRatee, memoryRepository<any>(pairs.rows)],
+            [CsiResponseItem, memoryRepository<any>(responseItems.rows)],
         ]);
         manager = {
             query: jest.fn().mockResolvedValue([]),
             delete: jest.fn().mockResolvedValue({ affected: 1 }),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
             getRepository: jest.fn((target: unknown) => {
                 if (target === CsiPeriod) return periods;
                 if (target === CsiResponse) return txResponses;
@@ -162,14 +166,17 @@ describe('CsiRespondentService', () => {
         const injectedCalls = () => injected.reduce((sum, repo) => sum + repo.find.mock.calls.length
             + repo.findOne.mock.calls.length + repo.count.mock.calls.length, 0);
         injectedCallsInTxn = 0;
-        const dataSource = { transaction: jest.fn(async (work: any) => {
-            const before = injectedCalls();
-            try {
-                return await work(manager);
-            } finally {
-                injectedCallsInTxn += injectedCalls() - before;
-            }
-        }) };
+        const dataSource = {
+            getRepository: jest.fn((target: unknown) => (target === CsiResponseItem ? responseItems : undefined)),
+            transaction: jest.fn(async (work: any) => {
+                const before = injectedCalls();
+                try {
+                    return await work(manager);
+                } finally {
+                    injectedCallsInTxn += injectedCalls() - before;
+                }
+            }),
+        };
         const assignments = new CsiAssignmentService(
             periods as any, periodRaters as any, ratees as any, pairs as any, {} as any, profiles as any, dataSource as any,
         );
@@ -756,6 +763,67 @@ describe('CsiRespondentService', () => {
             await service.submit(me, 'p1', dto(), NOW);
             expect(manager.query).toHaveBeenCalledWith('SELECT pg_advisory_xact_lock(hashtext($1))', ['csi-draft:p1:me']);
             expect(manager.delete).toHaveBeenCalledWith(CsiResponseDraft, { periodId: 'p1', respondentId: 'me' });
+        });
+    });
+
+    describe('follow-up unrated PICs after prior submission', () => {
+        beforeEach(() => {
+            periods.rows[0] = period({
+                scope: HC,
+                respondentMode: CsiRespondentMode.LISTED,
+                pairMode: CsiPairMode.CUSTOM,
+                respondentPicks: false,
+            });
+            periodRaters.rows.push({ id: 'pr-me', periodId: 'p1', userId: 'me' });
+            pairs.rows.push(
+                { id: 'pair-1', periodId: 'p1', periodRaterId: 'pr-me', periodRateeId: 'r1' },
+                { id: 'pair-2', periodId: 'p1', periodRaterId: 'pr-me', periodRateeId: 'r2' },
+            );
+            responses.rows.push({
+                id: 'resp-prev', periodId: 'p1', respondentId: 'me',
+                departmentId: 'dep1', departmentName: 'Produksi', submittedAt: new Date('2026-10-14T08:00:00Z'),
+            });
+            responseItems.rows.push(
+                { id: 'item-1', responseId: 'resp-prev', periodRateeId: 'r1', periodRateeDimensionId: 'rd1a', score: 5 },
+                { id: 'item-2', responseId: 'resp-prev', periodRateeId: 'r1', periodRateeDimensionId: 'rd1b', score: 5 },
+            );
+        });
+
+        it('reopens listActive and getForm with only unrated PICs while preserving prior submitted response', async () => {
+            const active = await service.listActive(me, NOW);
+            expect(active).toEqual([
+                expect.objectContaining({ id: 'p1', submitted: false, submittedAt: null, partialRemainingCount: 1 }),
+            ]);
+
+            const form = await service.getForm(me, 'p1', NOW);
+            expect(form.submittedAt).toBeNull();
+            expect(form.submittedNames).toEqual([]);
+            expect(form.additionalForCount).toBe(1);
+            expect(form.respondent.departmentId).toBe('dep1');
+            expect(form.ratees.map((r) => r.periodRateeId)).toEqual(['r2']);
+        });
+
+        it('appends new items onto existing CsiResponse without creating a second response row, then marks survey complete', async () => {
+            const res = await service.submit(me, 'p1', {
+                departmentId: 'dep1',
+                items: [{ periodRateeDimensionId: 'rd2a', score: 4 }],
+                comments: [{ periodRateeId: 'r2', comment: 'Bagus' }],
+            }, NOW);
+            expect(res.submitted).toBe(true);
+            expect(saved.find((entry) => entry.target === CsiResponse)).toBeUndefined();
+            expect(savedOf(CsiResponseItem)).toEqual([
+                expect.objectContaining({ responseId: 'resp-prev', periodRateeId: 'r2', periodRateeDimensionId: 'rd2a', score: 4 }),
+            ]);
+            expect(manager.update).toHaveBeenCalledWith(CsiResponse, { id: 'resp-prev' }, { submittedAt: NOW });
+
+            // After completion, responseItems has r2 -> listActive reports submitted: true and repeat submit throws 409.
+            responseItems.rows.push({ id: 'item-3', responseId: 'resp-prev', periodRateeId: 'r2', periodRateeDimensionId: 'rd2a', score: 4 });
+            const activeAfter = await service.listActive(me, NOW);
+            expect(activeAfter).toEqual([expect.objectContaining({ id: 'p1', submitted: true })]);
+            await expect(service.submit(me, 'p1', {
+                departmentId: 'dep1',
+                items: [{ periodRateeDimensionId: 'rd2a', score: 4 }],
+            }, NOW)).rejects.toThrow(ConflictException);
         });
     });
 });

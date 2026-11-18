@@ -100,4 +100,13 @@ describe('CsiStartupPopup', () => {
         renderPopup();
         expect(await screen.findByRole('button', { name: 'Lanjutkan' })).toBeInTheDocument();
     });
+
+    it('reopens in the same session with follow-up badge when partialRemainingCount is added after previous submission', async () => {
+        sessionStorage.setItem(`${CSI_POPUP_DISMISSED_KEY_PREFIX}:u1`, JSON.stringify(['p1']));
+        activeState.data = [{ id: 'p1', scope: 'HC', title: 'Survei Layanan HC', submitted: false, partialRemainingCount: 2 }];
+        renderPopup('/client/my-tickets');
+        expect(await screen.findByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByText('2 PIC tambahan')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lengkapi Penilaian' })).toBeInTheDocument();
+    });
 });

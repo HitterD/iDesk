@@ -79,7 +79,10 @@ export class CsiReminderService {
         const targets = userIds?.length ? [...new Set(userIds)] : raterIds;
         if (targets.some((id) => !raterIds.includes(id))) throw new BadRequestException(NOT_RATER_MESSAGE);
         if (!targets.length) return { sent: 0, skipped: 0 };
-        const answered = new Set((await this.responses.find({ where: { periodId, respondentId: In(targets) } })).map((row) => row.respondentId));
+        const periodResponses = await this.responses.find({ where: { periodId, respondentId: In(targets) } });
+        const answered = this.assignments.fullyAnsweredUserIds
+            ? await this.assignments.fullyAnsweredUserIds(period, periodResponses)
+            : new Set(periodResponses.map((row) => row.respondentId));
         const reminded = await this.recentlyReminded(periodId, targets, now);
         const queued = targets.filter((userId) => !outsideAudience.has(userId) && !answered.has(userId) && !reminded.has(userId));
         const outcomes = await mapBounded(queued, REMINDER_CONCURRENCY, async (userId) => {

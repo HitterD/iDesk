@@ -475,7 +475,7 @@ export class CsiPeriodService {
         const byId = new Map(pics.map((pic) => [pic.id, pic]));
         const snapshots = [...pics].sort(picOrder).map((pic) => picSnapshot(pic, ordered));
         await this.dataSource.transaction(async (manager) => {
-            await lockUnlockedPeriod(manager, id);
+            const { responseCount } = await lockPeriodForRaterAdditions(manager, id);
             const repository = manager.getRepository(CsiPeriodRatee);
             const picUserIds = snapshots.flatMap((snapshot) => (snapshot.userId ? [snapshot.userId] : []));
             if (new Set(picUserIds).size !== picUserIds.length) {
@@ -491,6 +491,43 @@ export class CsiPeriodService {
             const existing = await repository.find({ where: { periodId: id, picId: Not(IsNull()) } });
             const keep = new Map(existing.filter((row) => byId.has(row.picId!)).map((row) => [row.picId!, row]));
             const removed = existing.filter((row) => !byId.has(row.picId!)).map((row) => row.id);
+            if (responseCount > 0) {
+                if (removed.length) {
+                    throw new ConflictException('PIC yang sudah terdaftar tidak dapat dihapus setelah ada jawaban');
+                }
+                const addedSnapshots = snapshots.filter((snapshot) => !keep.has(snapshot.picId!));
+                if (existing.length > 0) {
+                    const existingDims = await manager.getRepository(CsiPeriodRateeDimension).find({
+                        where: { periodRateeId: existing[0].id },
+                        order: { sortOrder: 'ASC' },
+                    });
+                    const existingDimSet = new Set(existingDims.map((row) => row.dimensionId));
+                    const requestedDimSet = new Set(dimensionIds);
+                    if (existingDimSet.size !== requestedDimSet.size || [...existingDimSet].some((dimId) => !requestedDimSet.has(dimId))) {
+                        throw new ConflictException('Pertanyaan PIC tidak dapat diubah setelah ada jawaban');
+                    }
+                    if (!addedSnapshots.length) return;
+                    const maxOrder = existing.reduce((max, row) => Math.max(max, row.sortOrder ?? 0), -1);
+                    const saved = await manager.save(CsiPeriodRatee, addedSnapshots.map((snapshot, index) => ({
+                        periodId: id, kind: snapshot.kind, userId: snapshot.userId,
+                        displayName: snapshot.displayName, jobTitle: snapshot.jobTitle, siteId: snapshot.siteId, teamId: null,
+                        photoUrl: null, tagline: null,
+                        picId: snapshot.picId, serviceCode: snapshot.serviceCode, bagian: snapshot.bagian,
+                        serviceFunction: snapshot.serviceFunction ?? null, sortOrder: maxOrder + 1 + index,
+                    })));
+                    const templateDims = existingDims.length
+                        ? existingDims.map((dim) => ({
+                            id: dim.dimensionId, name: dim.dimensionName, shortLabel: dim.shortLabel ?? null,
+                            type: dim.type, required: dim.required, options: dim.options ?? [],
+                        }))
+                        : null;
+                    await manager.save(CsiPeriodRateeDimension, saved.flatMap((row, index) =>
+                        (templateDims ?? addedSnapshots[index].dimensions).map((dimension, order) => dimensionRow(row.id, dimension, order))));
+                    await enableSectionsWithRatees(manager, id, [CsiRateeKind.PERSON]);
+                    return;
+                }
+                if (!addedSnapshots.length) return;
+            }
             if (removed.length) await manager.delete(CsiPeriodRatee, { id: In(removed) });
             const keptIds = [...keep.values()].map((row) => row.id);
             if (keptIds.length) await manager.delete(CsiPeriodRateeDimension, { periodRateeId: In(keptIds) });
