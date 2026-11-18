@@ -7,7 +7,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CsiHcApi } from '../../../../api/csiHc.api';
 import { useCsiTemplates } from '../../../../hooks/useCsiHc';
+import { isRaterAdditionOpen } from '../../../../lib/csiAdmin';
 import { errorMessage } from '../../../../lib/csiForm';
+import { isHcDecided } from '../../../../lib/hcMode';
 import type { CsiTemplateApplyManyReport } from '../../../../hcTypes';
 import type { CsiPeriodDetail, CsiScopeParam } from '../../../../types';
 import { LocationStep, PreviewStep, selectedTemplateIds } from './HcSurveyWizardSteps';
@@ -60,39 +62,45 @@ export function TemplatePullDialog({ scope, period, open, onOpenChange }: {
     };
     // The preview is re-run with the replacement so its numbers match what Terapkan will do.
     const confirmReplace = (checked: boolean) => { setReplace(checked); void run(false, checked); };
-    const canApply = !!report && !report.committed && !report.blockedReason && (nonPic === 0 || replace);
+    const effectiveReplace = !period.locked && replace;
+    const canApply = !!report && !report.committed && !report.blockedReason && (period.locked || nonPic === 0 || effectiveReplace);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>Ambil dari template</DialogTitle>
-                    <DialogDescription>PIC, penilai dan pasangan dari template lokasi yang dipilih ditambahkan ke survei ini.</DialogDescription>
+                    <DialogDescription>
+                        {period.locked
+                            ? 'Mode tambah-saja (survei sudah berjalan): hanya menambahkan PIC, penilai, dan pasangan baru dari template yang belum ada.'
+                            : 'PIC, penilai dan pasangan dari template lokasi yang dipilih ditambahkan ke survei ini.'}
+                    </DialogDescription>
                 </DialogHeader>
                 <LocationStep templates={templates} selected={locations} onToggle={toggle} />
-                <Button variant="soft" className="justify-self-start" disabled={!templateIds.length || busy} onClick={() => void run(false, replace)}>Pratinjau</Button>
+                <Button variant="soft" className="justify-self-start" disabled={!templateIds.length || busy} onClick={() => void run(false, effectiveReplace)}>Pratinjau</Button>
                 {report && <PreviewStep report={report} loading={false} failed={false} />}
                 {report?.committed && <p className="text-[13.5px] font-semibold">Tersimpan.</p>}
-                {report && nonPic > 0 && !report.committed && (
+                {!period.locked && report && nonPic > 0 && !report.committed && (
                     <label className={NOTE_AMBER}>
-                        <Checkbox checked={replace} disabled={busy} onCheckedChange={(state) => confirmReplace(state === true)} className="mt-0.5" />
+                        <Checkbox checked={effectiveReplace} disabled={busy} onCheckedChange={(state) => confirmReplace(state === true)} className="mt-0.5" />
                         <span>{`Ganti ${nonPic} orang non-PIC dengan PIC dari template. Mereka dipilih dari akun user, tidak masuk report HC, dan akan dihapus beserta pasangannya, termasuk penilai yang hanya menilai mereka.`}</span>
                     </label>
                 )}
                 {error && <p role="alert" className={ALERT_RED}>{error}</p>}
                 <DialogFooter>
                     <Button variant="ghost" onClick={() => onOpenChange(false)}>Tutup</Button>
-                    <Button variant="primary" disabled={!canApply || busy} onClick={() => void run(true, replace && nonPic > 0)}>Terapkan</Button>
+                    <Button variant="primary" disabled={!canApply || busy} onClick={() => void run(true, effectiveReplace && nonPic > 0)}>Terapkan</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
 
-/** The "Ambil dari template" button with its dialog (HC decides who rates whom, survey without answers). */
+/** The "Ambil dari template" button with its dialog (add-only sync allowed on active surveys with answers). */
 export function TemplatePullButton({ scope, period }: { scope: CsiScopeParam; period: CsiPeriodDetail }) {
     const [open, setOpen] = useState(false);
-    if (period.locked) return null;
+    const allowed = !period.locked || (isRaterAdditionOpen(period) && isHcDecided(scope, period));
+    if (!allowed) return null;
     return (
         <>
             <Button variant="soft" onClick={() => setOpen(true)}><Download aria-hidden="true" />Ambil dari template</Button>

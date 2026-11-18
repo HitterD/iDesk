@@ -509,11 +509,27 @@ describe('CsiTemplateApplyService', () => {
             expect(periods.rows[0]).toMatchObject({ teamEnabled: false, individualEnabled: true });
         });
 
-        it('a survey with answers keeps its sections as they are', async () => {
-            periods.rows[0] = { ...periods.rows[0], teamEnabled: true, individualEnabled: false };
+        it('a survey with answers keeps its sections and preserves existing question snapshots for added PICs, while blocking ended surveys', async () => {
+            periods.rows[0] = {
+                ...periods.rows[0], teamEnabled: true, individualEnabled: false,
+                startDate: '2026-01-01', endDate: '2099-12-31',
+            };
+            ratees.rows.push({ id: 'r-existing', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-jingga', teamId: null, siteId: 's-smg', sortOrder: 0 });
+            rateeDims.rows.push({
+                id: 'dim-frozen', periodRateeId: 'r-existing', dimensionId: 'd-frozen',
+                dimensionName: 'Pertanyaan Lama (Snapshot)', shortLabel: 'Frozen', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0,
+            });
             responses.rows.push({ id: 'resp', periodId: 'p1' });
             await service.applyManyToPeriod(HC, ['t1'], 'p1', true, false);
             expect(periods.rows[0]).toMatchObject({ individualEnabled: false });
+            const newPicRatee = ratees.rows.find((row) => row.picId === 'pic-rara')!;
+            expect(rateeDims.rows.filter((dim) => dim.periodRateeId === newPicRatee.id)).toEqual([
+                expect.objectContaining({ dimensionId: 'd-frozen', dimensionName: 'Pertanyaan Lama (Snapshot)' }),
+            ]);
+
+            periods.rows[0] = { ...periods.rows[0], startDate: '2020-01-01', endDate: '2020-01-31' };
+            expect((await service.applyManyToPeriod(HC, ['t2'], 'p1', false, false)).blockedReason).toBe('Survei ini sudah berakhir.');
+            await expect(service.applyManyToPeriod(HC, ['t2'], 'p1', true, false)).rejects.toBeInstanceOf(BadRequestException);
         });
 
         it('is HC only', async () => {

@@ -2,8 +2,12 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { In, Not, QueryFailedError } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
+import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
+import { CsiAssignmentTemplateRater } from '../entities/csi-assignment-template-rater.entity';
+import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
+import { CsiPeriodRaterRatee } from '../entities/csi-period-rater-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
 import { CsiPeriodSite } from '../entities/csi-period-site.entity';
 import { CsiPeriod } from '../entities/csi-period.entity';
@@ -623,6 +627,42 @@ describe('CsiPeriodService', () => {
             const savedRatees = manager.saved.find((entry) => entry.target === CsiPeriodRatee)!.value;
             expect(savedRatees).toHaveLength(1);
             expect(savedRatees[0]).toMatchObject({ picId: 'pic-2', displayName: 'AGI INDRA PRASTYAWAN', sortOrder: 1 });
+        });
+
+        it('setPics automatically adds confirmed template raters and pairs for newly added PICs in a mapped HC survey', async () => {
+            const pic1 = { id: 'pic-1', scope: HC, nik: '1001', fullName: 'DEVI', jobTitle: 'Staff', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-b', userId: null, isActive: true };
+            const pic2 = { id: 'pic-2', scope: HC, nik: '1002', fullName: 'AGI INDRA PRASTYAWAN', jobTitle: 'IR & Legal Supervisor', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-b', userId: 'u2', isActive: true };
+            periods.rows[0] = basePeriod({
+                scope: HC, endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.PUBLISHED,
+                respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false,
+            });
+            ratees.rows.push({ id: 'rt-1', periodId: 'p1', kind: CsiRateeKind.PERSON, picId: 'pic-1', userId: null, siteId: 'site-b', displayName: 'DEVI', sortOrder: 0 });
+            rateeDimensions.rows.push({ id: 'dim-1', periodRateeId: 'rt-1', dimensionId: 'd-hc', dimensionName: 'HC', shortLabel: 'HC', type: CsiQuestionType.STAR, required: true, options: [], sortOrder: 0 });
+            responses.rows.push({ id: 'resp-1', periodId: 'p1', respondentId: 'u1' });
+            periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
+            const pairRepo = memoryRepository<any>([{ id: 'pair-1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'rt-1' }]);
+            const tplRepo = memoryRepository<any>([{ id: 'tpl-krw', scope: HC, locationCode: 'KRW' }]);
+            const tplPicRepo = memoryRepository<any>([{ id: 'tp-agi', templateId: 'tpl-krw', picId: 'pic-2' }]);
+            const tplRaterRepo = memoryRepository<any>([
+                { id: 'tr-1', templatePicId: 'tp-agi', userId: 'u1' },
+                { id: 'tr-self', templatePicId: 'tp-agi', userId: 'u2' },
+                { id: 'tr-off', templatePicId: 'tp-agi', userId: 'u-off' },
+                { id: 'tr-unmatched', templatePicId: 'tp-agi', userId: null },
+            ]);
+            const periodSiteRepo = memoryRepository<any>([{ id: 'ps-krw', periodId: 'p1', siteId: 'site-b', site: { id: 'site-b', code: 'KRW' } }]);
+            manager.repositories.set(CsiAssignmentTemplate, tplRepo);
+            manager.repositories.set(CsiAssignmentTemplatePic, tplPicRepo);
+            manager.repositories.set(CsiAssignmentTemplateRater, tplRaterRepo);
+            manager.repositories.set(CsiPeriodRaterRatee, pairRepo);
+            manager.repositories.set(CsiPeriodSite, periodSiteRepo);
+            (service as any).org = { ...NO_PICS, findPics: async (_s: string, ids: string[]) => [pic1, pic2].filter((p) => ids.includes(p.id)) };
+
+            await service.setPics(HC, 'p1', ['pic-1', 'pic-2'], ['d-hc']);
+            const savedPairs = manager.saved.find((entry) => entry.target === CsiPeriodRaterRatee)?.value;
+            expect(savedPairs).toEqual([
+                expect.objectContaining({ periodId: 'p1', periodRaterId: 'pr-u1' }),
+            ]);
+            expect(savedPairs).toHaveLength(1);
         });
 
         describe('sections follow the picked ratees', () => {
