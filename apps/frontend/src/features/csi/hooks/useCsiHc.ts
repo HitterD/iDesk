@@ -207,8 +207,8 @@ const pairKeys = (scope: CsiScopeParam, id: string) => [keys.period(scope, id), 
 export function useCsiUnitOptions(scope: CsiScopeParam) {
     return useQuery({ queryKey: ['csi', scope, 'units'], queryFn: () => CsiHcApi.units(scope), staleTime: 5 * 60_000 });
 }
-export function useCsiHcRaters(scope: CsiScopeParam, periodId: string) {
-    return useQuery({ queryKey: ratersKey(scope, periodId), queryFn: () => CsiHcApi.raters(scope, periodId), enabled: !!periodId });
+export function useCsiHcRaters(scope: CsiScopeParam, periodId: string, enabled = true) {
+    return useQuery({ queryKey: ratersKey(scope, periodId), queryFn: () => CsiHcApi.raters(scope, periodId), enabled: enabled && !!periodId });
 }
 function usePairsMutation<TVariables, TData>(scope: CsiScopeParam, periodId: string, mutationFn: (variables: TVariables) => Promise<TData>) {
     const client = useQueryClient();

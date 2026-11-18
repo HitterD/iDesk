@@ -632,6 +632,7 @@ describe('CsiPeriodService', () => {
         it('setPics automatically adds confirmed template raters and pairs for newly added PICs in a mapped HC survey', async () => {
             const pic1 = { id: 'pic-1', scope: HC, nik: '1001', fullName: 'DEVI', jobTitle: 'Staff', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-b', userId: null, isActive: true };
             const pic2 = { id: 'pic-2', scope: HC, nik: '1002', fullName: 'AGI INDRA PRASTYAWAN', jobTitle: 'IR & Legal Supervisor', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-b', userId: 'u2', isActive: true };
+            const pic3 = { id: 'pic-3', scope: HC, nik: '1003', fullName: 'BINTANG PRATAMA LATUMAHINA', jobTitle: 'Legal Staff', serviceCode: 'HCS', serviceFunction: 'HC Services', bagian: 'KARAWANG', siteId: 'site-b', userId: null, isActive: true };
             periods.rows[0] = basePeriod({
                 scope: HC, endDate: '2099-12-31', publishStatus: CsiPeriodPublishStatus.PUBLISHED,
                 respondentMode: CsiRespondentMode.LISTED, pairMode: CsiPairMode.CUSTOM, respondentPicks: false,
@@ -642,12 +643,16 @@ describe('CsiPeriodService', () => {
             periodRaters.rows.push({ id: 'pr-u1', periodId: 'p1', userId: 'u1' });
             const pairRepo = memoryRepository<any>([{ id: 'pair-1', periodId: 'p1', periodRaterId: 'pr-u1', periodRateeId: 'rt-1' }]);
             const tplRepo = memoryRepository<any>([{ id: 'tpl-krw', scope: HC, locationCode: 'KRW' }]);
-            const tplPicRepo = memoryRepository<any>([{ id: 'tp-agi', templateId: 'tpl-krw', picId: 'pic-2' }]);
+            const tplPicRepo = memoryRepository<any>([
+                { id: 'tp-agi', templateId: 'tpl-krw', picId: 'pic-2', picName: 'AGI INDRA PRASTYAWAN' },
+                { id: 'tp-bintang', templateId: 'tpl-krw', picId: null, picName: 'Bintang Pratama Latumahina' },
+            ]);
             const tplRaterRepo = memoryRepository<any>([
                 { id: 'tr-1', templatePicId: 'tp-agi', userId: 'u1' },
                 { id: 'tr-self', templatePicId: 'tp-agi', userId: 'u2' },
                 { id: 'tr-off', templatePicId: 'tp-agi', userId: 'u-off' },
                 { id: 'tr-unmatched', templatePicId: 'tp-agi', userId: null },
+                { id: 'tr-bintang', templatePicId: 'tp-bintang', userId: 'u1' },
             ]);
             const periodSiteRepo = memoryRepository<any>([{ id: 'ps-krw', periodId: 'p1', siteId: 'site-b', site: { id: 'site-b', code: 'KRW' } }]);
             manager.repositories.set(CsiAssignmentTemplate, tplRepo);
@@ -655,14 +660,15 @@ describe('CsiPeriodService', () => {
             manager.repositories.set(CsiAssignmentTemplateRater, tplRaterRepo);
             manager.repositories.set(CsiPeriodRaterRatee, pairRepo);
             manager.repositories.set(CsiPeriodSite, periodSiteRepo);
-            (service as any).org = { ...NO_PICS, findPics: async (_s: string, ids: string[]) => [pic1, pic2].filter((p) => ids.includes(p.id)) };
+            (service as any).org = { ...NO_PICS, findPics: async (_s: string, ids: string[]) => [pic1, pic2, pic3].filter((p) => ids.includes(p.id)) };
 
-            await service.setPics(HC, 'p1', ['pic-1', 'pic-2'], ['d-hc']);
+            await service.setPics(HC, 'p1', ['pic-1', 'pic-2', 'pic-3'], ['d-hc']);
             const savedPairs = manager.saved.find((entry) => entry.target === CsiPeriodRaterRatee)?.value;
             expect(savedPairs).toEqual([
                 expect.objectContaining({ periodId: 'p1', periodRaterId: 'pr-u1' }),
+                expect.objectContaining({ periodId: 'p1', periodRaterId: 'pr-u1' }),
             ]);
-            expect(savedPairs).toHaveLength(1);
+            expect(savedPairs).toHaveLength(2);
         });
 
         describe('sections follow the picked ratees', () => {

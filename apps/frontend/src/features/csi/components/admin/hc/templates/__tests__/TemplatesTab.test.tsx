@@ -281,4 +281,20 @@ describe('TemplatesTab', () => {
         expect(await screen.findByText('Rara Kurnia Pongdatu')).toBeInTheDocument();
         expect(screen.queryByRole('textbox', { name: 'Nama PIC' })).toBeNull();
     });
+
+    it('highlights a running survey covering this location and opens auto-preview sync directly', async () => {
+        const { CsiApi } = await import('../../../../../api/csi.api');
+        vi.mocked(CsiApi.periods).mockResolvedValueOnce([{
+            id: 'p-live', title: 'Survey HC Live', scope: 'HC', status: 'ACTIVE', publishStatus: 'PUBLISHED',
+            sites: [{ id: 's-smg', code: 'SMG', name: 'Semarang' }], responseCount: 345, startDate: '2026-11-01', endDate: '2026-11-30',
+        }] as unknown as Awaited<ReturnType<typeof CsiApi.periods>>);
+        renderWithQuery(<TemplatesTab scope="hc" initialLocation="SMG" />);
+        const syncBtn = await screen.findByRole('button', { name: /sinkronkan ke survei berjalan/i });
+        expect(screen.getByText('Survey HC Live')).toBeInTheDocument();
+        await userEvent.click(syncBtn);
+        const dialog = await screen.findByRole('dialog');
+        expect((await api()).applyTemplate).toHaveBeenCalledWith('hc', 't1', 'p-live', false);
+        expect(await within(dialog).findByText(/1 pasangan baru/i)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: /terapkan/i })).toBeEnabled();
+    });
 });

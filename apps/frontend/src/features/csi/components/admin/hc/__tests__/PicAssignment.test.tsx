@@ -16,11 +16,12 @@ const template = (locationCode: string, picIds: string[]): CsiTemplate => ({
 });
 
 const fx = vi.hoisted(() => ({
-    pics: [] as CsiPicView[], templates: [] as CsiTemplate[], templatesLoading: false, save: vi.fn(),
+    pics: [] as CsiPicView[], templates: [] as CsiTemplate[], templatesLoading: false, raters: [] as Array<{ periodRateeIds: string[] }>, save: vi.fn(),
 }));
 vi.mock('../../../../hooks/useCsiHc', () => ({
     useCsiPics: () => ({ data: fx.pics, isLoading: false }),
     useCsiTemplates: () => (fx.templatesLoading ? { data: undefined, isLoading: true } : { data: { templates: fx.templates, bundledAvailable: [] }, isLoading: false }),
+    useCsiHcRaters: () => ({ data: fx.raters, isLoading: false }),
     useSetCsiPeriodPics: () => ({ mutate: fx.save, isPending: false }),
 }));
 vi.mock('../../../../hooks/useCsi', () => ({ useCsiDimensions: () => ({ data: [{ id: 'd1', name: 'Knowledge', shortLabel: null, type: 'STAR' }] }) }));
@@ -109,5 +110,20 @@ describe('PicAssignment location filter', () => {
             expect.objectContaining({ picIds: ['a', 'b'], dimensionIds: ['d1'] }),
             expect.any(Object),
         );
+    });
+
+    it('shows a sync reminder when a decided active survey has selected PICs without raters', () => {
+        fx.raters = [{ periodRateeIds: ['r-a'] }];
+        const decidedActive = {
+            ...period(['KRW'], ['a', 'b']),
+            locked: true, respondentPicks: false, respondentMode: 'LISTED', status: 'ACTIVE', publishStatus: 'PUBLISHED',
+            ratees: [
+                { ...ratee('a'), displayName: 'ANI' },
+                { ...ratee('b'), displayName: 'BUDI' },
+            ],
+        } as unknown as CsiPeriodDetail;
+        render(<PicAssignment scope="hc" period={decidedActive} />);
+        expect(screen.getByText(/1 PIC terpilih belum punya penilai \(Budi\)/i)).toBeInTheDocument();
+        expect(screen.getByText(/Penilai terkonfirmasi di/i)).toBeInTheDocument();
     });
 });

@@ -46,28 +46,32 @@ async function openDialog() {
 }
 
 describe('TemplatePullDialog', () => {
-    it('preselects the survey site, previews all checked locations and applies them in one call', async () => {
+    it('preselects the survey site, auto-previews checked locations and applies them in one call', async () => {
         const dialog = await openDialog();
         expect(within(dialog).getByRole('checkbox', { name: /semarang/i })).toBeChecked();
         expect(within(dialog).getByRole('checkbox', { name: /sepanjang/i })).toBeDisabled();
-        await userEvent.click(within(dialog).getByRole('checkbox', { name: /karawang/i }));
-        expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeDisabled();
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Pratinjau' }));
         expect(await within(dialog).findByText('PIC/tim ditambahkan')).toBeInTheDocument();
+        await userEvent.click(within(dialog).getByRole('checkbox', { name: /karawang/i }));
+        await waitFor(async () => expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-krw', 't-smg'], replaceNonPic: false }, false));
         expect(within(dialog).getByText('5')).toBeInTheDocument();
         expect(within(dialog).getByText(/1 penilai berada di site lain/)).toBeInTheDocument();
         expect(within(dialog).getByText(/2 penilai belum dikonfirmasi/)).toBeInTheDocument();
-        expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-krw', 't-smg'], replaceNonPic: false }, false);
         await userEvent.click(within(dialog).getByRole('button', { name: 'Terapkan' }));
         expect((await api()).applyTemplates).toHaveBeenLastCalledWith('hc', 'p1', { templateIds: ['t-krw', 't-smg'], replaceNonPic: false }, true);
         expect(await within(dialog).findByText('Tersimpan.')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeDisabled();
     });
 
+    it('keeps Terapkan disabled with sync notice when template has nothing new to add', async () => {
+        vi.mocked((await api()).applyTemplates).mockResolvedValueOnce(report({ picsAdded: 0, teamsAdded: 0, ratersAdded: 0, pairsAdded: 0, siteAdded: null }));
+        const dialog = await openDialog();
+        expect(await within(dialog).findByText(/Semua PIC dan penilai dari lokasi terpilih sudah sinkron/i)).toBeInTheDocument();
+        expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeDisabled();
+    });
+
     it('requires confirming the replacement of non-PIC people before Terapkan, and sends replaceNonPic', async () => {
         fx.nonPic = 3;
         const dialog = await openDialog();
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Pratinjau' }));
         const confirm = await within(dialog).findByRole('checkbox', { name: /ganti 3 orang non-PIC dengan PIC dari template/i });
         expect(within(dialog).getByRole('button', { name: 'Terapkan' })).toBeDisabled();
         await userEvent.click(confirm);
@@ -80,7 +84,6 @@ describe('TemplatePullDialog', () => {
     it('shows the server error', async () => {
         fx.fail = 'Survei sudah ada jawaban; ambil template hanya untuk survei tanpa jawaban';
         const dialog = await openDialog();
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Pratinjau' }));
         expect(await within(dialog).findByRole('alert')).toHaveTextContent('Survei sudah ada jawaban');
     });
 });
