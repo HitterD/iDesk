@@ -147,6 +147,7 @@ export default defineConfig(({ command }) => ({
                     'vendor-motion': ['framer-motion'],
                     'vendor-charts': ['recharts'],
                     'vendor-xlsx': ['xlsx'],
+                    'vendor-exceljs': ['exceljs'],
                     'vendor-calendar': [
                         '@fullcalendar/react',
                         '@fullcalendar/core',

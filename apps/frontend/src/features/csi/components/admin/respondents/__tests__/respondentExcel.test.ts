@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatDateTime } from '../../../../lib/format';
 import type { CsiSiteSummary } from '../../../../types';
@@ -32,7 +32,7 @@ describe('respondentExcel', () => {
         expect(sanitizeExcelCell('Budi Santoso')).toBe('Budi Santoso');
     });
 
-    it('builds Rekap summary per site with totals and percentage cells', () => {
+    it('builds Ringkasan summary per site with totals and percentage cells', () => {
         const rows = personRows({
             mode: 'LISTED',
             submitted: [{
@@ -100,15 +100,26 @@ describe('respondentExcel', () => {
         ]);
     });
 
-    it('exports multi-sheet xlsx workbook (Rekap, Semua Site, and per-site sheets) via downloadBlob', async () => {
+    it('exports styled multi-sheet workbook matching the reference palette, tab names, freezes, filters, and formulas', async () => {
+        const submittedIso = '2026-11-17T01:36:00Z';
         const rows = personRows({
             mode: 'LISTED',
-            submitted: [],
+            submitted: [
+                {
+                    responseId: 'r1',
+                    userId: 'u3',
+                    respondentName: 'Rina',
+                    accountName: 'rina@sja.com',
+                    departmentName: 'Finance',
+                    siteId: 's-spj',
+                    submittedAt: submittedIso,
+                },
+            ],
             pending: [
                 { userId: 'u1', fullName: 'Budi', department: 'IT', siteId: 's-spj' },
                 { userId: 'u2', fullName: 'Citra', department: 'QA', siteId: 's-skd' },
             ],
-            totals: { submitted: 0, pending: 2 },
+            totals: { submitted: 1, pending: 2 },
         });
 
         const filename = await exportRespondentsExcel({
@@ -117,6 +128,7 @@ describe('respondentExcel', () => {
             scope: 'ict',
             periodTitle: 'Survei CSI - ICT',
             suffix: 'belum-SPJ',
+            now: new Date('2026-11-17T08:00:00Z'),
         });
 
         expect(filename).toMatch(/^responden-survei-csi-ict-belum-spj-\d{4}-\d{2}-\d{2}\.xlsx$/);
@@ -125,11 +137,47 @@ describe('respondentExcel', () => {
         expect(savedName).toBe(filename);
         expect(blob).toBeInstanceOf(Blob);
 
-        const workbook = XLSX.read(await (blob as Blob).arrayBuffer(), { type: 'array' });
-        expect(workbook.SheetNames).toEqual(['Rekap', 'Semua Site', 'SKD', 'SPJ']);
-        const skdParsed = XLSX.utils.sheet_to_json(workbook.Sheets.SKD, { header: 1 });
-        expect(skdParsed[0]).toEqual(['DAFTAR RESPONDEN SURVEI CSI - ICT — SITE SKD']);
-        expect(skdParsed[4]).toEqual([1, 'Citra', 'SKD', 'QA', 'Belum', '-', 'idesk.santos.co.id']);
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(await (blob as Blob).arrayBuffer());
+
+        expect(workbook.worksheets.map((ws) => ws.name)).toEqual([
+            'Ringkasan',
+            'Semua Responden',
+            'Site SKD',
+            'Site SPJ',
+        ]);
+
+        const ringkasan = workbook.getWorksheet('Ringkasan')!;
+        expect(ringkasan.getCell('A1').value).toBe('REKAPITULASI PROGRES PENGISIAN SURVEI CSI - ICT');
+        expect(ringkasan.getCell('A1').font?.size).toBe(14);
+        expect(ringkasan.getCell('A1').font?.color?.argb).toBe('FF1B365D');
+        expect(ringkasan.getCell('A5').fill).toMatchObject({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B365D' } });
+        expect(ringkasan.getCell('A5').font?.color?.argb).toBe('FFFFFFFF');
+        expect(ringkasan.getCell('B6').value).toMatchObject({
+            formula: "COUNTIF('Semua Responden'!$C$5:$C$7, A6)",
+            result: 1,
+        });
+        expect(ringkasan.getCell('E7').numFmt).toBe('0.0%');
+        expect(ringkasan.getCell('A8').value).toBe('TOTAL');
+        expect(ringkasan.getCell('A8').fill).toMatchObject({ type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } });
+        expect(ringkasan.getCell('A8').border?.bottom?.style).toBe('double');
+
+        const spjSheet = workbook.getWorksheet('Site SPJ')!;
+        expect(spjSheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 4 });
+        expect(spjSheet.autoFilter).toBe('A4:G6');
+        expect(spjSheet.getCell('A1').value).toBe('DAFTAR RESPONDEN SURVEI CSI - ICT — SITE SPJ');
+        expect(spjSheet.getCell('E2').value).toBe('Total Site SPJ: 2 | Sudah: 1 | Belum: 1');
+        expect(spjSheet.getCell('E5').value).toBe('Belum');
+        expect(spjSheet.getCell('E5').fill).toMatchObject({ fgColor: { argb: 'FFFDE8E8' } });
+        expect(spjSheet.getCell('E5').font?.color?.argb).toBe('FF9B1C1C');
+        expect(spjSheet.getCell('E6').value).toBe('Sudah mengisi');
+        expect(spjSheet.getCell('E6').fill).toMatchObject({ fgColor: { argb: 'FFDEF7EC' } });
+        expect(spjSheet.getCell('E6').font?.color?.argb).toBe('FF03543F');
+        expect(spjSheet.getCell('B6').fill).toMatchObject({ fgColor: { argb: 'FFF4F7FA' } });
+        expect(spjSheet.getCell('G5').value).toEqual({
+            text: 'idesk.santos.co.id',
+            hyperlink: 'https://idesk.santos.co.id',
+        });
     });
 
     it('builds safe fallback filenames when periodTitle is omitted', () => {
