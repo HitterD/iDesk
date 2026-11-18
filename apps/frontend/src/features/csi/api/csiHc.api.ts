@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import { exportFilename } from './csi.api';
 import type { CsiPeriodDetail, CsiScopeParam } from '../types';
 import type { AccountSuggestion, ApplyCsiTemplates, CreateCsiPeriodFromTemplates, CsiTemplateApplyManyReport, CsiPeriodFromTemplatesResult, CsiTemplateImportOptions } from '../hcTypes';
-import type { CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
+import type { AssignRatersToPicsInput, AssignRatersToPicsResult, CsiDirectoryImportResult, CsiHcRater, CsiHcRecap, CsiPairsImportReport, CsiPicView, CsiReportAccess, CsiReportPeriods, CsiServiceReport, CsiServiceReportOwners, CsiTemplate, CsiTemplateApplyReport, CsiTemplateImportReport, CsiTemplateList, CsiUnitOption, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
 
 const orgPath = (scope: CsiScopeParam) => `/csi/admin/${scope}/org`;
 const periodPath = (scope: CsiScopeParam, id: string) => `/csi/admin/${scope}/periods/${encodeURIComponent(id)}`;
@@ -128,6 +128,9 @@ export const CsiHcApi = {
     },
     async setRater(scope: CsiScopeParam, id: string, userId: string, periodRateeIds: string[]): Promise<CsiHcRater[]> {
         return (await api.put<CsiHcRater[]>(`${orgPath(scope)}/periods/${encodeURIComponent(id)}/raters/${encodeURIComponent(userId)}`, { periodRateeIds })).data;
+    },
+    async assignRatersToPics(scope: CsiScopeParam, id: string, body: AssignRatersToPicsInput): Promise<AssignRatersToPicsResult> {
+        return (await api.post<AssignRatersToPicsResult>(`${orgPath(scope)}/periods/${encodeURIComponent(id)}/raters/assign-pics`, body)).data;
     },
     async exportPairs(scope: CsiScopeParam, id: string): Promise<Blob> {
         return (await api.get<Blob>(`${orgPath(scope)}/periods/${encodeURIComponent(id)}/pairs.xlsx`, { responseType: 'blob', skipToast: true })).data;

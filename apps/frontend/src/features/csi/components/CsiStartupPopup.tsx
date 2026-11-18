@@ -34,8 +34,12 @@ function writeDismissedIds(userId: string, ids: ReadonlySet<string>): void {
     }
 }
 
+const dismissToken = (survey: CsiActivePeriod): string =>
+    (survey.partialRemainingCount ? `${survey.id}:partial:${survey.partialRemainingCount}` : survey.id);
+
 function ctaLabel(userId: string, survey: CsiActivePeriod, single: boolean): string {
     if (survey.hasDraft || hasDraft(userId, survey.id)) return 'Lanjutkan';
+    if (survey.partialRemainingCount) return single ? 'Lengkapi Penilaian' : 'Lengkapi';
     return single ? 'Isi Survei CSI' : 'Isi';
 }
 
@@ -49,6 +53,9 @@ function SurveyOptionRow({ survey, userId, single, onOpen }: {
                 <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                         <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
+                        {survey.partialRemainingCount ? (
+                            <TicketPill tone="amber">{`${survey.partialRemainingCount} PIC tambahan`}</TicketPill>
+                        ) : null}
                         {survey.endDate && (
                             <span className="inline-flex items-center gap-1 text-[11.5px] text-muted-foreground">
                                 <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -92,13 +99,13 @@ export function CsiStartupPopup() {
 
     const pending = Array.isArray(data) ? data.filter((survey) => !survey.submitted) : [];
     const onCsiRoute = pathname === basePath || pathname.startsWith(`${basePath}/`);
-    const unseen = pending.filter((survey) => !dismissedIds.has(survey.id));
+    const unseen = pending.filter((survey) => !dismissedIds.has(dismissToken(survey)));
     const open = Boolean(userId && !onCsiRoute && unseen.length > 0);
 
     const handleDismiss = () => {
         if (!userId || pending.length === 0) return;
         const next = new Set(readDismissedIds(userId));
-        for (const survey of pending) next.add(survey.id);
+        for (const survey of pending) next.add(dismissToken(survey));
         writeDismissedIds(userId, next);
         setDismissedIds(next);
     };

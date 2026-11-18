@@ -3,7 +3,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { CsiHcApi } from '../api/csiHc.api';
 import { CsiApi } from '../api/csi.api';
 import type { CreateCsiCustomTeam, CsiScopeParam, CsiTeamMemberInput, UpdateCsiCustomTeam } from '../types';
-import type { CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
+import type { AssignRatersToPicsInput, CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
 import { useCsiPollingFallback } from './useCsiLiveUpdates';
 
 const keys = queryKeys.csi;
@@ -223,6 +223,9 @@ export function useApplyCsiUnitRules(scope: CsiScopeParam, periodId: string) {
 export function useSetCsiHcRater(scope: CsiScopeParam, periodId: string) {
     return usePairsMutation(scope, periodId, ({ userId, periodRateeIds }: { userId: string; periodRateeIds: string[] }) =>
         CsiHcApi.setRater(scope, periodId, userId, periodRateeIds));
+}
+export function useAssignRatersToPics(scope: CsiScopeParam, periodId: string) {
+    return usePairsMutation(scope, periodId, (body: AssignRatersToPicsInput) => CsiHcApi.assignRatersToPics(scope, periodId, body));
 }
 export function useImportCsiPairs(scope: CsiScopeParam, periodId: string) {
     return usePairsMutation(scope, periodId, ({ file, commit }: { file: File; commit: boolean }) => CsiHcApi.importPairs(scope, periodId, file, commit));

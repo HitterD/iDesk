@@ -521,14 +521,18 @@ export class CsiReportService {
     async getRespondents(scope: ServiceScope, periodId: string) {
         const period = await this.findInScope(scope, periodId, { sites: true });
         const responses = await this.responses.find({ where: { periodId }, relations: { respondent: true }, order: { submittedAt: 'ASC' } });
-        const submitted = responses.map((response) => ({
+        const allSubmitted = responses.map((response) => ({
             responseId: response.id, userId: response.respondentId, respondentName: response.respondentName, accountName: response.respondent.fullName,
             departmentName: response.departmentName, siteId: response.respondent.siteId ?? null, submittedAt: response.submittedAt,
         }));
+        let submitted = allSubmitted;
         let pending: Array<{ userId: string; fullName: string; department: string | null; siteId: string | null }> | null = null;
         let byDepartment: CsiPendingDepartment[] | null = null;
         if (period.respondentMode === CsiRespondentMode.LISTED) {
-            const answered = new Set(responses.map((response) => response.respondentId));
+            const answered = this.assignments.fullyAnsweredUserIds
+                ? await this.assignments.fullyAnsweredUserIds(period, responses)
+                : new Set(responses.map((response) => response.respondentId));
+            submitted = allSubmitted.filter((row) => answered.has(row.userId));
             const raters = await this.periodRaters.find({ where: { periodId }, relations: { user: { department: true } } });
             // Same audience as the SLA basis: raters who cannot open the survey (other site, inactive, no pairs in a
             // mapped period) are not pending.

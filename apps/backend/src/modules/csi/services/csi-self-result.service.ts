@@ -86,7 +86,7 @@ export class CsiSelfResultService {
         const results = await Promise.all(rows.map((row) => this.resultOf(
             row,
             assignment.targetsByRatee.get(row.id) ?? null,
-            assignment.answeredByPeriod.get(row.periodId) ?? new Set(),
+            assignment.answeredForRatee(row),
             now,
         )));
         return results.sort((a, b) => b.startDate.localeCompare(a.startDate));
@@ -202,14 +202,16 @@ export class CsiSelfResultService {
         };
     }
 
-    /** Computes assigned active raters per ratee (`null` for OPEN periods without fixed raters) and answered respondent ids per period. */
+    /** Computes assigned active raters per ratee (`null` for OPEN periods without fixed raters) and answered respondent ids per ratee. */
     private async assignedRatersByRatee(
         rows: CsiPeriodRatee[],
         linkedByPic: ReadonlyMap<string, string | null>,
         viewerUserId?: string,
-    ): Promise<{ targetsByRatee: Map<string, CsiSelfPendingRater[] | null>; answeredByPeriod: Map<string, Set<string>> }> {
+    ): Promise<{ targetsByRatee: Map<string, CsiSelfPendingRater[] | null>; answeredForRatee: (ratee: CsiPeriodRatee) => ReadonlySet<string> }> {
         const targetsByRatee = new Map<string, CsiSelfPendingRater[] | null>();
         const answeredByPeriod = new Map<string, Set<string>>();
+        const respIdByPeriodUser = new Map<string, string>();
+        const ratedRateesByResp = new Map<string, Set<string>>();
         const byPeriod = new Map<string, CsiPeriodRatee[]>();
         for (const row of rows) byPeriod.set(row.periodId, [...(byPeriod.get(row.periodId) ?? []), row]);
 
@@ -219,14 +221,39 @@ export class CsiSelfResultService {
         if (listedPeriodIds.length && this.responses) {
             const periodResponses = await this.responses.find({
                 where: { periodId: In(listedPeriodIds) },
-                select: { periodId: true, respondentId: true },
+                select: { id: true, periodId: true, respondentId: true },
             });
             for (const response of periodResponses) {
                 const seen = answeredByPeriod.get(response.periodId) ?? new Set<string>();
                 seen.add(response.respondentId);
                 answeredByPeriod.set(response.periodId, seen);
+                if (response.id) respIdByPeriodUser.set(`${response.periodId}:${response.respondentId}`, response.id);
+            }
+            const responseIds = periodResponses.map((row) => row.id).filter(Boolean);
+            if (responseIds.length && this.items) {
+                const itemRows = await this.items.find({
+                    where: { responseId: In(responseIds) },
+                    select: { responseId: true, periodRateeId: true },
+                });
+                for (const item of itemRows) {
+                    const set = ratedRateesByResp.get(item.responseId) ?? new Set<string>();
+                    set.add(item.periodRateeId);
+                    ratedRateesByResp.set(item.responseId, set);
+                }
             }
         }
+
+        const answeredForRatee = (ratee: CsiPeriodRatee): ReadonlySet<string> => {
+            const users = answeredByPeriod.get(ratee.periodId) ?? new Set<string>();
+            if (ratee.period.pairMode !== CsiPairMode.CUSTOM || ratee.period.respondentPicks) return users;
+            const filtered = new Set<string>();
+            users.forEach((userId) => {
+                const respId = respIdByPeriodUser.get(`${ratee.periodId}:${userId}`);
+                const rated = respId ? ratedRateesByResp.get(respId) : undefined;
+                if (!rated || rated.has(ratee.id)) filtered.add(userId);
+            });
+            return filtered;
+        };
 
         for (const [periodId, group] of byPeriod) {
             const period = group[0].period;
@@ -276,7 +303,7 @@ export class CsiSelfResultService {
                 targetsByRatee.set(ratee.id, uniqueRaters);
             }
         }
-        return { targetsByRatee, answeredByPeriod };
+        return { targetsByRatee, answeredForRatee };
     }
 
     private async directoryDepartments(niks: Array<string | null | undefined>): Promise<Map<string, string>> {

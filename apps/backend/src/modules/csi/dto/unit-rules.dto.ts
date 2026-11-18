@@ -1,10 +1,11 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 import { CsiHcService, CsiOrgLocation } from '../org/csi-org.constants';
 
 const TEXT_MAX = 150;
 const RULES_MAX = 200;
 const PICS_MAX = 500;
+const RATERS_MAX = 2000;
 
 export class CsiUnitRuleDto {
     @IsString({ message: 'Divisi wajib diisi' })
@@ -44,4 +45,26 @@ export class SetRaterPicsDto {
     @ArrayMaxSize(PICS_MAX, { message: 'Maksimal 500 PIC' })
     @IsUUID('all', { each: true, message: 'ID PIC harus berupa UUID' })
     periodRateeIds: string[];
+}
+
+export class AssignRatersToPicsDto {
+    @IsArray({ message: 'Daftar PIC tujuan harus berupa array' })
+    @ArrayMinSize(1, { message: 'Pilih minimal satu PIC tujuan' })
+    @ArrayMaxSize(PICS_MAX, { message: 'Maksimal 500 PIC' })
+    @IsUUID('all', { each: true, message: 'ID PIC tujuan harus berupa UUID' })
+    targetRateeIds: string[];
+
+    @IsOptional()
+    @IsUUID('all', { message: 'ID PIC sumber harus berupa UUID' })
+    sourceRateeId?: string;
+
+    @IsOptional()
+    @IsArray({ message: 'Daftar penilai harus berupa array' })
+    @ArrayMaxSize(RATERS_MAX, { message: 'Maksimal 2000 penilai' })
+    @IsUUID('all', { each: true, message: 'ID penilai harus berupa UUID' })
+    raterUserIds?: string[];
+
+    @IsOptional()
+    @IsBoolean()
+    includeAnswered?: boolean;
 }

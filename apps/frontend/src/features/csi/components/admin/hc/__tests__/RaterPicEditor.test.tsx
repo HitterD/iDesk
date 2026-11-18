@@ -8,12 +8,14 @@ import { HcPairsPanel } from '../HcPairsPanel';
 
 const fx = vi.hoisted(() => ({
     setRater: vi.fn(),
+    assignRatersToPics: vi.fn(),
     raters: [] as CsiHcRater[],
 }));
 vi.mock('../../../../api/csiHc.api', () => ({
     CsiHcApi: {
         raters: vi.fn(async () => fx.raters),
         setRater: fx.setRater,
+        assignRatersToPics: fx.assignRatersToPics,
     },
 }));
 vi.mock('../../../../api/csi.api', () => ({
@@ -53,23 +55,44 @@ describe('HcPairsPanel & RaterPicEditor subjects', () => {
         expect(fx.setRater).toHaveBeenCalledWith('hc', 'p-1', 'u-1', ['r-team', 'r-pic']);
     });
 
-    it('when locked & active: keeps search-to-add open, locks answered raters, and allows editing unanswered raters without delete', async () => {
+    it('when locked & active: keeps search-to-add open, locks already-rated PICs on answered raters while allowing follow-up PIC additions and bulk assign', async () => {
         fx.raters = [
             {
                 userId: 'u-done', nik: '0001', fullName: 'SUDAH ISI', siteCode: 'SPJ',
-                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], answered: true,
+                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], ratedRateeIds: ['r-pic'], answered: true,
             },
             {
                 userId: 'u-wait', nik: '0002', fullName: 'BELUM ISI', siteCode: 'SPJ',
-                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], answered: false,
+                division: 'OPS', department: 'PROD', bagian: null, periodRateeIds: ['r-pic'], ratedRateeIds: [], answered: false,
             },
         ];
+        fx.setRater.mockResolvedValue(fx.raters);
+        fx.assignRatersToPics.mockResolvedValue({ addedPairs: 1, addedRaters: 0, reopenedRaters: 1, skippedAnswered: 0, skippedSelf: 0 });
         renderWithQuery(<HcPairsPanel scope="hc" period={{ ...PERIOD, locked: true, publishStatus: 'PUBLISHED', status: 'ACTIVE' }} />);
 
         expect(await screen.findByText('Sudah mengisi')).toBeInTheDocument();
         expect(screen.getByText(/1\. Cari penilai dari master karyawan/i)).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /Ubah PIC untuk SUDAH ISI/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Hapus BELUM ISI/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Hapus SUDAH ISI/i })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Ubah PIC untuk BELUM ISI/i })).toBeEnabled();
+
+        // Answered rater can open editor: already-rated PIC is disabled, newly added subject can be ticked.
+        await userEvent.click(screen.getByRole('button', { name: /Ubah PIC untuk SUDAH ISI/i }));
+        expect(screen.getByRole('checkbox', { name: /Ratna Sri Tanjung/i })).toBeDisabled();
+        const teamBox = screen.getByRole('checkbox', { name: /Tim Layanan HC/i });
+        expect(teamBox).toBeEnabled();
+        await userEvent.click(teamBox);
+        await userEvent.click(screen.getByRole('button', { name: 'Simpan' }));
+        expect(fx.setRater).toHaveBeenCalledWith('hc', 'p-1', 'u-done', ['r-pic', 'r-team']);
+
+        // Bulk assign / copy panel works and sends includeAnswered toggle when ticked.
+        await userEvent.click(screen.getByRole('button', { name: /Atur penilai PIC baru|Atur \/ Salin penilai ke PIC/i }));
+        await userEvent.click(screen.getByRole('checkbox', { name: /Sertakan penilai yang sudah terlanjur mengisi/i }));
+        await userEvent.click(screen.getByRole('button', { name: /Terapkan ke 1 PIC/i }));
+        expect(fx.assignRatersToPics).toHaveBeenCalledWith('hc', 'p-1', expect.objectContaining({
+            targetRateeIds: ['r-team'],
+            sourceRateeId: 'r-pic',
+            includeAnswered: true,
+        }));
     });
 });

@@ -89,4 +89,25 @@ describe('PicAssignment location filter', () => {
         expect(screen.getByText('0 dari 1 PIC dipilih')).toBeInTheDocument();
         expect(screen.getByText('Dipilih di luar filter (2)')).toBeInTheDocument();
     });
+
+    it('when locked on an active survey: locks existing PICs and questions while allowing new PIC additions', async () => {
+        fx.save.mockClear();
+        const activeLocked = { ...period(['KRW'], ['a']), locked: true, status: 'ACTIVE', publishStatus: 'PUBLISHED' } as unknown as CsiPeriodDetail;
+        render(<PicAssignment scope="hc" period={activeLocked} />);
+
+        expect(screen.getByText('Sudah ada jawaban · hanya bisa menambah PIC baru')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Knowledge/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Ani/i })).toBeDisabled();
+
+        const bButton = screen.getByRole('button', { name: /Budi/i });
+        expect(bButton).toBeEnabled();
+        await userEvent.click(bButton);
+        expect(screen.getByText('+1 PIC baru belum disimpan')).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Simpan tambahan PIC' }));
+        expect(fx.save).toHaveBeenCalledWith(
+            expect.objectContaining({ picIds: ['a', 'b'], dimensionIds: ['d1'] }),
+            expect.any(Object),
+        );
+    });
 });

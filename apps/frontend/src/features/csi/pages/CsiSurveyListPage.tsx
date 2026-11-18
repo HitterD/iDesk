@@ -86,6 +86,8 @@ export function CsiSurveyListPage() {
                                             <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
                                             {survey.submitted ? (
                                                 <TicketPill tone="green"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah diisi</TicketPill>
+                                            ) : survey.partialRemainingCount ? (
+                                                <TicketPill tone="amber">{`${survey.partialRemainingCount} PIC tambahan`}</TicketPill>
                                             ) : (
                                                 <TicketPill tone="amber">Belum diisi</TicketPill>
                                             )}
@@ -96,7 +98,11 @@ export function CsiSurveyListPage() {
                                     </span>
                                     {/* One answer per account: an answered survey only opens its "already answered" screen. */}
                                     <span className={cn('inline-flex shrink-0 items-center gap-1 text-[13px] font-semibold', survey.submitted ? 'text-muted-foreground' : 'text-primary')}>
-                                        {survey.submitted ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah dikirim</> : (survey.hasDraft || (user && hasDraft(user.id, survey.id))) ? 'Lanjutkan' : 'Isi Survei'}
+                                        {survey.submitted
+                                            ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah dikirim</>
+                                            : (survey.hasDraft || (user && hasDraft(user.id, survey.id)))
+                                                ? 'Lanjutkan'
+                                                : survey.partialRemainingCount ? 'Lengkapi' : 'Isi Survei'}
                                     </span>
                                     <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                                 </Link>
