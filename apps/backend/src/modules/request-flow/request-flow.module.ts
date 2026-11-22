@@ -7,7 +7,13 @@ import { User } from '../users/entities/user.entity';
 import { RequestDocumentRevision } from './entities/request-document-revision.entity';
 import { RequestFlow } from './entities/request-flow.entity';
 import { RequestFlowController } from './presentation/request-flow.controller';
+import { RequestDocumentService } from './services/request-document.service';
+import { RequestFlowNotifier } from './services/request-flow-notifier';
+import { RequestFlowReader } from './services/request-flow-reader';
+import { RequestFlowReviewService } from './services/request-flow-review.service';
+import { RequestFlowStepper } from './services/request-flow-stepper';
 import { RequestFlowService } from './services/request-flow.service';
+import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
     imports: [
@@ -15,8 +21,11 @@ import { RequestFlowService } from './services/request-flow.service';
         forwardRef(() => TicketingModule),
         HardwareRequestModule,
         EFormRequestModule,
+        NotificationModule,
     ],
     controllers: [RequestFlowController],
-    providers: [RequestFlowService],
+    providers: [
+        RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
+    ],
 })
 export class RequestFlowModule {}

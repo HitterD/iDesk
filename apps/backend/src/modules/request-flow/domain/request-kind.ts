@@ -2,6 +2,7 @@ import { TicketType } from '../../ticketing/entities/ticket.entity';
 
 export type RequestKind = 'HARDWARE' | 'EFORM';
 export type HardwareSource = 'ANNUAL_BUDGET' | 'NON_BUDGET' | 'IT_STOCK';
+export const HARDWARE_SOURCES: readonly HardwareSource[] = ['ANNUAL_BUDGET', 'NON_BUDGET', 'IT_STOCK'];
 
 const ticketTypesByKind: Record<RequestKind, TicketType> = {
     HARDWARE: TicketType.HARDWARE_REQUEST,

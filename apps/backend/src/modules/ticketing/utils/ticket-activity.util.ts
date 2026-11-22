@@ -16,11 +16,13 @@ export interface TicketActivityChange {
 /** Steps of a hardware request proposed from the ticket, as told in the ticket's chat. */
 /** Steps of an e-form access request proposed from a ticket, as the ticket shows them. */
 export type EFormTicketPhase =
-    | 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED';
+    | 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED'
+    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED';
 
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
-    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
+    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED'
+    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED';
 
 export interface TicketSystemEvent {
     v: 1;

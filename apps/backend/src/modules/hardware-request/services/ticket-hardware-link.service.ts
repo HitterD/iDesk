@@ -27,6 +27,11 @@ const PHASE_TEXT: Record<HardwareTicketPhase, (no: string, at?: string) => strin
     ISSUE_REPORTED: (no) => `Pemohon melaporkan masalah pada pemasangan ${no}. Tim IT menindaklanjuti.`,
     COMPLETED: (no) => `Hardware request ${no} selesai dan dikonfirmasi. Tiket ditutup otomatis.`,
     CANCELLED: (no) => `Hardware request ${no} dibatalkan. Tiket kembali ditangani.`,
+    // Steps of the unified request flow (RequestFlowReviewService writes its own text).
+    REVIEWED: (no) => `Hardware request ${no} ditinjau IT.`,
+    SIGNED: (no) => `Hardware request ${no} ditandatangani.`,
+    RETURNED: (no) => `Hardware request ${no} dikembalikan ke IT.`,
+    REMINDED: (no) => `Pengingat persetujuan ${no} dikirim.`,
 };
 
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */

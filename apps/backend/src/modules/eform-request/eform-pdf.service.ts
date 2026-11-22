@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
+import * as QRCode from 'qrcode';
 import { EFormRequest, EFormStatus, EFormType } from './entities';
 import { resolveSantosLogoPath } from '../../shared/core/utils/brand-logo.util';
 import { EFORM_DOCUMENT_CODE } from './eform-document-number';
@@ -25,6 +26,12 @@ const formatDateId = (dateObj?: Date | string | null): string => {
   return `${day}-${month}-${year}`;
 };
 
+/** The unified request's document identity, printed bottom-right: a QR of `<ticketNumber>/v<N>` and the version. */
+export interface DocumentFooter { qrText: string; version: number }
+
+const FOOTER_QR_SIZE = 46;
+const FOOTER_Y = 770;
+
 /** Above this many characters the document number is printed smaller so it fits the header cell. */
 const DOC_NO_FIT_CHARS = 18;
 
@@ -32,7 +39,9 @@ const DOC_NO_FIT_CHARS = 18;
 export class EFormPdfService {
   private readonly logger = new Logger(EFormPdfService.name);
 
-  async generatePdf(eformRequest: EFormRequest, credential?: DecryptedCredentialData): Promise<Buffer> {
+  async generatePdf(eformRequest: EFormRequest, credential?: DecryptedCredentialData, footer?: DocumentFooter): Promise<Buffer> {
+    // Rendered up front: pdfkit is synchronous, the QR encoder is not.
+    const qrPng = footer ? await QRCode.toBuffer(footer.qrText, { margin: 0, width: FOOTER_QR_SIZE * 4 }) : null;
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({
@@ -577,6 +586,15 @@ export class EFormPdfService {
 
         doc.text('Tanda Tangan:', rightStartX, curY + 34);
         doc.rect(boxRightX, curY + 32, boxRightW, 26).lineWidth(0.6).stroke('#000000');
+
+        if (footer && qrPng) {
+          const qrX = startX + pageWidth - FOOTER_QR_SIZE;
+          doc.image(qrPng, qrX, FOOTER_Y, { width: FOOTER_QR_SIZE, height: FOOTER_QR_SIZE });
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#000000')
+            .text(`v${footer.version}`, qrX - 60, FOOTER_Y + 8, { width: 54, align: 'right', lineBreak: false });
+          doc.font('Helvetica').fontSize(6).fillColor('#64748B')
+            .text(footer.qrText, qrX - 160, FOOTER_Y + 22, { width: 154, align: 'right', lineBreak: false });
+        }
 
         doc.end();
       } catch (error) {

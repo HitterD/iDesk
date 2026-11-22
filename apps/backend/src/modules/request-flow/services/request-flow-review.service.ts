@@ -1,0 +1,299 @@
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { promises as fs } from 'fs';
+import { basename, extname, join } from 'path';
+import { DataSource, EntityManager, Like, MoreThan, Repository } from 'typeorm';
+import { EFormApproval } from '../../eform-request/entities/eform-approval.entity';
+import { EFormRequest, EFormStatus } from '../../eform-request/entities/eform-request.entity';
+import { ICT_ROLES } from '../../eform-request/eform-roles.constants';
+import { HR_EVT } from '../../hardware-request/domain/events/hardware-request.events';
+import { HardwareRequestCommandService } from '../../hardware-request/services/hardware-request-command.service';
+import { TicketStatus } from '../../ticketing/entities/ticket.entity';
+import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
+import { User } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
+import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
+import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
+import { canChangeRoute, type ApprovalRoute } from '../domain/approval-route';
+import { ROUTE_LABEL, SOURCE_LABEL, STEP_LABEL } from '../domain/approval-phase';
+import { RequestFlow } from '../entities/request-flow.entity';
+import { documentQrText } from '../pdf/hardware-request-pdf';
+import type { ApproveDto } from '../dto/approve.dto';
+import type { ReviewDto } from '../dto/review.dto';
+import { RequestDocumentService } from './request-document.service';
+import { RequestFlowNotifier } from './request-flow-notifier';
+import { RequestFlowReader, type FlowContext } from './request-flow-reader';
+import { RequestFlowStepper } from './request-flow-stepper';
+
+/** Folder (under `uploads/`) for scanned paper signatures. The /uploads handler refuses it: files leave only through the API. */
+export const REQUEST_SCANS_DIR = 'request-scans';
+export const SCAN_ALLOWED_EXTENSIONS: readonly string[] = ['.pdf', '.jpg', '.jpeg', '.png'];
+export const SCAN_MAX_BYTES = 10 * 1024 * 1024;
+/** One reminder per request per hour. */
+export const REMIND_INTERVAL_MS = 60 * 60 * 1000;
+const REMINDER_TEXT_PREFIX = 'System: Pengingat';
+const STORED_NAME = /^[0-9a-f-]{36}\.(pdf|jpe?g|png)$/;
+
+export interface FlowActor { userId: string; role: UserRole; siteId: string | null; fullName: string }
+
+const MESSAGES = {
+    notIct: 'Hanya tim IT yang dapat melakukan ini',
+    wrongPhase: 'Permintaan ini tidak sedang menunggu tinjauan IT',
+    notApproval: 'Permintaan ini tidak sedang menunggu persetujuan',
+    notYourTurn: 'Bukan giliran Anda untuk menyetujui permintaan ini',
+    managerRequired: 'Pilih atasan penyetuju',
+    gmRequired: 'Pilih GM penyetuju',
+    sourceRequired: 'Pilih sumber barang',
+    managerSelf: 'Atasan tidak boleh pemohon sendiri',
+    gmSelf: 'GM tidak boleh pemohon sendiri',
+    inactive: 'Atasan atau GM yang dipilih tidak ditemukan atau tidak aktif',
+    routeLocked: 'Persetujuan yang sudah ditandatangani tidak bisa dihapus atau diturunkan',
+    signatureRequired: 'Tanda tangan wajib diisi',
+    reasonRequired: 'Alasan wajib diisi (minimal 5 karakter)',
+    reminded: 'Pengingat sudah dikirim kurang dari 1 jam lalu',
+    fileRequired: 'Pilih berkas scan (PDF, JPG, atau PNG)',
+    fileInvalid: 'Berkas harus PDF, JPG, atau PNG yang valid (maks. 10 MB)',
+} as const;
+const REASON_MIN = 5;
+
+/** QR mismatch: the scan was signed on an older version of the document. */
+export const staleScanMessage = (scanned: string, latest: number): string => {
+    const old = /\/v(\d+)$/.exec(scanned)?.[1];
+    return `Dokumen versi lama (v${old ?? '?'}). Unduh versi terbaru (v${latest}) lalu minta tanda tangan ulang.`;
+};
+
+/**
+ * IT's review of a request, the approver's decision and the paper-signature import. Each runs in one transaction on the
+ * locked flow, then tells the ticket's chat and the people concerned (those never fail the step).
+ */
+@Injectable()
+export class RequestFlowReviewService {
+    constructor(
+        private readonly dataSource: DataSource,
+        private readonly reader: RequestFlowReader,
+        private readonly stepper: RequestFlowStepper,
+        private readonly documents: RequestDocumentService,
+        private readonly notifier: RequestFlowNotifier,
+        private readonly hardware: HardwareRequestCommandService,
+        private readonly emitter: EventEmitter2,
+        @InjectRepository(User) private readonly userRepo: Repository<User>,
+    ) {}
+
+    async review(actor: FlowActor, ticketId: string, dto: ReviewDto): Promise<{ version: number }> {
+        this.assertIct(actor);
+        const { ctx, version, next } = await this.dataSource.transaction(async (manager) => {
+            const ctx = await this.reader.load(ticketId, manager, true);
+            assertSiteAccess(actor, ctx.ticket.siteId);
+            if (ctx.phase !== 'review') throw new ConflictException(MESSAGES.wrongPhase);
+            await this.validateReview(ctx, dto);
+
+            if (ctx.hardware && ctx.hardware.status === 'SUBMITTED') await this.hardware.reviewWith(manager, actor.userId, ctx.hardware.id);
+            Object.assign(ctx.flow, {
+                route: dto.route,
+                managerId: dto.route === 'NONE' ? ctx.flow.managerId : dto.managerId ?? null,
+                gmId: dto.route === 'MANAGER_GM' ? dto.gmId ?? null : null,
+                hardwareSource: ctx.hardware ? dto.hardwareSource ?? null : null,
+                reviewedById: actor.userId,
+                reviewedAt: new Date(),
+                returnedReason: null,
+            });
+            await manager.save(RequestFlow, ctx.flow);
+            if (dto.message) await this.saveMessage(manager, ctx, actor.userId, dto.message);
+
+            const source = ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : '';
+            const version = await this.documents.bump(ctx.flow.id, 'GEN', `Ditinjau IT: ${ROUTE_LABEL[dto.route]}${source}`, actor.userId, manager);
+            const next = await this.stepper.advance(manager, ctx, ctx.signed, actor.userId);
+            return { ctx, version, next };
+        });
+
+        const approverId = next === 'MANAGER' ? ctx.flow.managerId : next === 'GM' ? ctx.flow.gmId : null;
+        await this.stepper.tell(ctx, {
+            actorId: actor.userId,
+            phase: 'REVIEWED',
+            text: `${actor.fullName} meninjau permintaan. Persetujuan: ${ROUTE_LABEL[dto.route]}${ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : ''}.`,
+            // Waiting on an approver holds the ticket's SLA; otherwise IT carries on.
+            target: next ? TicketStatus.WAITING_VENDOR : TicketStatus.IN_PROGRESS,
+        });
+        if (next && approverId) await this.notifier.askApprover(ctx, next, approverId);
+        return { version };
+    }
+
+    async decide(actor: FlowActor, ticketId: string, dto: ApproveDto): Promise<{ version?: number }> {
+        const outcome = await this.dataSource.transaction(async (manager) => {
+            const ctx = await this.reader.load(ticketId, manager, true);
+            if (ctx.phase !== 'approval' || !ctx.step) throw new ConflictException(MESSAGES.notApproval);
+            if (ctx.approverId !== actor.userId) throw new ForbiddenException(MESSAGES.notYourTurn);
+            if (dto.decision === 'APPROVE') return { ctx, ...(await this.approve(manager, ctx, actor, dto)) };
+            const reason = dto.note?.trim() ?? '';
+            if (reason.length < REASON_MIN) throw new BadRequestException(MESSAGES.reasonRequired);
+            return { ctx, ...(dto.decision === 'RETURN' ? await this.sendBack(manager, ctx, actor, reason) : await this.refuse(manager, ctx, actor, reason)) };
+        });
+        await this.afterDecision(actor, dto, outcome);
+        return { version: outcome.version };
+    }
+
+    async remind(actor: FlowActor, ticketId: string): Promise<void> {
+        this.assertIct(actor);
+        const ctx = await this.reader.load(ticketId);
+        assertSiteAccess(actor, ctx.ticket.siteId);
+        if (ctx.phase !== 'approval' || !ctx.step || !ctx.approverId) throw new ConflictException(MESSAGES.notApproval);
+        const recent = await this.dataSource.manager.findOne(TicketMessage, {
+            where: { ticketId, isSystemMessage: true, content: Like(`${REMINDER_TEXT_PREFIX}%`), createdAt: MoreThan(new Date(Date.now() - REMIND_INTERVAL_MS)) },
+        });
+        if (recent) throw new ConflictException(MESSAGES.reminded);
+        const approver = await this.userRepo.findOne({ where: { id: ctx.approverId }, select: ['id', 'fullName'] });
+        await this.stepper.tell(ctx, {
+            actorId: actor.userId, phase: 'REMINDED',
+            text: `Pengingat persetujuan dikirim ke ${approver?.fullName ?? STEP_LABEL[ctx.step]}`,
+        });
+        await this.notifier.askApprover(ctx, ctx.step, ctx.approverId, true);
+    }
+
+    /** IT imports the scanned paper signature of the active step; the QR must name the latest version of the document. */
+    async paperSign(actor: FlowActor, ticketId: string, file: Express.Multer.File | undefined, qr: string): Promise<{ version: number }> {
+        try {
+            this.assertIct(actor);
+            this.assertScan(file);
+            const stored = file!.filename ? `${REQUEST_SCANS_DIR}/${file!.filename}` : undefined;
+            const outcome = await this.dataSource.transaction(async (manager) => {
+                const ctx = await this.reader.load(ticketId, manager, true);
+                assertSiteAccess(actor, ctx.ticket.siteId);
+                if (ctx.phase !== 'approval' || !ctx.step || !ctx.approverId) throw new ConflictException(MESSAGES.notApproval);
+                if (qr.trim() !== documentQrText(ctx.ticket.ticketNumber, ctx.flow.documentVersion)) {
+                    throw new ConflictException(staleScanMessage(qr.trim(), ctx.flow.documentVersion));
+                }
+                const signer = await this.userRepo.findOne({ where: { id: ctx.approverId }, select: ['id', 'fullName'] });
+                const result = await this.stepper.sign(manager, ctx, {
+                    signer: { id: ctx.approverId, name: signer?.fullName ?? STEP_LABEL[ctx.step] },
+                    actorId: actor.userId, how: 'paper', scanPath: stored,
+                });
+                return { ctx, signerName: signer?.fullName ?? STEP_LABEL[ctx.step], ...result };
+            });
+            await this.afterSign(actor, outcome, `${outcome.signerName} menyetujui (dokumen kertas diimpor oleh ${actor.fullName})`);
+            return { version: outcome.version };
+        } catch (err) {
+            // Nothing points at a refused upload; drop it instead of leaving an orphan on disk.
+            await this.removeScan(file?.filename);
+            throw err;
+        }
+    }
+
+    private assertIct(actor: FlowActor): void {
+        if (!ICT_ROLES.includes(actor.role)) throw new ForbiddenException(MESSAGES.notIct);
+    }
+
+    private assertScan(file: Express.Multer.File | undefined): void {
+        if (!file) throw new BadRequestException(MESSAGES.fileRequired);
+        const ext = extname(file.originalname ?? '').toLowerCase();
+        if (!SCAN_ALLOWED_EXTENSIONS.includes(ext) || file.size > SCAN_MAX_BYTES || !validateFileMagicBytes(file)) {
+            throw new BadRequestException(MESSAGES.fileInvalid);
+        }
+    }
+
+    private async removeScan(name: string | undefined): Promise<void> {
+        if (!name || !STORED_NAME.test(basename(name))) return;
+        await fs.unlink(join(process.cwd(), 'uploads', REQUEST_SCANS_DIR, basename(name))).catch(() => undefined);
+    }
+
+    private async validateReview(ctx: FlowContext, dto: ReviewDto): Promise<void> {
+        if (ctx.hardware && !dto.hardwareSource) throw new BadRequestException(MESSAGES.sourceRequired);
+        const previous = ctx.flow.route;
+        if (previous && !canChangeRoute(previous, dto.route, ctx.signed)) throw new BadRequestException(MESSAGES.routeLocked);
+        if (dto.route === 'NONE') return;
+        if (!dto.managerId) throw new BadRequestException(MESSAGES.managerRequired);
+        if (dto.managerId === ctx.requesterId) throw new BadRequestException(MESSAGES.managerSelf);
+        const ids = [dto.managerId];
+        if (dto.route === 'MANAGER_GM') {
+            if (!dto.gmId) throw new BadRequestException(MESSAGES.gmRequired);
+            if (dto.gmId === ctx.requesterId) throw new BadRequestException(MESSAGES.gmSelf);
+            ids.push(dto.gmId);
+        }
+        for (const id of ids) {
+            if (!(await this.userRepo.exists({ where: { id, isActive: true } }))) throw new BadRequestException(MESSAGES.inactive);
+        }
+    }
+
+    private async saveMessage(manager: EntityManager, ctx: FlowContext, senderId: string, content: string): Promise<void> {
+        await manager.save(TicketMessage, manager.create(TicketMessage, { ticketId: ctx.ticket.id, senderId, content }));
+    }
+
+    private async approve(manager: EntityManager, ctx: FlowContext, actor: FlowActor, dto: ApproveDto) {
+        if (!dto.signatureData) throw new BadRequestException(MESSAGES.signatureRequired);
+        const result = await this.stepper.sign(manager, ctx, {
+            signer: { id: actor.userId, name: actor.fullName }, actorId: actor.userId, how: 'digital', signature: dto.signatureData,
+        });
+        return { kind: 'APPROVE' as const, ...result, signerName: actor.fullName };
+    }
+
+    /** Back to IT with the signatures kept; hardware stays UNDER_REVIEW (marked by `returnedReason`), an e-form goes back to PENDING_REVIEW. */
+    private async sendBack(manager: EntityManager, ctx: FlowContext, actor: FlowActor, reason: string) {
+        ctx.flow.returnedReason = reason;
+        await manager.save(RequestFlow, ctx.flow);
+        if (ctx.eform) {
+            await manager.delete(EFormApproval, { eformRequestId: ctx.eform.id, action: 'PENDING' });
+            await manager.update(EFormRequest, { id: ctx.eform.id }, { status: EFormStatus.PENDING_REVIEW, currentApproverId: null });
+        }
+        return { kind: 'RETURN' as const, reason, version: undefined, signerName: actor.fullName };
+    }
+
+    private async refuse(manager: EntityManager, ctx: FlowContext, actor: FlowActor, reason: string) {
+        if (ctx.hardware) {
+            await this.hardware.rejectWith(manager, actor.userId, ctx.hardware.id, { reason });
+        } else {
+            const eformId = ctx.eform!.id;
+            await manager.update(EFormRequest, { id: eformId }, {
+                status: EFormStatus.REJECTED, rejectionReason: reason, currentApproverId: null, resolvedAt: new Date(),
+            });
+            await manager.update(EFormApproval, { eformRequestId: eformId, action: 'PENDING' }, { action: 'REJECTED', actionAt: new Date(), notes: reason });
+        }
+        const version = await this.documents.bump(ctx.flow.id, 'FIN', `Ditolak oleh ${actor.fullName} · terkunci`, actor.userId, manager);
+        return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName };
+    }
+
+    private async afterDecision(actor: FlowActor, dto: ApproveDto, outcome: { ctx: FlowContext; kind: string; reason?: string; next?: 'MANAGER' | 'GM' | null; step?: 'MANAGER' | 'GM'; signerName: string; version?: number }): Promise<void> {
+        const { ctx } = outcome;
+        if (outcome.kind === 'APPROVE') {
+            const text = `${actor.fullName} menyetujui & menandatangani${dto.note ? `: ${dto.note}` : ''}`;
+            await this.afterSign(actor, outcome as never, text);
+            return;
+        }
+        if (outcome.kind === 'RETURN') {
+            await this.stepper.tell(ctx, {
+                actorId: actor.userId, phase: 'RETURNED', reason: outcome.reason,
+                text: `${actor.fullName} mengembalikan ke IT untuk diubah`, target: TicketStatus.IN_PROGRESS,
+            });
+            await this.notifyIct(ctx, outcome.reason!);
+            return;
+        }
+        // Rejection: the existing listeners tell the requester and the ticket, as for any rejected request.
+        if (ctx.hardware) {
+            this.emitter.emit(HR_EVT.REJECTED, { requestId: ctx.hardware.id, actorId: actor.userId, occurredAt: new Date(), requesterId: ctx.requesterId, reason: outcome.reason });
+        } else {
+            const request = await this.dataSource.manager.findOne(EFormRequest, { where: { id: ctx.eform!.id } });
+            this.emitter.emit('eform.rejected', { request, userId: actor.userId });
+        }
+    }
+
+    private async afterSign(
+        actor: FlowActor,
+        outcome: { ctx: FlowContext; next: 'MANAGER' | 'GM' | null; version: number },
+        text: string,
+    ): Promise<void> {
+        const { ctx, next } = outcome;
+        await this.stepper.tell(ctx, {
+            actorId: actor.userId, phase: 'SIGNED', text,
+            // The last signature releases the ticket's SLA hold; a step still to go keeps it.
+            target: next ? undefined : TicketStatus.IN_PROGRESS,
+        });
+        const nextApprover = next === 'GM' ? ctx.flow.gmId : next === 'MANAGER' ? ctx.flow.managerId : null;
+        if (next && nextApprover) await this.notifier.askApprover(ctx, next, nextApprover);
+        if (!next) await this.notifier.tellRequester(ctx, 'Permintaan disetujui', `Permintaan Anda (${ctx.ticket.ticketNumber}) sudah disetujui dan diproses IT.`);
+    }
+
+    /** IT hears a request came back, reusing the "request needs attention" type of its kind. */
+    private async notifyIct(ctx: FlowContext, reason: string): Promise<void> {
+        if (!ctx.flow.reviewedById) return;
+        await this.notifier.tellUser(ctx, ctx.flow.reviewedById, 'Permintaan dikembalikan ke IT', `${ctx.ticket.ticketNumber}: ${reason}`);
+    }
+}

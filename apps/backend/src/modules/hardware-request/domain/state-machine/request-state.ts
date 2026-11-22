@@ -4,7 +4,7 @@ const TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   [RequestStatus.DRAFT]: [RequestStatus.SUBMITTED, RequestStatus.INSTALLATION, RequestStatus.CANCELLED],
   [RequestStatus.SUBMITTED]: [RequestStatus.UNDER_REVIEW, RequestStatus.CANCELLED],
   [RequestStatus.UNDER_REVIEW]: [RequestStatus.APPROVED, RequestStatus.REJECTED],
-  [RequestStatus.APPROVED]: [RequestStatus.PROCUREMENT],
+  [RequestStatus.APPROVED]: [RequestStatus.PROCUREMENT, RequestStatus.INSTALLATION],
   [RequestStatus.PROCUREMENT]: [RequestStatus.AWAITING_DELIVERY, RequestStatus.REJECTED],
   [RequestStatus.AWAITING_DELIVERY]: [RequestStatus.INSTALLATION, RequestStatus.CANCELLED],
   [RequestStatus.INSTALLATION]: [RequestStatus.AWAITING_USER_CONFIRMATION, RequestStatus.CANCELLED],

@@ -259,3 +259,18 @@ describe('CreateEformTicketDto', () => {
         expect(await dtoErrors(CreateEformTicketDto, { ...eformBody(), draftId: MANAGER_ID })).toContain('draftId');
     });
 });
+
+describe('CreateEformTicketDto signature', () => {
+    it('rejects a signature that is not a PNG data URL', async () => {
+        expect(await dtoErrors(CreateEformTicketDto, eformBody({ signatureData: 'javascript:alert(1)' }))).toContain('signatureData');
+    });
+
+    it('rejects a signature over 300 KB', async () => {
+        const huge = `data:image/png;base64,${'A'.repeat(300 * 1024)}`;
+        expect(await dtoErrors(CreateEformTicketDto, eformBody({ signatureData: huge }))).toContain('signatureData');
+    });
+
+    it('accepts a PNG data URL', async () => {
+        expect(await dtoErrors(CreateEformTicketDto, eformBody())).not.toContain('signatureData');
+    });
+});

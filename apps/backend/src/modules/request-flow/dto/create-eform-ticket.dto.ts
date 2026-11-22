@@ -1,6 +1,7 @@
 import { OmitType } from '@nestjs/swagger';
-import { IsISO8601, IsOptional, Matches } from 'class-validator';
+import { IsISO8601, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { CreateEFormRequestDto } from '../../eform-request/dto/create-eform-request.dto';
+import { HARDWARE_TICKET_LIMITS, PNG_DATA_URL } from './create-hardware-ticket.dto';
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const DATE_MESSAGE = 'Tanggal harus berformat YYYY-MM-DD';
@@ -14,6 +15,12 @@ export class CreateEformTicketDto extends OmitType(CreateEFormRequestDto, ['gmAp
     @Matches(ISO_DAY, { message: DATE_MESSAGE })
     @IsISO8601({ strict: true }, { message: DATE_MESSAGE })
     startDate: string;
+
+    /** The requester's signature from the pad: a PNG data URL, as on the hardware form. */
+    @IsString()
+    @MaxLength(HARDWARE_TICKET_LIMITS.signatureMaxChars)
+    @Matches(PNG_DATA_URL, { message: 'Tanda tangan harus gambar PNG' })
+    signatureData: string;
 
     /** Left out for permanent access (Website, Email, Synology NAS). */
     @IsOptional()

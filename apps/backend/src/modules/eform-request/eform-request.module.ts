@@ -61,6 +61,6 @@ import { TicketEFormSyncListener } from './ticket-link/ticket-eform-sync.listene
     TicketEFormLinkService,
     TicketEFormSyncListener,
   ],
-  exports: [EFormRequestService, EFormPdfService, SynologyNasBrowseService],
+  exports: [EFormRequestService, EFormGmService, EFormPdfService, SynologyNasBrowseService],
 })
 export class EFormRequestModule {}

@@ -14,6 +14,7 @@ import { CreateRequestDto } from '../dto/create-request.dto';
 import { ItemCategory } from '../domain/enums/item-category.enum';
 import { UpdateDraftDto } from '../dto/update-draft.dto';
 import { RejectRequestDto } from '../dto/reject-request.dto';
+import { canTransition } from '../domain/state-machine/request-state';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import {
     HardwareRequestNotFoundError,
@@ -417,7 +418,12 @@ export class HardwareRequestCommandService {
     }
 
     async review(userId: string, requestId: string): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        return this.dataSource.transaction((mgr) => this.reviewWith(mgr, userId, requestId));
+    }
+
+    /** SUBMITTED -> UNDER_REVIEW inside the caller's transaction; emits nothing. */
+    async reviewWith(mgr: EntityManager, userId: string, requestId: string): Promise<HardwareRequest> {
+        {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
             if (existing.status !== RequestStatus.SUBMITTED) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.UNDER_REVIEW);
@@ -432,11 +438,25 @@ export class HardwareRequestCommandService {
                 fromStatus: RequestStatus.SUBMITTED, toStatus: RequestStatus.UNDER_REVIEW,
             });
             return saved;
-        });
+        }
     }
 
     async approve(userId: string, requestId: string): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
+            const saved = await this.approveWith(mgr, userId, requestId);
+            this.emitter.emit(HR_EVT.APPROVED, {
+                requestId: saved.id,
+                actorId: userId,
+                occurredAt: new Date(),
+                requesterId: saved.requesterId,
+            });
+            return saved;
+        });
+    }
+
+    /** UNDER_REVIEW -> APPROVED inside the caller's transaction; emits nothing (the caller announces it). */
+    async approveWith(mgr: EntityManager, userId: string, requestId: string): Promise<HardwareRequest> {
+        {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
             if (existing.status !== RequestStatus.UNDER_REVIEW) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.APPROVED);
@@ -450,22 +470,54 @@ export class HardwareRequestCommandService {
                 action: ActivityAction.APPROVED,
                 fromStatus: RequestStatus.UNDER_REVIEW, toStatus: RequestStatus.APPROVED,
             });
-
-            this.emitter.emit(HR_EVT.APPROVED, {
-                requestId: saved.id,
-                actorId: userId,
-                occurredAt: new Date(),
-                requesterId: saved.requesterId,
-            });
-
             return saved;
+        }
+    }
+
+    /**
+     * UNDER_REVIEW -> APPROVED -> next phase, inside the caller's transaction (the unified ticket flow after its last
+     * approval): items from IT's own stock are already here and go straight to INSTALLATION, anything else to
+     * PROCUREMENT. Emits nothing; the caller announces the approval.
+     */
+    async approveAndStartWith(mgr: EntityManager, userId: string, requestId: string, options: { fromStock: boolean }): Promise<HardwareRequest> {
+        const approved = await this.approveWith(mgr, userId, requestId);
+        const items = await mgr.getRepository(HardwareRequestItem).find({ where: { requestId } });
+        const next = options.fromStock ? RequestStatus.INSTALLATION : RequestStatus.PROCUREMENT;
+        if (!canTransition(approved.status, next)) throw new InvalidStateTransitionError(approved.status, next);
+        if (options.fromStock) {
+            const now = new Date();
+            await mgr.getRepository(HardwareRequestItem).save(items.map((item) => Object.assign(item, { deliveryStatus: 'ARRIVED' as const, arrivedAt: now })));
+        }
+        await mgr.getRepository(HardwareRequest).update({ id: requestId }, { status: next });
+        const saved = Object.assign(approved, { status: next });
+        await this.logActivity(mgr, {
+            requestId, actorId: userId, action: ActivityAction.PROCUREMENT_UPDATED,
+            fromStatus: RequestStatus.APPROVED, toStatus: next, metadata: { fromStock: options.fromStock },
         });
+        return saved;
     }
 
     async reject(
         userId: string, requestId: string, dto: RejectRequestDto,
     ): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
+            const saved = await this.rejectWith(mgr, userId, requestId, dto);
+            this.emitter.emit(HR_EVT.REJECTED, {
+                requestId: saved.id,
+                actorId: userId,
+                occurredAt: new Date(),
+                requesterId: saved.requesterId,
+                reason: dto.reason,
+            });
+            return saved;
+        });
+    }
+
+    /** UNDER_REVIEW -> REJECTED inside the caller's transaction; emits nothing (the caller announces it). */
+    async rejectWith(
+        mgr: EntityManager, userId: string, requestId: string, dto: RejectRequestDto,
+    ): Promise<HardwareRequest> {
+        {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
             if (existing.status !== RequestStatus.UNDER_REVIEW) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.REJECTED);
@@ -479,17 +531,8 @@ export class HardwareRequestCommandService {
                 fromStatus: RequestStatus.UNDER_REVIEW, toStatus: RequestStatus.REJECTED,
                 metadata: { reason: dto.reason },
             });
-
-            this.emitter.emit(HR_EVT.REJECTED, {
-                requestId: saved.id,
-                actorId: userId,
-                occurredAt: new Date(),
-                requesterId: saved.requesterId,
-                reason: dto.reason,
-            });
-
             return saved;
-        });
+        }
     }
 
     async updateItem(
