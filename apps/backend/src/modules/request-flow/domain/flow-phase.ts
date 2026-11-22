@@ -3,6 +3,7 @@ import { RequestStatus } from '../../hardware-request/domain/enums/request-statu
 import type { ApprovalRoute } from './approval-route';
 import { activeStep } from './approval-phase';
 import type { RequestKind } from './request-kind';
+import { Logger } from '@nestjs/common';
 
 /** The stage a request ticket is in, as the ticket page and lists show it (mockups/ticket-unify.js `PHASE_SUB`). */
 export type FlowPhase =
@@ -70,9 +71,22 @@ function underReview(ctx: PhaseContext): FlowPhase {
     return step === 'GM' ? 'appr_gm' : 'review';
 }
 
+const logger = new Logger('FlowPhase');
+const warnedStatuses = new Set<string>();
+
+/** A status the map does not know falls back to `review` (IT looks at it), logged once per kind and status. */
+function unknownStatus(kind: RequestKind, status: string): FlowPhase {
+    const key = `${kind}:${status}`;
+    if (!warnedStatuses.has(key)) {
+        warnedStatuses.add(key);
+        logger.warn(`Unknown ${kind} status "${status}": showing it as review`);
+    }
+    return 'review';
+}
+
 export function phaseOf(kind: RequestKind, status: string, ctx: PhaseContext): FlowPhase {
-    if (kind === 'EFORM') return EFORM_PHASE[status] ?? 'review';
+    if (kind === 'EFORM') return EFORM_PHASE[status] ?? unknownStatus(kind, status);
     if (status === RequestStatus.UNDER_REVIEW) return underReview(ctx);
     if (status === RequestStatus.INSTALLATION) return ctx.hasOpenSchedule ? 'install' : 'schedule';
-    return HARDWARE_PHASE[status] ?? 'review';
+    return HARDWARE_PHASE[status] ?? unknownStatus(kind, status);
 }

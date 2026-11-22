@@ -102,7 +102,7 @@ describe('RequestFlowQueryService.view', () => {
             assets: [{ code: 'AST-1', itemId: 'it-1' }],
             schedule: { slots, chosen: 1, technicianName: 'Teknisi A', status: 'CONFIRMED', resched: 2 },
         });
-        expect(view.hardware!.items[0]).toMatchObject({ id: 'it-1', name: 'Laptop', quantity: 1, deliveryStatus: 'ARRIVED', vendor: 'PT X' });
+        expect(view.hardware!.items[0]).toMatchObject({ id: 'it-1', name: 'Laptop', quantity: 1, deliveryStatus: 'ARRIVED', vendor: null, actualCost: null });
         expect(JSON.stringify(view)).not.toContain('SECRET');
     });
 
@@ -131,5 +131,14 @@ describe('RequestFlowQueryService.view', () => {
         const ctx = context('EFORM', { eform: { ...base.eform!, formData: { dariTanggal: '2026-11-23', sampaiTanggal: '' } } as never });
         const { service } = setup(ctx);
         expect((await service.view(viewer('req-1'), TID)).eform).toMatchObject({ endDate: null, hasCredentials: false });
+    });
+
+    it('shows vendor, cost and invoice to IT only', async () => {
+        const costs = (v: { hardware?: { items: { vendor: string | null; actualCost: string | null; invoiceNumber: string | null }[] } }) => v.hardware!.items[0];
+        const { service } = setup(context('HARDWARE'));
+        expect(costs(await service.view(viewer('it-1', UserRole.AGENT), TID))).toMatchObject({ vendor: 'PT X', actualCost: '1000.00', invoiceNumber: 'INV1' });
+        for (const who of [viewer('req-1'), viewer('mgr-1'), viewer('boss', UserRole.MANAGER)]) {
+            expect(costs(await service.view(who, TID))).toMatchObject({ vendor: null, actualCost: null, invoiceNumber: null });
+        }
     });
 });

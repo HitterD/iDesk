@@ -60,7 +60,7 @@ export class RequestFlowController {
         return this.flows.createEform(req.user, dto);
     }
 
-    // No @Roles: the requester, the flow's approvers and IT may read; the service decides.
+    // Every signed-in role passes the guard; the service decides (requester, the flow's approvers, IT and their site).
     @Get(':ticketId')
     @Roles(...REQUESTER_ROLES)
     @ApiOperation({ summary: 'Where a request ticket stands: phase, route, revisions and the hardware / e-form summary' })

@@ -207,7 +207,8 @@ export class MutualSchedulingService {
       const savedSched = await schedRepo.save(updated);
 
       // transition request status
-      if (sched.request.status === RequestStatus.AWAITING_DELIVERY && canTransition(RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION)) {
+      const enteredInstallation = sched.request.status === RequestStatus.AWAITING_DELIVERY && canTransition(RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION);
+      if (enteredInstallation) {
         await reqRepo.save({ ...sched.request, status: RequestStatus.INSTALLATION } as unknown as HardwareRequest);
       }
 
@@ -218,6 +219,7 @@ export class MutualSchedulingService {
         actorId: actor?.id ?? sched.request?.requesterId ?? null,
         scheduledStart: savedSched.scheduledStart!,
         scheduledEnd: savedSched.scheduledEnd!,
+        enteredInstallation,
       };
       this.emitter.emit(HardwareEvents.ScheduleConfirmed, payload);
 

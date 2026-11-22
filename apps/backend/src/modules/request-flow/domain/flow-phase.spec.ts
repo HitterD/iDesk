@@ -1,5 +1,6 @@
 import { EFormStatus } from '../../eform-request/entities/eform-request.entity';
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
+import { Logger } from '@nestjs/common';
 import { isSlaPausedPhase, PHASE_LABEL, phaseOf, type FlowPhase } from './flow-phase';
 
 const NO_SCHEDULE = { hasOpenSchedule: false };
@@ -60,5 +61,16 @@ describe('phase labels and SLA', () => {
     it('paused phases are approval, procurement, delivery', () => {
         const paused = (Object.keys(PHASE_LABEL) as FlowPhase[]).filter(isSlaPausedPhase);
         expect(paused).toEqual(['appr_mgr', 'appr_gm', 'procure', 'delivery']);
+    });
+});
+
+describe('unknown statuses', () => {
+    it('fall back to review and warn once per kind and status', () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        expect(phaseOf('HARDWARE', 'MYSTERY_STATE', NO_SCHEDULE)).toBe('review');
+        expect(phaseOf('HARDWARE', 'MYSTERY_STATE', NO_SCHEDULE)).toBe('review');
+        expect(phaseOf('EFORM', 'MYSTERY_STATE', NO_SCHEDULE)).toBe('review');
+        expect(warn).toHaveBeenCalledTimes(2);
+        warn.mockRestore();
     });
 });

@@ -67,14 +67,61 @@ describe('TicketHardwareLinkService', () => {
         expect(message().systemEvent.reason).toBe('Stok ada');
     });
 
-    it('resumes the SLA once the installation is scheduled (delivery phase is over)', async () => {
+    it('keeps the SLA held through procurement and delivery (PROCUREMENT_DONE changes no status)', async () => {
         ticket.status = TicketStatus.WAITING_VENDOR;
-        ticket.lastPausedAt = new Date(Date.now() - 10 * 60_000);
+
+        await service.record('req-1', 'PROCUREMENT_DONE');
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+    });
+
+    it('SCHEDULED is informational: it never changes the ticket status', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
 
         await service.record('req-1', 'SCHEDULED', { at: new Date('2026-11-25T02:00:00Z') });
 
-        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
-        expect(slaClock.release).toHaveBeenCalled();
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+        expect(message().systemEvent.changes).toEqual([]);
+    });
+
+    describe('resumeForInstallation (goods arrived, request enters INSTALLATION)', () => {
+        it('resumes a ticket that waits on the request', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            ticket.lastPausedAt = new Date(Date.now() - 10 * 60_000);
+
+            await service.resumeForInstallation('req-1', 'agent-1');
+
+            expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+            expect(slaClock.release).toHaveBeenCalled();
+            expect(message().systemEvent.changes).toEqual([{ field: 'status', from: 'WAITING_VENDOR', to: 'IN_PROGRESS' }]);
+        });
+
+        it('leaves a ticket an agent already moved on alone', async () => {
+            ticket.status = TicketStatus.TODO;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.TODO);
+
+            ticket.status = TicketStatus.IN_PROGRESS;
+            await service.resumeForInstallation('req-1');
+            expect(slaClock.release).not.toHaveBeenCalled();
+        });
+
+        it('does not reopen a finished ticket', async () => {
+            ticket.status = TicketStatus.CLOSED;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.CLOSED);
+            ticket.status = TicketStatus.CANCELLED;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.CANCELLED);
+        });
+
+        it('ignores requests that did not come from a ticket', async () => {
+            request.sourceTicketId = null;
+            await service.resumeForInstallation('req-1');
+            expect(manager.save).not.toHaveBeenCalled();
+        });
     });
 
     it('keeps the SLA held while a schedule is only proposed (still waiting for the goods)', async () => {

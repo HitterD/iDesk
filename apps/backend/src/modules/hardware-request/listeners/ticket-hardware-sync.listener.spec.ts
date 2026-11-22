@@ -2,13 +2,13 @@ import { TicketHardwareSyncListener } from './ticket-hardware-sync.listener';
 import { RequestStatus } from '../domain/enums/request-status.enum';
 
 describe('TicketHardwareSyncListener', () => {
-    const link = { record: jest.fn() };
+    const link = { record: jest.fn(), resumeForInstallation: jest.fn() };
     const reqRepo = { findOne: jest.fn(async () => ({ id: 'req-1', requesterId: 'user-1', rejectReason: 'Stok vendor kosong' })) };
     const schedRepo = { findOne: jest.fn(async () => ({ id: 's-1', scheduledStart: new Date('2026-10-27T02:00:00Z') })) };
     const listener = new TicketHardwareSyncListener(link as any, reqRepo as any, schedRepo as any);
     const base = { requestId: 'req-1', occurredAt: new Date(), requesterId: 'user-1' };
 
-    beforeEach(() => link.record.mockClear());
+    beforeEach(() => { link.record.mockClear(); link.resumeForInstallation.mockClear(); });
 
     it.each([
         ['user-1', 'DECLINED'],
@@ -16,6 +16,16 @@ describe('TicketHardwareSyncListener', () => {
     ])('tells a cancelled proposal apart by who cancelled it (%s → %s)', async (actorId, phase) => {
         await listener.onCancelled({ ...base, actorId, fromStatus: RequestStatus.DRAFT });
         expect(link.record).toHaveBeenCalledWith('req-1', phase, { actorId });
+    });
+
+    it('resumes the SLA when picking the slot moved the request into INSTALLATION, and only then', async () => {
+        const slot = { requestId: 'req-1', scheduleId: 's-1', technicianId: 't-1', scheduledStart: new Date('2026-10-27T02:00:00Z'), scheduledEnd: new Date('2026-10-27T03:00:00Z') };
+        await listener.onSlotConfirmed({ ...slot, enteredInstallation: true });
+        expect(link.resumeForInstallation).toHaveBeenCalledWith('req-1', undefined);
+        link.resumeForInstallation.mockClear();
+        await listener.onSlotConfirmed(slot);
+        expect(link.resumeForInstallation).not.toHaveBeenCalled();
+        expect(link.record).toHaveBeenCalledWith('req-1', 'SCHEDULED', { at: slot.scheduledStart });
     });
 
     it('treats cancelling a running request as CANCELLED', async () => {

@@ -31,7 +31,7 @@ export function activeStep(route: ApprovalRoute, signed: { manager: boolean; gm:
  * Where a request stands. A hardware request returned to IT stays UNDER_REVIEW (its state machine has no way back), so
  * `returnedReason` marks it as back in review until IT sets the route again.
  */
-export function phaseOf(kind: RequestKind, status: string, route: ApprovalRoute | null, returnedReason: string | null): FlowPhase {
+export function approvalPhaseOf(kind: RequestKind, status: string, route: ApprovalRoute | null, returnedReason: string | null): FlowPhase {
     if (kind === 'EFORM') {
         if (status === EFormStatus.PENDING_REVIEW) return 'review';
         return status === EFormStatus.PENDING_MANAGER || status === EFormStatus.PENDING_GM ? 'approval' : 'other';

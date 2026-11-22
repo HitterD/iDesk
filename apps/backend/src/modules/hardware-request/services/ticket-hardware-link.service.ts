@@ -37,8 +37,6 @@ const PHASE_TEXT: Record<HardwareTicketPhase, (no: string, at?: string) => strin
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */
 const PHASE_STATUS: Partial<Record<HardwareTicketPhase, TicketStatus>> = {
     SUBMITTED: TicketStatus.WAITING_VENDOR,
-    // The goods are in and an installation time is agreed: the delivery wait is over, IT carries on.
-    SCHEDULED: TicketStatus.IN_PROGRESS,
     REJECTED: TicketStatus.IN_PROGRESS,
     CANCELLED: TicketStatus.IN_PROGRESS,
     COMPLETED: TicketStatus.CLOSED,
@@ -62,6 +60,22 @@ export class TicketHardwareLinkService {
         private readonly reqRepo: Repository<HardwareRequest>,
         private readonly linked: TicketLinkedRequestService,
     ) {}
+
+    /**
+     * The request just entered INSTALLATION after delivery: the wait is over and scheduling is IT's turn, so the ticket's
+     * SLA runs again. A ticket that is not waiting on the request (manual vendor wait released, in progress, closed) is left alone.
+     */
+    async resumeForInstallation(requestId: string, actorId?: string | null): Promise<void> {
+        const request = await this.reqRepo.findOne({ where: { id: requestId } }).catch(() => null);
+        if (!request?.sourceTicketId) return;
+        await this.linked.record({
+            ticketId: request.sourceTicketId,
+            actorId,
+            target: TicketStatus.IN_PROGRESS,
+            text: `Barang untuk ${request.requestNumber} sudah tiba. Tim IT menjadwalkan pemasangan.`,
+            event: { hardwareRequest: { id: request.id, number: request.requestNumber, phase: 'PROCUREMENT_DONE', at: null } },
+        });
+    }
 
     async record(requestId: string, phase: HardwareTicketPhase, options: RecordOptions = {}): Promise<void> {
         const request = await this.reqRepo.findOne({ where: { id: requestId } }).catch(() => null);

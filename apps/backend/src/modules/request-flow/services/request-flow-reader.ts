@@ -5,7 +5,7 @@ import { EFormRequest } from '../../eform-request/entities/eform-request.entity'
 import { HardwareRequest } from '../../hardware-request/domain/entities/hardware-request.entity';
 import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
-import { activeStep, phaseOf, type ApprovalStep, type FlowPhase } from '../domain/approval-phase';
+import { activeStep, approvalPhaseOf, type ApprovalStep, type FlowPhase } from '../domain/approval-phase';
 import { signedSlots } from '../domain/hardware-signatures';
 import type { RequestKind } from '../domain/request-kind';
 import { RequestFlow } from '../entities/request-flow.entity';
@@ -87,7 +87,7 @@ export class RequestFlowReader {
         parts: Pick<FlowContext, 'requesterId' | 'requesterName' | 'number' | 'signed' | 'hardware' | 'eform'> & { status: string },
     ): FlowContext {
         const { status, ...rest } = parts;
-        const phase = phaseOf(flow.kind, status, flow.route, flow.returnedReason);
+        const phase = approvalPhaseOf(flow.kind, status, flow.route, flow.returnedReason);
         const step = phase === 'approval' && flow.route ? activeStep(flow.route, rest.signed) : null;
         const approverId = step === 'MANAGER' ? flow.managerId : step === 'GM' ? flow.gmId : null;
         return { flow, ticket, kind: flow.kind, ...rest, phase, step, approverId };

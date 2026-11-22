@@ -346,6 +346,12 @@ describe('ticket SLA hold follows the flow phase', () => {
         expect(lastTarget(ef.linked)).toBe(TicketStatus.IN_PROGRESS);
     });
 
+    it('the last signature of hardware from IT stock resumes the SLA (straight to installation)', async () => {
+        const stock = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1', hardwareSource: 'IT_STOCK' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }, 'HARDWARE'));
+        await stock.service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
+        expect(lastTarget(stock.linked)).toBe(TicketStatus.IN_PROGRESS);
+    });
+
     it('returning to IT resumes the SLA', async () => {
         const { service, linked } = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
         await service.decide(MGR, TID, { decision: 'RETURN', note: 'Ganti barangnya' });

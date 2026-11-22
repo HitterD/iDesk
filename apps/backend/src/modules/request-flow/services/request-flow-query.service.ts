@@ -1,6 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { In } from 'typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { EFormCredential } from '../../eform-request/entities/eform-credential.entity';
 import { HardwareAsset } from '../../hardware-request/domain/entities/hardware-asset.entity';
 import { InstallationSchedule } from '../../hardware-request/domain/entities/installation-schedule.entity';
@@ -129,7 +128,7 @@ export class RequestFlowQueryService {
                 version: r.version, kind: r.kind, label: r.label, actorName: (r.actorId && people.get(r.actorId)) || '', createdAt: r.createdAt.toISOString(),
             })),
             viewerRoleInFlow: role,
-            ...(ctx.hardware ? { hardware: await this.hardwareView(ctx, scheduleView) } : { eform: await this.eformView(ctx) }),
+            ...(ctx.hardware ? { hardware: await this.hardwareView(ctx, scheduleView, role === 'ICT') } : { eform: await this.eformView(ctx) }),
         };
     }
 
@@ -183,7 +182,7 @@ export class RequestFlowQueryService {
         return new Map(users.map((u) => [u.id, u.fullName]));
     }
 
-    private async hardwareView(ctx: FlowContext, schedule: ScheduleView | null): Promise<NonNullable<RequestFlowView['hardware']>> {
+    private async hardwareView(ctx: FlowContext, schedule: ScheduleView | null, showCosts: boolean): Promise<NonNullable<RequestFlowView['hardware']>> {
         const hardware = ctx.hardware!;
         const items = hardware.items ?? [];
         const assets = items.length
@@ -201,10 +200,11 @@ export class RequestFlowQueryService {
                 recipient: String(item.categorySnapshot.customFields?.recipientName ?? ''),
                 deliveryStatus: item.deliveryStatus,
                 procurementDecision: item.procurementDecision,
-                vendor: item.vendor,
-                actualCost: item.actualCost,
-                invoiceNumber: item.invoiceNumber,
-                invoiceDate: isoDay(item.invoiceDate),
+                // Vendor, cost and invoice are IT's until Task 6 decides who else sees them.
+                vendor: showCosts ? item.vendor : null,
+                actualCost: showCosts ? item.actualCost : null,
+                invoiceNumber: showCosts ? item.invoiceNumber : null,
+                invoiceDate: showCosts ? isoDay(item.invoiceDate) : null,
             })),
             schedule,
             assets: assets.map((a) => ({ code: a.barcode, itemId: a.itemId })),

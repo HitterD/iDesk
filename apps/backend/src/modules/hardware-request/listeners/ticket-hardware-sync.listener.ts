@@ -89,7 +89,9 @@ export class TicketHardwareSyncListener {
     }
 
     @OnEvent(HardwareEvents.ScheduleConfirmed)
-    onSlotConfirmed(e: ScheduleConfirmedPayload) {
+    async onSlotConfirmed(e: ScheduleConfirmedPayload) {
+        // Entering INSTALLATION ends the delivery wait (SLA runs again); the SCHEDULED card itself changes no status.
+        if (e.enteredInstallation) await this.link.resumeForInstallation(e.requestId, e.actorId);
         return this.link.record(e.requestId, 'SCHEDULED', { at: e.scheduledStart });
     }
 

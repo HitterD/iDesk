@@ -51,6 +51,19 @@ describe('request approver access', () => {
             await expect(build(APPROVER).findOne('t1', { id: 'stranger', role: UserRole.USER, siteId: APPROVER_SITE })).rejects.toBeInstanceOf(ForbiddenException);
         });
 
+        it('a user the lookup does not find as approver of this ticket is refused (not a request ticket)', async () => {
+            const ticketRepo = { findOne: jest.fn(async () => ({ ...requestTicket(), ticketType: TicketType.SERVICE, category: 'GENERAL' })), manager: { query: jest.fn(async () => []) } };
+            const service = new TicketQueryService(ticketRepo as never, {} as never, {} as never);
+            await expect(service.assertCanView('t1', approverViewer)).rejects.toBeInstanceOf(ForbiddenException);
+            expect(ticketRepo.manager.query).toHaveBeenCalledWith(expect.stringContaining('request_flows'), ['t1', APPROVER]);
+        });
+
+        it('a failing flow lookup propagates instead of granting access (fail-closed)', async () => {
+            const ticketRepo = { findOne: jest.fn(async () => requestTicket()), manager: { query: jest.fn(async () => { throw new Error('db down'); }) } };
+            const service = new TicketQueryService(ticketRepo as never, {} as never, {} as never);
+            await expect(service.assertCanView('t1', approverViewer)).rejects.toThrow('db down');
+        });
+
         it('a stranger of another site with an agent role is still refused', async () => {
             await expect(build(APPROVER).findOne('t1', { id: 'agent-9', role: UserRole.AGENT, siteId: APPROVER_SITE })).rejects.toBeInstanceOf(ForbiddenException);
         });
