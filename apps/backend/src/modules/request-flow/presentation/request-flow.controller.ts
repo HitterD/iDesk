@@ -9,15 +9,15 @@ import type { AuthenticatedUser } from '../../auth/application/auth-user.types';
 import { Roles } from '../../../shared/core/decorators/roles.decorator';
 import { RolesGuard } from '../../../shared/core/guards/roles.guard';
 import { createStorage, FILE_SIZE_LIMITS } from '../../../shared/core/config/upload.config';
-import { ICT_ROLES } from '../../eform-request/eform-roles.constants';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import { ApproveDto } from '../dto/approve.dto';
 import { CreateEformTicketDto } from '../dto/create-eform-ticket.dto';
 import { CreateHardwareTicketDto } from '../dto/create-hardware-ticket.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
 import { ReviewDto } from '../dto/review.dto';
 import { RequestDocumentService } from '../services/request-document.service';
-import { FlowActor, REQUEST_SCANS_DIR, RequestFlowReviewService } from '../services/request-flow-review.service';
+import { FlowActor, REQUEST_SCANS_DIR, scanFileFilter, RequestFlowReviewService } from '../services/request-flow-review.service';
 import { CreatedRequestTicket, RequestFlowService } from '../services/request-flow.service';
 
 /** Every signed-in role may file a request; the site comes from the token, never the body. */
@@ -25,6 +25,7 @@ const REQUESTER_ROLES = Object.values(UserRole);
 
 const SCAN_UPLOAD = {
     storage: createStorage(`./uploads/${REQUEST_SCANS_DIR}`),
+    fileFilter: scanFileFilter,
     limits: { fileSize: FILE_SIZE_LIMITS.DOCUMENT },
 };
 
@@ -59,7 +60,7 @@ export class RequestFlowController {
 
     @Post(':ticketId/review')
     @HttpCode(200)
-    @Roles(...ICT_ROLES)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
     @ApiOperation({ summary: 'IT picks the approval route (and hardware source) of a request in review' })
     review(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: ReviewDto) {
         return this.reviews.review(actorOf(req), ticketId, dto);
@@ -76,7 +77,7 @@ export class RequestFlowController {
 
     @Post(':ticketId/remind')
     @HttpCode(200)
-    @Roles(...ICT_ROLES)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
     @ApiOperation({ summary: 'IT reminds the current approver (once per hour)' })
     remind(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
         return this.reviews.remind(actorOf(req), ticketId);
@@ -104,7 +105,7 @@ export class RequestFlowController {
 
     @Post(':ticketId/paper-sign')
     @HttpCode(200)
-    @Roles(...ICT_ROLES)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
     @ApiConsumes('multipart/form-data')
     @ApiOperation({ summary: 'IT imports the scanned paper signature of the active step' })
     @UseInterceptors(FileInterceptor('file', SCAN_UPLOAD))

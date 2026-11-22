@@ -3,19 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { EFormPdfService } from '../../eform-request/eform-pdf.service';
 import { EFormRequest } from '../../eform-request/entities/eform-request.entity';
-import { ICT_ROLES } from '../../eform-request/eform-roles.constants';
 import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { assertSiteAccess, type SiteActor } from '../../../shared/core/utils/site-scope.util';
-import { UserRole } from '../../users/enums/user-role.enum';
+import { REQUEST_DOCUMENT_VIEWER_ROLES } from '../domain/request-roles';
 import { ROUTE_LABEL, SOURCE_LABEL } from '../domain/approval-phase';
 import { signedSlots } from '../domain/hardware-signatures';
 import { RequestDocumentRevision, type RequestDocumentRevisionKind } from '../entities/request-document-revision.entity';
 import { RequestFlow } from '../entities/request-flow.entity';
 import { documentQrText, renderHardwareRequestPdf, type HardwarePdfItem } from '../pdf/hardware-request-pdf';
 import { RequestFlowReader, type FlowContext } from './request-flow-reader';
-
-/** Staff outside IT who may still open a request's document (site isolation applies on top). */
-const VIEWER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.AGENT, UserRole.MANAGER];
 
 export interface DocumentViewer extends SiteActor { userId: string }
 
@@ -67,7 +63,7 @@ export class RequestDocumentService {
     private assertCanView(viewer: DocumentViewer, ctx: FlowContext): void {
         const { userId } = viewer;
         if (userId === ctx.requesterId || userId === ctx.flow.managerId || userId === ctx.flow.gmId) return;
-        if (!VIEWER_ROLES.includes(viewer.role)) throw new ForbiddenException('Tidak berhak membuka dokumen ini');
+        if (!REQUEST_DOCUMENT_VIEWER_ROLES.includes(viewer.role)) throw new ForbiddenException('Tidak berhak membuka dokumen ini');
         assertSiteAccess(viewer, ctx.ticket.siteId);
     }
 

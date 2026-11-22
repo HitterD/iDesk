@@ -54,6 +54,14 @@ describe('RequestDocumentService.renderPdf', () => {
         expect(fileName).toBe('221126-QC-0035_v3.pdf');
     });
 
+    it('lets processors and MANAGER open it, but not AGENT_ORACLE or an unrelated USER', async () => {
+        const { service } = setup();
+        await expect(service.renderPdf({ userId: 'x', role: UserRole.AGENT, siteId: 'site-1' }, 't-1')).resolves.toBeDefined();
+        await expect(service.renderPdf({ userId: 'x', role: UserRole.MANAGER, siteId: 'site-2' }, 't-1')).resolves.toBeDefined();
+        await expect(service.renderPdf({ userId: 'x', role: UserRole.AGENT_ORACLE, siteId: 'site-1' }, 't-1')).rejects.toThrow(ForbiddenException);
+        await expect(service.renderPdf({ userId: 'x', role: UserRole.USER, siteId: 'site-1' }, 't-1')).rejects.toThrow(ForbiddenException);
+    });
+
     it('refuses an unknown version and strangers', async () => {
         const { service } = setup();
         await expect(service.renderPdf(viewer, 't-1', 9)).rejects.toThrow(BadRequestException);

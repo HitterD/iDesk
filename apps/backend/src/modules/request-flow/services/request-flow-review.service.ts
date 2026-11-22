@@ -6,7 +6,7 @@ import { basename, extname, join } from 'path';
 import { DataSource, EntityManager, Like, MoreThan, Repository } from 'typeorm';
 import { EFormApproval } from '../../eform-request/entities/eform-approval.entity';
 import { EFormRequest, EFormStatus } from '../../eform-request/entities/eform-request.entity';
-import { ICT_ROLES } from '../../eform-request/eform-roles.constants';
+import { isUUID } from 'class-validator';
 import { HR_EVT } from '../../hardware-request/domain/events/hardware-request.events';
 import { HardwareRequestCommandService } from '../../hardware-request/services/hardware-request-command.service';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
@@ -16,6 +16,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import { canChangeRoute, type ApprovalRoute } from '../domain/approval-route';
+import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import { ROUTE_LABEL, SOURCE_LABEL, STEP_LABEL } from '../domain/approval-phase';
 import { RequestFlow } from '../entities/request-flow.entity';
 import { documentQrText } from '../pdf/hardware-request-pdf';
@@ -33,12 +34,26 @@ export const SCAN_MAX_BYTES = 10 * 1024 * 1024;
 /** One reminder per request per hour. */
 export const REMIND_INTERVAL_MS = 60 * 60 * 1000;
 const REMINDER_TEXT_PREFIX = 'System: Pengingat';
-const STORED_NAME = /^[0-9a-f-]{36}\.(pdf|jpe?g|png)$/;
+const SCAN_DIR_PATH = join(process.cwd(), 'uploads', REQUEST_SCANS_DIR);
+const QR_PATTERN = /^.+\/v\d+$/;
+
+/** multer filter: only PDF/JPG/PNG scans are stored at all (content is checked again once the file is read). */
+export function scanFileFilter(
+    _req: unknown, file: { originalname?: string }, callback: (error: Error | null, accept: boolean) => void,
+): void {
+    const ext = extname(file.originalname ?? '').toLowerCase();
+    if (SCAN_ALLOWED_EXTENSIONS.includes(ext)) callback(null, true);
+    else callback(new BadRequestException('Berkas harus PDF, JPG, atau PNG yang valid (maks. 10 MB)'), false);
+}
 
 export interface FlowActor { userId: string; role: UserRole; siteId: string | null; fullName: string }
 
 const MESSAGES = {
     notIct: 'Hanya tim IT yang dapat melakukan ini',
+    badTicketId: 'ID tiket tidak valid',
+    badQr: 'QR tidak valid. Pastikan Anda mengunggah dokumen hasil unduhan iDesk.',
+    managerSigned: 'Atasan sudah menandatangani; atasan tidak bisa diganti',
+    gmSigned: 'GM sudah menandatangani; GM tidak bisa diganti',
     wrongPhase: 'Permintaan ini tidak sedang menunggu tinjauan IT',
     notApproval: 'Permintaan ini tidak sedang menunggu persetujuan',
     notYourTurn: 'Bukan giliran Anda untuk menyetujui permintaan ini',
@@ -82,6 +97,7 @@ export class RequestFlowReviewService {
 
     async review(actor: FlowActor, ticketId: string, dto: ReviewDto): Promise<{ version: number }> {
         this.assertIct(actor);
+        this.assertTicketId(ticketId);
         const { ctx, version, next } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             assertSiteAccess(actor, ctx.ticket.siteId);
@@ -120,6 +136,7 @@ export class RequestFlowReviewService {
     }
 
     async decide(actor: FlowActor, ticketId: string, dto: ApproveDto): Promise<{ version?: number }> {
+        this.assertTicketId(ticketId);
         const outcome = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             if (ctx.phase !== 'approval' || !ctx.step) throw new ConflictException(MESSAGES.notApproval);
@@ -133,33 +150,46 @@ export class RequestFlowReviewService {
         return { version: outcome.version };
     }
 
+    /**
+     * The flow row is locked first, so two reminders cannot both pass the hour check; the marker (a system message
+     * with its card event) is written in the same transaction, and only the call that wrote it notifies.
+     */
     async remind(actor: FlowActor, ticketId: string): Promise<void> {
         this.assertIct(actor);
-        const ctx = await this.reader.load(ticketId);
-        assertSiteAccess(actor, ctx.ticket.siteId);
-        if (ctx.phase !== 'approval' || !ctx.step || !ctx.approverId) throw new ConflictException(MESSAGES.notApproval);
-        const recent = await this.dataSource.manager.findOne(TicketMessage, {
-            where: { ticketId, isSystemMessage: true, content: Like(`${REMINDER_TEXT_PREFIX}%`), createdAt: MoreThan(new Date(Date.now() - REMIND_INTERVAL_MS)) },
+        this.assertTicketId(ticketId);
+        const ctx = await this.dataSource.transaction(async (manager) => {
+            const ctx = await this.reader.load(ticketId, manager, true);
+            assertSiteAccess(actor, ctx.ticket.siteId);
+            if (ctx.phase !== 'approval' || !ctx.step || !ctx.approverId) throw new ConflictException(MESSAGES.notApproval);
+            const recent = await manager.findOne(TicketMessage, {
+                where: { ticketId, isSystemMessage: true, content: Like(`${REMINDER_TEXT_PREFIX}%`), createdAt: MoreThan(new Date(Date.now() - REMIND_INTERVAL_MS)) },
+            });
+            if (recent) throw new ConflictException(MESSAGES.reminded);
+            const approver = await manager.findOne(User, { where: { id: ctx.approverId }, select: ['id', 'fullName'] });
+            await manager.save(TicketMessage, manager.create(TicketMessage, {
+                ticketId,
+                senderId: actor.userId,
+                isSystemMessage: true,
+                content: `${REMINDER_TEXT_PREFIX} persetujuan dikirim ke ${approver?.fullName ?? STEP_LABEL[ctx.step]}`,
+                systemEvent: this.stepper.eventOf(ctx, actor, 'REMINDED'),
+            }));
+            return ctx;
         });
-        if (recent) throw new ConflictException(MESSAGES.reminded);
-        const approver = await this.userRepo.findOne({ where: { id: ctx.approverId }, select: ['id', 'fullName'] });
-        await this.stepper.tell(ctx, {
-            actorId: actor.userId, phase: 'REMINDED',
-            text: `Pengingat persetujuan dikirim ke ${approver?.fullName ?? STEP_LABEL[ctx.step]}`,
-        });
-        await this.notifier.askApprover(ctx, ctx.step, ctx.approverId, true);
+        await this.notifier.askApprover(ctx, ctx.step!, ctx.approverId!, true);
     }
 
     /** IT imports the scanned paper signature of the active step; the QR must name the latest version of the document. */
     async paperSign(actor: FlowActor, ticketId: string, file: Express.Multer.File | undefined, qr: string): Promise<{ version: number }> {
         try {
             this.assertIct(actor);
+            this.assertTicketId(ticketId);
             this.assertScan(file);
             const stored = file!.filename ? `${REQUEST_SCANS_DIR}/${file!.filename}` : undefined;
             const outcome = await this.dataSource.transaction(async (manager) => {
                 const ctx = await this.reader.load(ticketId, manager, true);
                 assertSiteAccess(actor, ctx.ticket.siteId);
                 if (ctx.phase !== 'approval' || !ctx.step || !ctx.approverId) throw new ConflictException(MESSAGES.notApproval);
+                if (!QR_PATTERN.test(qr.trim())) throw new BadRequestException(MESSAGES.badQr);
                 if (qr.trim() !== documentQrText(ctx.ticket.ticketNumber, ctx.flow.documentVersion)) {
                     throw new ConflictException(staleScanMessage(qr.trim(), ctx.flow.documentVersion));
                 }
@@ -174,13 +204,17 @@ export class RequestFlowReviewService {
             return { version: outcome.version };
         } catch (err) {
             // Nothing points at a refused upload; drop it instead of leaving an orphan on disk.
-            await this.removeScan(file?.filename);
+            await this.removeScan(file);
             throw err;
         }
     }
 
     private assertIct(actor: FlowActor): void {
-        if (!ICT_ROLES.includes(actor.role)) throw new ForbiddenException(MESSAGES.notIct);
+        if (!REQUEST_PROCESSOR_ROLES.includes(actor.role)) throw new ForbiddenException(MESSAGES.notIct);
+    }
+
+    private assertTicketId(ticketId: string): void {
+        if (!isUUID(ticketId)) throw new BadRequestException(MESSAGES.badTicketId);
     }
 
     private assertScan(file: Express.Multer.File | undefined): void {
@@ -191,15 +225,20 @@ export class RequestFlowReviewService {
         }
     }
 
-    private async removeScan(name: string | undefined): Promise<void> {
-        if (!name || !STORED_NAME.test(basename(name))) return;
-        await fs.unlink(join(process.cwd(), 'uploads', REQUEST_SCANS_DIR, basename(name))).catch(() => undefined);
+    /** Deletes the stored upload (whatever its extension) from the scan folder; never anything outside it. */
+    private async removeScan(file: Express.Multer.File | undefined): Promise<void> {
+        const name = file?.filename ?? (file?.path ? basename(file.path) : undefined);
+        if (!name) return;
+        await fs.unlink(join(SCAN_DIR_PATH, basename(name))).catch(() => undefined);
     }
 
     private async validateReview(ctx: FlowContext, dto: ReviewDto): Promise<void> {
         if (ctx.hardware && !dto.hardwareSource) throw new BadRequestException(MESSAGES.sourceRequired);
         const previous = ctx.flow.route;
         if (previous && !canChangeRoute(previous, dto.route, ctx.signed)) throw new BadRequestException(MESSAGES.routeLocked);
+        // A signature belongs to the person who gave it: the signed manager / GM cannot be swapped out.
+        if (ctx.signed.manager && dto.managerId !== ctx.flow.managerId) throw new BadRequestException(MESSAGES.managerSigned);
+        if (ctx.signed.gm && dto.gmId !== ctx.flow.gmId) throw new BadRequestException(MESSAGES.gmSigned);
         if (dto.route === 'NONE') return;
         if (!dto.managerId) throw new BadRequestException(MESSAGES.managerRequired);
         if (dto.managerId === ctx.requesterId) throw new BadRequestException(MESSAGES.managerSelf);

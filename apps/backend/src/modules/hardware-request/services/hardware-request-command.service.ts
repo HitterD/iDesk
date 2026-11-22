@@ -488,7 +488,7 @@ export class HardwareRequestCommandService {
             const now = new Date();
             await mgr.getRepository(HardwareRequestItem).save(items.map((item) => Object.assign(item, { deliveryStatus: 'ARRIVED' as const, arrivedAt: now })));
         }
-        await mgr.getRepository(HardwareRequest).update({ id: requestId }, { status: next });
+        await mgr.getRepository(HardwareRequest).update({ id: requestId }, { status: next, ...(options.fromStock ? {} : { procuredById: userId }) });
         const saved = Object.assign(approved, { status: next });
         await this.logActivity(mgr, {
             requestId, actorId: userId, action: ActivityAction.PROCUREMENT_UPDATED,

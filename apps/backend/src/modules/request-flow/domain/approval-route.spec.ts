@@ -29,6 +29,10 @@ describe('approval route', () => {
         expect(canChangeRoute('MANAGER_GM', 'MANAGER', { manager: false, gm: false })).toBe(true);
     });
 
+    it.each(['NONE', 'MANAGER', 'MANAGER_GM'] as const)('allows keeping route %s after signatures', (route) => {
+        expect(canChangeRoute(route, route, { manager: true, gm: true })).toBe(true);
+    });
+
     it('cannot remove GM approval after the GM signs', () => {
         expect(canChangeRoute('MANAGER_GM', 'MANAGER', { manager: false, gm: true })).toBe(false);
     });

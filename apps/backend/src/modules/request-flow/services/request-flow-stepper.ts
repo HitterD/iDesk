@@ -10,7 +10,7 @@ import { RequestStatus } from '../../hardware-request/domain/enums/request-statu
 import { HardwareRequestCommandService } from '../../hardware-request/services/hardware-request-command.service';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { TicketLinkedRequestService } from '../../ticketing/services/ticket-linked-request.service';
-import { EFormTicketPhase, HardwareTicketPhase } from '../../ticketing/utils/ticket-activity.util';
+import { EFormTicketPhase, HardwareTicketPhase, TicketSystemEvent } from '../../ticketing/utils/ticket-activity.util';
 import { activeStep, STEP_LABEL, type ApprovalStep, type SignatureHow } from '../domain/approval-phase';
 import { stepSignatureMetadata } from '../domain/hardware-signatures';
 import { RequestDocumentService } from './request-document.service';
@@ -79,6 +79,14 @@ export class RequestFlowStepper {
         const signed = { ...ctx.signed, [step === 'MANAGER' ? 'manager' : 'gm']: true };
         const next = await this.advance(manager, ctx, signed, input.actorId);
         return { step, next, version };
+    }
+
+    /** The structured twin of a system message: who did it and which request card it belongs to. */
+    eventOf(ctx: FlowContext, actor: { userId: string; fullName: string } | null, phase: TellInput['phase'], reason?: string | null): TicketSystemEvent {
+        const base = { v: 1 as const, actor: actor ? { id: actor.userId, name: actor.fullName } : null, changes: [], ...(reason ? { reason } : {}) };
+        return ctx.hardware
+            ? { ...base, hardwareRequest: { id: ctx.hardware.id, number: ctx.hardware.requestNumber, phase: phase as HardwareTicketPhase } }
+            : { ...base, eformRequest: { id: ctx.eform!.id, code: eformCode(ctx.eform!.id), formType: ctx.eform!.formType, phase: phase as EFormTicketPhase } };
     }
 
     /** One system message on the ticket, with the structured event the chat renders as a card. */

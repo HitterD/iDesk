@@ -16,6 +16,8 @@ export function canChangeRoute(
     to: ApprovalRoute,
     signed: { manager: boolean; gm: boolean },
 ): boolean {
+    // Setting the same route again (e.g. after a GM returned the request) changes nothing, so it is always allowed.
+    if (from === to) return true;
     if (!signed.manager && !signed.gm) return true;
     return from === 'MANAGER' && to === 'MANAGER_GM';
 }

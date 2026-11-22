@@ -4,23 +4,27 @@ import { validate } from 'class-validator';
 import { EFormApproval } from '../../eform-request/entities/eform-approval.entity';
 import { EFormRequest, EFormStatus, EFormType } from '../../eform-request/entities/eform-request.entity';
 import { EFormSignature } from '../../eform-request/entities/eform-signature.entity';
+import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ApproveDto } from '../dto/approve.dto';
 import type { ReviewDto } from '../dto/review.dto';
 import { RequestFlow } from '../entities/request-flow.entity';
 import type { FlowContext } from './request-flow-reader';
-import { RequestFlowReviewService, staleScanMessage, type FlowActor } from './request-flow-review.service';
+import { RequestFlowReviewService, scanFileFilter, staleScanMessage, type FlowActor } from './request-flow-review.service';
 import { RequestFlowStepper } from './request-flow-stepper';
 
 const IT: FlowActor = { userId: 'it-1', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', fullName: 'RM Bagastyo' };
 const MGR: FlowActor = { userId: 'mgr-1', role: UserRole.MANAGER, siteId: 'site-1', fullName: 'Pak Manager' };
 const SIGNATURE = 'data:image/png;base64,iVBORw0KGgo=';
-const TICKET = { id: 't-1', ticketNumber: '221126-QC-0035', siteId: 'site-1' };
+const TID = '0b6d3c4e-1111-4222-8333-444455556677';
+const TICKET = { id: TID, ticketNumber: '221126-QC-0035', siteId: 'site-1' };
 
 function context(over: Omit<Partial<FlowContext>, 'flow'> & { flow?: Partial<RequestFlow> } = {}, kind: 'HARDWARE' | 'EFORM' = 'EFORM'): FlowContext {
     const { flow, ...rest } = over;
     return {
-        flow: { id: 'flow-1', ticketId: 't-1', kind, route: null, managerId: null, gmId: null, hardwareSource: null, documentVersion: 1, returnedReason: null, reviewedById: 'it-1', ...flow } as RequestFlow,
+        flow: { id: 'flow-1', ticketId: TID, kind, route: null, managerId: null, gmId: null, hardwareSource: null, documentVersion: 1, returnedReason: null, reviewedById: 'it-1', ...flow } as RequestFlow,
         ticket: TICKET as never,
         kind,
         requesterId: 'req-1',
@@ -42,6 +46,7 @@ function setup(ctx: FlowContext) {
         create: jest.fn((_e: unknown, v: unknown) => v),
         update: jest.fn(async () => undefined),
         delete: jest.fn(async () => undefined),
+        findOne: jest.fn(async () => null),
     };
     const dataSource = {
         transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)),
@@ -76,7 +81,7 @@ describe('RequestFlowReviewService.review', () => {
         const { service, hardware, notifier } = setup(context({}, 'HARDWARE'));
         const dto: ReviewDto = { route: 'NONE', hardwareSource: 'IT_STOCK' };
 
-        await service.review(IT, 't-1', dto);
+        await service.review(IT, TID, dto);
 
         expect(hardware.reviewWith).toHaveBeenCalledWith(expect.anything(), 'it-1', 'hr-1');
         expect(hardware.approveAndStartWith).toHaveBeenCalledWith(expect.anything(), 'it-1', 'hr-1', { fromStock: true });
@@ -86,7 +91,7 @@ describe('RequestFlowReviewService.review', () => {
     it('review MANAGER_GM on eform sets current approver to manager and requiresGm', async () => {
         const { service, manager, notifier } = setup(context());
 
-        await service.review(IT, 't-1', { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' });
+        await service.review(IT, TID, { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' });
 
         expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, {
             status: EFormStatus.PENDING_MANAGER, currentApproverId: 'mgr-1', requiresGm: true, gmApproverId: 'gm-1',
@@ -97,25 +102,25 @@ describe('RequestFlowReviewService.review', () => {
 
     it('bumps a GEN revision labelled with the route and source', async () => {
         const { service, documents } = setup(context({}, 'HARDWARE'));
-        await service.review(IT, 't-1', { route: 'MANAGER', managerId: 'mgr-1', hardwareSource: 'ANNUAL_BUDGET' });
+        await service.review(IT, TID, { route: 'MANAGER', managerId: 'mgr-1', hardwareSource: 'ANNUAL_BUDGET' });
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'GEN', 'Ditinjau IT: Atasan saja · Budget Tahunan', 'it-1', expect.anything());
     });
 
     it('cannot change MANAGER to NONE after the manager signed', async () => {
         const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1', returnedReason: 'ubah' }, signed: { manager: true, gm: false } });
         const { service } = setup(ctx);
-        await expect(service.review(IT, 't-1', { route: 'NONE' })).rejects.toThrow(BadRequestException);
+        await expect(service.review(IT, TID, { route: 'NONE' })).rejects.toThrow(BadRequestException);
     });
 
     it('refuses staff outside IT', async () => {
         const { service } = setup(context());
-        await expect(service.review({ ...IT, role: UserRole.USER }, 't-1', { route: 'NONE' })).rejects.toThrow(ForbiddenException);
+        await expect(service.review({ ...IT, role: UserRole.USER }, TID, { route: 'NONE' })).rejects.toThrow(ForbiddenException);
     });
 
     it('requires a source for hardware and an approver for a route', async () => {
-        await expect(setup(context({}, 'HARDWARE')).service.review(IT, 't-1', { route: 'NONE' })).rejects.toThrow('Pilih sumber barang');
-        await expect(setup(context()).service.review(IT, 't-1', { route: 'MANAGER' })).rejects.toThrow('Pilih atasan penyetuju');
-        await expect(setup(context()).service.review(IT, 't-1', { route: 'MANAGER', managerId: 'req-1' })).rejects.toThrow('Atasan tidak boleh pemohon sendiri');
+        await expect(setup(context({}, 'HARDWARE')).service.review(IT, TID, { route: 'NONE' })).rejects.toThrow('Pilih sumber barang');
+        await expect(setup(context()).service.review(IT, TID, { route: 'MANAGER' })).rejects.toThrow('Pilih atasan penyetuju');
+        await expect(setup(context()).service.review(IT, TID, { route: 'MANAGER', managerId: 'req-1' })).rejects.toThrow('Atasan tidak boleh pemohon sendiri');
     });
 });
 
@@ -126,7 +131,7 @@ describe('RequestFlowReviewService.decide', () => {
 
     it('only the current approver can decide', async () => {
         const { service } = setup(approving());
-        await expect(service.decide({ ...MGR, userId: 'someone-else' }, 't-1', { decision: 'APPROVE', signatureData: SIGNATURE }))
+        await expect(service.decide({ ...MGR, userId: 'someone-else' }, TID, { decision: 'APPROVE', signatureData: SIGNATURE }))
             .rejects.toThrow(ForbiddenException);
     });
 
@@ -134,7 +139,7 @@ describe('RequestFlowReviewService.decide', () => {
         const ctx = approving();
         const { service, manager, notifier } = setup(ctx);
 
-        await service.decide(MGR, 't-1', { decision: 'RETURN', note: 'Ganti barangnya' });
+        await service.decide(MGR, TID, { decision: 'RETURN', note: 'Ganti barangnya' });
 
         expect(ctx.flow.returnedReason).toBe('Ganti barangnya');
         expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, { status: EFormStatus.PENDING_REVIEW, currentApproverId: null });
@@ -145,7 +150,7 @@ describe('RequestFlowReviewService.decide', () => {
 
     it('REJECT requires a note of at least 5 characters', async () => {
         const { service } = setup(approving());
-        await expect(service.decide(MGR, 't-1', { decision: 'REJECT', note: 'no' })).rejects.toThrow(BadRequestException);
+        await expect(service.decide(MGR, TID, { decision: 'REJECT', note: 'no' })).rejects.toThrow(BadRequestException);
 
         const errors = await validate(plainToInstance(ApproveDto, { decision: 'REJECT', note: 'no' }));
         expect(errors.map((e) => e.property)).toEqual(['note']);
@@ -156,7 +161,7 @@ describe('RequestFlowReviewService.decide', () => {
         expect((await validate(plainToInstance(ApproveDto, { decision: 'APPROVE' }))).map((e) => e.property)).toEqual(['signatureData']);
 
         const { service, manager, documents, notifier } = setup(approving());
-        await service.decide(MGR, 't-1', { decision: 'APPROVE', signatureData: SIGNATURE });
+        await service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
 
         expect(manager.save).toHaveBeenCalledWith(EFormSignature, expect.objectContaining({ signerRole: 'MANAGER', signerId: 'mgr-1' }));
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'DIG', expect.stringContaining('TTD Atasan'), 'mgr-1', expect.anything());
@@ -167,14 +172,14 @@ describe('RequestFlowReviewService.decide', () => {
     it('the last approval sends an e-form to ICT', async () => {
         const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' });
         const { service, manager } = setup(ctx);
-        await service.decide(MGR, 't-1', { decision: 'APPROVE', signatureData: SIGNATURE });
+        await service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
         expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.PENDING_ICT, currentApproverId: null }));
     });
 
     it('the last approval of hardware from stock starts installation', async () => {
         const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1', hardwareSource: 'IT_STOCK' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }, 'HARDWARE');
         const { service, hardware } = setup(ctx);
-        await service.decide(MGR, 't-1', { decision: 'APPROVE', signatureData: SIGNATURE });
+        await service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
         expect(hardware.approveAndStartWith).toHaveBeenCalledWith(expect.anything(), 'mgr-1', 'hr-1', { fromStock: true });
     });
 });
@@ -186,7 +191,7 @@ describe('RequestFlowReviewService.paperSign', () => {
 
     it('rejects a scan whose QR is not the latest version', async () => {
         const { service, documents } = setup(waiting());
-        await expect(service.paperSign(IT, 't-1', pdfFile(), '221126-QC-0035/v1')).rejects.toThrow(
+        await expect(service.paperSign(IT, TID, pdfFile(), '221126-QC-0035/v1')).rejects.toThrow(
             new ConflictException('Dokumen versi lama (v1). Unduh versi terbaru (v3) lalu minta tanda tangan ulang.'),
         );
         expect(documents.bump).not.toHaveBeenCalled();
@@ -197,7 +202,7 @@ describe('RequestFlowReviewService.paperSign', () => {
         const { service, manager, documents } = setup(waiting());
         const file = { ...pdfFile(), filename: '0b6d3c4e-1111-4222-8333-444455556666.pdf' };
 
-        await expect(service.paperSign(IT, 't-1', file, '221126-QC-0035/v3')).resolves.toEqual({ version: 2 });
+        await expect(service.paperSign(IT, TID, file, '221126-QC-0035/v3')).resolves.toEqual({ version: 2 });
 
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'IMP', expect.stringContaining('Impor scan TTD basah'), 'it-1', expect.anything());
         expect(documents.attachScan).toHaveBeenCalledWith('flow-1', 2, 'request-scans/0b6d3c4e-1111-4222-8333-444455556666.pdf', expect.anything());
@@ -208,8 +213,8 @@ describe('RequestFlowReviewService.paperSign', () => {
     it('rejects a file that is not a real PDF/JPG/PNG', async () => {
         const { service } = setup(waiting());
         const fake = { originalname: 'scan.pdf', size: 10, buffer: Buffer.from('MZ not a pdf') } as Express.Multer.File;
-        await expect(service.paperSign(IT, 't-1', fake, '221126-QC-0035/v3')).rejects.toThrow(BadRequestException);
-        await expect(service.paperSign(IT, 't-1', undefined, 'x')).rejects.toThrow(BadRequestException);
+        await expect(service.paperSign(IT, TID, fake, '221126-QC-0035/v3')).rejects.toThrow(BadRequestException);
+        await expect(service.paperSign(IT, TID, undefined, 'x')).rejects.toThrow(BadRequestException);
     });
 });
 
@@ -217,13 +222,91 @@ describe('RequestFlowReviewService.remind', () => {
     const waiting = () => context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' });
 
     it('remind is limited to once per hour', async () => {
-        const { service, dataSource, notifier } = setup(waiting());
+        const { service, manager, notifier } = setup(waiting());
 
-        await service.remind(IT, 't-1');
+        await service.remind(IT, TID);
         expect(notifier.askApprover).toHaveBeenCalledWith(expect.anything(), 'MANAGER', 'mgr-1', true);
+        // The marker is written in the same transaction as the decision to notify.
+        expect(manager.save).toHaveBeenCalledWith(TicketMessage, expect.objectContaining({ isSystemMessage: true, content: expect.stringContaining('System: Pengingat') }));
 
-        dataSource.manager.findOne.mockResolvedValueOnce({ id: 'msg-1' } as never);
-        await expect(service.remind(IT, 't-1')).rejects.toThrow(new ConflictException('Pengingat sudah dikirim kurang dari 1 jam lalu'));
+        manager.findOne.mockResolvedValueOnce({ id: 'msg-1' } as never);
+        await expect(service.remind(IT, TID)).rejects.toThrow(new ConflictException('Pengingat sudah dikirim kurang dari 1 jam lalu'));
         expect(notifier.askApprover).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('re-review after a return', () => {
+    it('repeating the same route after the manager signed and the GM returned it goes back to the GM step', async () => {
+        const ctx = context({
+            flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1', returnedReason: 'Ganti barang' },
+            signed: { manager: true, gm: false },
+        });
+        const { service, manager, notifier } = setup(ctx);
+
+        await service.review(IT, TID, { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' });
+
+        expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.PENDING_GM, currentApproverId: 'gm-1' }));
+        expect(notifier.askApprover).toHaveBeenCalledWith(expect.anything(), 'GM', 'gm-1');
+    });
+
+    it('refuses changing the manager who already signed (or the GM who did)', async () => {
+        const signedManager = context({ flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1', returnedReason: 'x' }, signed: { manager: true, gm: false } });
+        await expect(setup(signedManager).service.review(IT, TID, { route: 'MANAGER_GM', managerId: 'mgr-2', gmId: 'gm-1' }))
+            .rejects.toThrow('Atasan sudah menandatangani');
+        const signedGm = context({ flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1', returnedReason: 'x' }, signed: { manager: true, gm: true } });
+        await expect(setup(signedGm).service.review(IT, TID, { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-2' }))
+            .rejects.toThrow('GM sudah menandatangani');
+    });
+});
+
+describe('processor roles', () => {
+    it('AGENT can review; AGENT_ORACLE cannot', async () => {
+        await expect(setup(context()).service.review({ ...IT, role: UserRole.AGENT }, TID, { route: 'NONE' })).resolves.toBeDefined();
+        await expect(setup(context()).service.review({ ...IT, role: UserRole.AGENT_ORACLE }, TID, { route: 'NONE' })).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects an id that is not a UUID with 400', async () => {
+        await expect(setup(context()).service.review(IT, 'not-a-uuid', { route: 'NONE' })).rejects.toThrow(BadRequestException);
+        await expect(setup(context()).service.paperSign(IT, 'not-a-uuid', pdfFile(), 'x/v1')).rejects.toThrow('ID tiket tidak valid');
+    });
+});
+
+describe('scan storage', () => {
+    const SCAN_NAME = '0b6d3c4e-1111-4222-8333-4444555566ab';
+    const scanDir = join(process.cwd(), 'uploads', 'request-scans');
+    const stored = async (ext: string) => {
+        await fs.mkdir(scanDir, { recursive: true });
+        const path = join(scanDir, `${SCAN_NAME}${ext}`);
+        await fs.writeFile(path, 'x');
+        return path;
+    };
+    const exists = (path: string) => fs.access(path).then(() => true, () => false);
+
+    it('the multer filter refuses everything but pdf/jpg/jpeg/png, case-insensitively', () => {
+        const accepts = (name: string) => { let ok = false; scanFileFilter(null, { originalname: name }, (_e, accept) => { ok = accept; }); return ok; };
+        expect(['a.PDF', 'a.jpg', 'a.JPEG', 'a.Png'].map(accepts)).toEqual([true, true, true, true]);
+        expect(['x.exe', 'x.pdf.exe', 'x', 'x.svg'].map(accepts)).toEqual([false, false, false, false]);
+    });
+
+    it('a refused upload with a disallowed extension leaves no file behind', async () => {
+        const path = await stored('.exe');
+        const { service } = setup(context());
+        const file = { originalname: 'x.exe', size: 5, buffer: Buffer.from('MZ'), filename: `${SCAN_NAME}.exe`, path } as Express.Multer.File;
+        await expect(service.paperSign(IT, TID, file, 'x/v1')).rejects.toThrow(BadRequestException);
+        expect(await exists(path)).toBe(false);
+    });
+
+    it('a valid file with a stale QR is a 409 and leaves no file behind', async () => {
+        const path = await stored('.pdf');
+        const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1', documentVersion: 3 }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' });
+        const { service } = setup(ctx);
+        const file = { ...pdfFile(), filename: `${SCAN_NAME}.pdf`, path } as Express.Multer.File;
+        await expect(service.paperSign(IT, TID, file, `${TICKET.ticketNumber}/v1`)).rejects.toThrow(ConflictException);
+        expect(await exists(path)).toBe(false);
+    });
+
+    it('an unparsable QR gets its own message', async () => {
+        const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' });
+        await expect(setup(ctx).service.paperSign(IT, TID, pdfFile(), 'hello')).rejects.toThrow('QR tidak valid. Pastikan Anda mengunggah dokumen hasil unduhan iDesk.');
     });
 });

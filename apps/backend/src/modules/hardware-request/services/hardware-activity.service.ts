@@ -25,11 +25,12 @@ export class HardwareActivityService {
         if (user.role === HardwareRole.USER && req.requesterId !== user.id) {
             throw new PermissionDeniedError('view activity for this request');
         }
-        return this.repo.find({
+        const rows = await this.repo.find({
             where: { requestId },
             order: { createdAt: 'ASC' },
             relations: { actor: true },
         });
+        return rows.map(withoutSignature);
     }
 
     async log(requestId: string, actorId: string | null, action: string, metadata: Record<string, unknown> = {}): Promise<void> {
@@ -45,4 +46,11 @@ export class HardwareActivityService {
         });
         await this.repo.save(entry);
     }
+}
+
+/** A signature image is only ever shown in the request document (PDF); activity lists just say there is one. */
+function withoutSignature(row: HardwareRequestActivity): HardwareRequestActivity {
+    if (!row.metadata || !('signature' in row.metadata)) return row;
+    const { signature: _signature, ...rest } = row.metadata;
+    return { ...row, metadata: { ...rest, hasSignature: true } };
 }
