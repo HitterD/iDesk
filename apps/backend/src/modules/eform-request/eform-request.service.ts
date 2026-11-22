@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { EntityManager, Repository, In, Not } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EFormRequest, EFormStatus, EFormType, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormCredentialService } from './eform-credential.service';
@@ -20,6 +20,14 @@ import {
   DIRECT_TO_ICT_FORM_TYPES,
   needsGmByDefault,
 } from './eform-roles.constants';
+
+/** The answers as sent, plus the Synology account choice the form asks for separately (only the fields given). */
+const formDataOf = (dto: CreateEFormRequestDto): Record<string, unknown> => ({
+  ...(dto.formData ?? {}),
+  ...(dto.synologyAccountStatus ? { synologyAccountStatus: dto.synologyAccountStatus } : {}),
+  ...(dto.synologyAccountName?.trim() ? { synologyAccountName: dto.synologyAccountName.trim() } : {}),
+  ...(dto.selectedNasServers?.length ? { selectedNasServers: dto.selectedNasServers } : {}),
+});
 
 /** Proposals from a ticket that were never signed (or were dropped) stay out of the e-form lists. */
 const UNLISTED = [EFormStatus.DRAFT, EFormStatus.CANCELLED];
@@ -90,7 +98,7 @@ export class EFormRequestService {
       requesterId: userId,
       requesterName,
       requesterDepartment: dto.requesterDepartment || '',
-      formData: dto.formData,
+      formData: formDataOf(dto),
       requestedWebsites: dto.requestedWebsites,
       networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
@@ -137,6 +145,49 @@ export class EFormRequestService {
     this.eventEmitter.emit('eform.submitted', { request: savedRequest, managerId: dto.managerId });
 
     return savedRequest;
+  }
+
+  /**
+   * An e-form filed from the unified ticket form, inside the ticket's transaction: it waits in PENDING_REVIEW for IT
+   * to pick the approval route, so no approver is assigned, no approval row is created and nobody is notified here.
+   * The document number is taken under its lock in the same transaction; the requester's signature is kept as before.
+   */
+  async createForTicket(
+    manager: EntityManager,
+    userId: string,
+    userFullName: string,
+    dto: CreateEFormRequestDto,
+    sourceTicketId: string,
+  ): Promise<EFormRequest> {
+    const requester = await this.userRepo.findOne({ where: { id: userId } as any });
+    const requesterName = dto.requesterName?.trim() || userFullName;
+    const request = manager.create(EFormRequest, {
+      formType: dto.formType,
+      status: EFormStatus.PENDING_REVIEW,
+      requesterId: userId,
+      requesterName,
+      requesterDepartment: dto.requesterDepartment || '',
+      formData: formDataOf(dto),
+      requestedWebsites: dto.requestedWebsites,
+      networkPurpose: dto.networkPurpose,
+      termsAccepted: dto.termsAccepted,
+      currentApproverId: null,
+      requiresGm: false,
+      gmApproverId: null,
+      siteId: await this.handlingSites.handlingSiteId(requester?.siteId ?? null),
+      sourceTicketId,
+      submittedAt: new Date(),
+      documentNumber: await nextDocumentNumber(manager, dto.formType),
+    });
+    const saved = await manager.save(EFormRequest, request);
+    await manager.save(EFormSignature, {
+      eformRequestId: saved.id,
+      signerId: userId,
+      signerName: requesterName,
+      signatureData: dto.signatureData,
+      signerRole: 'REQUESTER',
+    });
+    return saved;
   }
 
   /**

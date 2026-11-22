@@ -77,6 +77,16 @@ export class HardwareCatalogService {
         return found;
     }
 
+    /** Every field the catalog marks required must be filled for that item (a blank text does not count). */
+    assertRequiredFields(catalog: HardwareCatalog, fields: Record<string, unknown>): void {
+        for (const field of catalog.requiredFields ?? []) {
+            if (!field?.required) continue;
+            const value = fields?.[field.key];
+            const filled = typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
+            if (!filled) throw new BadRequestException(`Isian "${field.label}" wajib untuk ${catalog.name}`);
+        }
+    }
+
     async create(dto: CreateCatalogDto): Promise<HardwareCatalog> {
         const dup = await this.repo.findOne({ where: { code: dto.code } });
         if (dup) {

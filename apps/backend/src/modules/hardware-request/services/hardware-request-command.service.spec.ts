@@ -20,7 +20,7 @@ describe('HardwareRequestCommandService', () => {
     let service: HardwareRequestCommandService;
     let reqRepo: any;
     let activityRepo: any;
-    let catalog: jest.Mocked<Pick<HardwareCatalogService, 'ensureActive'>>;
+    let catalog: jest.Mocked<Pick<HardwareCatalogService, 'ensureActive' | 'assertRequiredFields'>>;
     let numberer: jest.Mocked<Pick<RequestNumberService, 'generate'>>;
     let dataSource: any;
     let scheduleRepo: any;
@@ -47,6 +47,7 @@ describe('HardwareRequestCommandService', () => {
         };
         catalog = {
             ensureActive: jest.fn().mockResolvedValue(mockCatalogItem as any),
+            assertRequiredFields: jest.fn(),
         };
         numberer = { generate: jest.fn().mockResolvedValue('HR-2026-0001') };
         dataSource = {
@@ -131,6 +132,43 @@ describe('HardwareRequestCommandService', () => {
                 items: [{ catalogId: 'bad', quantity: 1 }],
             }),
         ).rejects.toThrow();
+    });
+
+    it('createDraft checks the catalog item required fields against what was filled', async () => {
+        catalog.assertRequiredFields.mockImplementationOnce(() => { throw new Error('Isian "Nama software" wajib untuk Lisensi Software'); });
+        await expect(service.createDraft('user-1', 'site-1', 'AGENT' as any, {
+            justification: 'Lisensi untuk tim desain',
+            items: [{ catalogId: 'cat-1', quantity: 1, customFields: { software: '' } }],
+        })).rejects.toThrow('Isian "Nama software" wajib untuk Lisensi Software');
+        expect(catalog.assertRequiredFields).toHaveBeenCalledWith(mockCatalogItem, { software: '' });
+        expect(reqRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('createDraftWith stores a manual item without catalog, one row per unit', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Docking untuk meeting room',
+            items: [{ manualName: 'Docking USB-C', quantity: 2, notes: 'Port HDMI', customFields: { recipientName: 'Andi' } }],
+        });
+        const unit = { catalogId: null, quantity: 1, notes: 'Port HDMI', categorySnapshot: {
+            code: null, name: 'Docking USB-C', category: ItemCategory.OTHER, specs: {}, customFields: { recipientName: 'Andi' },
+        } };
+        expect(reqRepo.save).toHaveBeenCalledWith(expect.objectContaining({ items: [unit, unit] }));
+        expect(catalog.ensureActive).not.toHaveBeenCalled();
+    });
+
+    it('createDraftWith links the ticket and keeps the requester signature on the CREATED activity', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Laptop staf baru',
+            items: [{ catalogId: 'cat-1', quantity: 1 }],
+        }, { sourceTicketId: 't-1', requesterSignature: 'data:image/png;base64,AAA' });
+        expect(reqRepo.save).toHaveBeenCalledWith(expect.objectContaining({ sourceTicketId: 't-1', proposedById: null }));
+        expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+            action: ActivityAction.CREATED,
+            actorId: 'user-1',
+            metadata: { requestNumber: 'HR-2026-0001', sourceTicketId: 't-1', signature: 'data:image/png;base64,AAA' },
+        }));
     });
 
     // From Task 1.14 Update Draft
@@ -232,6 +270,20 @@ describe('HardwareRequestCommandService', () => {
             fromStatus: RequestStatus.DRAFT,
             toStatus: RequestStatus.INSTALLATION,
         }));
+    });
+
+    it('submitWith keeps SUBMITTED and emits nothing when direct installation is not allowed', async () => {
+        const item1: any = { id: 'it-1', deliveryStatus: 'PENDING' };
+        reqRepo.findOne.mockResolvedValue({
+            id: 'req-2', requesterId: 'user-1', status: RequestStatus.DRAFT, items: [item1],
+            justification: '[PENJADWALAN PEMASANGAN] tetap direview IT',
+        } as any);
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        const res = await service.submitWith(mgr as any, 'user-1', 'req-2', { allowDirectInstallation: false });
+        expect(res.status).toBe(RequestStatus.SUBMITTED);
+        expect(res.approvedAt).toBeUndefined();
+        expect(item1.deliveryStatus).toBe('PENDING');
+        expect(emitter.emit).not.toHaveBeenCalled();
     });
 
     // From Task 1.16 Cancel

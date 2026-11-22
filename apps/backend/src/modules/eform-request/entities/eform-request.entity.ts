@@ -14,6 +14,8 @@ export enum EFormType {
 
 export enum EFormStatus {
   DRAFT = 'DRAFT',
+  /** Filed from the unified ticket form; IT reviews it and picks the approval route before anyone approves. */
+  PENDING_REVIEW = 'PENDING_REVIEW',
   PENDING_MANAGER = 'PENDING_MANAGER',
   /** Approved by the manager; IT collects the GM's wet signature on the printed form and uploads the signed PDF. */
   PENDING_GM = 'PENDING_GM',

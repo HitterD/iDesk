@@ -100,4 +100,33 @@ describe('HardwareCatalogService', () => {
             response: expect.objectContaining({ code: 'HR_CATALOG_INACTIVE' }),
         });
     });
+    describe('assertRequiredFields', () => {
+        const license = {
+            id: 'c-lic', code: 'SW_LICENSE', name: 'Lisensi Software', category: ItemCategory.SOFTWARE, active: true,
+            requiredFields: [
+                { key: 'software', label: 'Nama software', type: 'text', required: true },
+                { key: 'edition', label: 'Edisi', type: 'select', options: ['Standard', 'Pro'], required: false },
+                { key: 'note', label: 'Catatan', type: 'text' },
+            ],
+        } as any;
+
+        it.each([[{}], [{ software: '' }], [{ software: '   ' }], [{ software: null }]])(
+            'rejects a catalog item whose required field is empty (%j)',
+            (fields) => {
+                expect(() => service.assertRequiredFields(license, fields)).toThrow('Isian "Nama software" wajib untuk Lisensi Software');
+            },
+        );
+
+        it('accepts filled required fields and leaves optional ones empty', () => {
+            expect(() => service.assertRequiredFields(license, { software: 'AutoCAD' })).not.toThrow();
+        });
+
+        it('accepts a number as a filled value', () => {
+            expect(() => service.assertRequiredFields(license, { software: 0 })).not.toThrow();
+        });
+
+        it('accepts a catalog item without required fields', () => {
+            expect(() => service.assertRequiredFields({ ...license, requiredFields: [] }, {})).not.toThrow();
+        });
+    });
 });

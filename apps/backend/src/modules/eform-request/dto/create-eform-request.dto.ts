@@ -1,5 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsObject, IsUUID, IsEnum, IsArray, IsIn, ArrayMaxSize, MaxLength } from 'class-validator';
 import { EFormType } from '../entities/eform-request.entity';
+import { SynologyAccountStatus } from '../eform-roles.constants';
+
+/** Synology servers the form can pick (same ids as the NAS browser). */
+export const NAS_SERVER_IDS = ['JKT', 'KRW', 'SMG', 'SPJ'] as const;
+export type NasServerId = (typeof NAS_SERVER_IDS)[number];
+const SYNOLOGY_ACCOUNT_NAME_MAX = 120;
 
 export class CreateEFormRequestDto {
   @IsEnum(EFormType)
@@ -29,6 +35,22 @@ export class CreateEFormRequestDto {
   @IsBoolean()
   @IsNotEmpty()
   termsAccepted: boolean;
+
+  /** Synology: new account or an existing one; kept in `formData` so IT sees what to create or extend. */
+  @IsEnum(SynologyAccountStatus)
+  @IsOptional()
+  synologyAccountStatus?: SynologyAccountStatus;
+
+  @IsString()
+  @MaxLength(SYNOLOGY_ACCOUNT_NAME_MAX)
+  @IsOptional()
+  synologyAccountName?: string;
+
+  @IsArray()
+  @ArrayMaxSize(NAS_SERVER_IDS.length)
+  @IsIn(NAS_SERVER_IDS, { each: true })
+  @IsOptional()
+  selectedNasServers?: NasServerId[];
 
   @IsString()
   @IsNotEmpty()

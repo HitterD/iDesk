@@ -32,7 +32,8 @@ export class HardwareRequestItem {
 
     @Column({ type: 'jsonb' })
     categorySnapshot: {
-        code: string;
+        /** Null for an item written by hand (not from the catalog). */
+        code: string | null;
         name: string;
         category: string;
         specs: Record<string, unknown>;

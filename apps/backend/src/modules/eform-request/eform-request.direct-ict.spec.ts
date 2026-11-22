@@ -2,6 +2,8 @@ import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { EFormRequestService } from './eform-request.service';
 import { UserRole } from '../users/enums/user-role.enum';
 import { EFormRequest, EFormStatus, EFormType } from './entities/eform-request.entity';
+import { EFormApproval } from './entities/eform-approval.entity';
+import { EFormSignature } from './entities/eform-signature.entity';
 
 const SITE_SPJ = 'site-spj';
 const SITE_SMG = 'site-smg';
@@ -178,6 +180,75 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       await expect(
         service.createRequest('u-requester', 'Requester', { ...baseDto, formType } as any),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('Synology account fields', () => {
+    it('keeps the Synology account status, name and servers in formData', async () => {
+      await service.createRequest('u-requester', 'Requester', {
+        ...baseDto,
+        formType: EFormType.SYNOLOGY_NAS,
+        synologyAccountStatus: 'EXISTING_ACCOUNT',
+        synologyAccountName: 'bagas.p',
+        selectedNasServers: ['SPJ', 'SMG'],
+      } as any);
+      expect(eformRepo.save.mock.calls[0][0].formData).toEqual({
+        alasan: 'butuh akses folder',
+        synologyAccountStatus: 'EXISTING_ACCOUNT',
+        synologyAccountName: 'bagas.p',
+        selectedNasServers: ['SPJ', 'SMG'],
+      });
+    });
+
+    it('leaves formData as sent when no Synology fields are given', async () => {
+      await createSynology();
+      expect(eformRepo.save.mock.calls[0][0].formData).toEqual({ alasan: 'butuh akses folder' });
+    });
+  });
+
+  describe('createForTicket (unified form)', () => {
+    const manager = () => ({
+      query: jest.fn(async () => [{ maxSeq: null }]),
+      create: jest.fn((_e: unknown, v: any) => ({ ...v })),
+      save: jest.fn(async (_e: unknown, v: any) => ({ id: 'eform-9', ...v })),
+    });
+
+    it('creates an eform ticket in PENDING_REVIEW with synology account name kept in formData', async () => {
+      const mgr = manager();
+      const saved = await service.createForTicket(mgr as any, 'u-requester', 'Requester', {
+        ...baseDto,
+        formType: EFormType.SYNOLOGY_NAS,
+        synologyAccountStatus: 'EXISTING_ACCOUNT',
+        synologyAccountName: 'bagas.p',
+      } as any, 'ticket-1');
+
+      expect(saved).toMatchObject({
+        status: EFormStatus.PENDING_REVIEW,
+        sourceTicketId: 'ticket-1',
+        siteId: SITE_SPJ,
+        currentApproverId: null,
+        requiresGm: false,
+        gmApproverId: null,
+        documentNumber: 'F/ICT/04-NAS/0001',
+        formData: { alasan: 'butuh akses folder', synologyAccountStatus: 'EXISTING_ACCOUNT', synologyAccountName: 'bagas.p' },
+      });
+    });
+
+    it('signs as the requester in the same transaction', async () => {
+      const mgr = manager();
+      await service.createForTicket(mgr as any, 'u-requester', 'Requester', { ...baseDto, formType: EFormType.VPN } as any, 'ticket-1');
+      expect(mgr.save).toHaveBeenCalledWith(EFormSignature, expect.objectContaining({
+        eformRequestId: 'eform-9', signerId: 'u-requester', signerRole: 'REQUESTER', signatureData: baseDto.signatureData,
+      }));
+      expect(signatureRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('does not create a manager approval or notify anyone: IT reviews it first', async () => {
+      const mgr = manager();
+      await service.createForTicket(mgr as any, 'u-requester', 'Requester', { ...baseDto, formType: EFormType.VPN, managerId: 'u-manager' } as any, 'ticket-1');
+      expect(approvalRepo.save).not.toHaveBeenCalled();
+      expect(mgr.save).not.toHaveBeenCalledWith(EFormApproval, expect.anything());
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 
