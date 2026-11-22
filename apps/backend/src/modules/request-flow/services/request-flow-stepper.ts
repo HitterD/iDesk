@@ -81,6 +81,15 @@ export class RequestFlowStepper {
         return { step, next, version };
     }
 
+    /**
+     * Where the ticket goes once a step is done: held (WAITING_VENDOR) while an approver is awaited and, for hardware
+     * that has to be bought, through procurement and delivery; otherwise IT carries on (IN_PROGRESS).
+     */
+    holdTarget(ctx: FlowContext, next: ApprovalStep | null): TicketStatus {
+        const buying = Boolean(ctx.hardware) && ctx.flow.hardwareSource !== 'IT_STOCK';
+        return next || buying ? TicketStatus.WAITING_VENDOR : TicketStatus.IN_PROGRESS;
+    }
+
     /** The structured twin of a system message: who did it and which request card it belongs to. */
     eventOf(ctx: FlowContext, actor: { userId: string; fullName: string } | null, phase: TellInput['phase'], reason?: string | null): TicketSystemEvent {
         const base = { v: 1 as const, actor: actor ? { id: actor.userId, name: actor.fullName } : null, changes: [], ...(reason ? { reason } : {}) };

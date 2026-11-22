@@ -9,6 +9,7 @@ import { RequestFlow } from './entities/request-flow.entity';
 import { RequestFlowController } from './presentation/request-flow.controller';
 import { RequestDocumentService } from './services/request-document.service';
 import { RequestFlowNotifier } from './services/request-flow-notifier';
+import { RequestFlowQueryService } from './services/request-flow-query.service';
 import { RequestFlowReader } from './services/request-flow-reader';
 import { RequestFlowReviewService } from './services/request-flow-review.service';
 import { RequestFlowStepper } from './services/request-flow-stepper';
@@ -25,7 +26,7 @@ import { NotificationModule } from '../notifications/notification.module';
     ],
     controllers: [RequestFlowController],
     providers: [
-        RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
+        RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowQueryService, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
     ],
 })
 export class RequestFlowModule {}

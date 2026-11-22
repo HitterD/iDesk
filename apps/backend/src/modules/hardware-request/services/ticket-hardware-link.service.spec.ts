@@ -67,6 +67,24 @@ describe('TicketHardwareLinkService', () => {
         expect(message().systemEvent.reason).toBe('Stok ada');
     });
 
+    it('resumes the SLA once the installation is scheduled (delivery phase is over)', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        ticket.lastPausedAt = new Date(Date.now() - 10 * 60_000);
+
+        await service.record('req-1', 'SCHEDULED', { at: new Date('2026-11-25T02:00:00Z') });
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(slaClock.release).toHaveBeenCalled();
+    });
+
+    it('keeps the SLA held while a schedule is only proposed (still waiting for the goods)', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+
+        await service.record('req-1', 'SCHEDULE_PROPOSED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+    });
+
     it('does not reopen a ticket an agent already moved on from the wait', async () => {
         ticket.status = TicketStatus.TODO;
 

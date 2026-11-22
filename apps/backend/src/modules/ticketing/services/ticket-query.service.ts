@@ -6,7 +6,7 @@ import { TicketModule } from '../entities/ticket-module.entity';
 import { SlaConfig } from '../entities/sla-config.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CacheService, CacheKeys } from '../../../shared/core/cache';
-import { resolveTicketViewerAccess, TicketViewerAccess } from './ticket-oracle-access';
+import { resolveTicketViewerAccessWithFlow, TicketViewerAccess } from './ticket-oracle-access';
 import { canAccessTicketObject, isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { applySiteFilter, canAccessTicketSite, siteScopeKey } from '../utils/site-access.util';
 import { applyServiceScopeFilter } from '../../../shared/core/utils/service-scope.util';
@@ -738,7 +738,7 @@ export class TicketQueryService {
             relations: ['participants'],
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
-        return resolveTicketViewerAccess(ticket, user);
+        return resolveTicketViewerAccessWithFlow(ticket, user, this.ticketRepo.manager);
     }
 
     async findOne(id: string, user?: { id?: string; role: UserRole | string; siteId?: string | null }): Promise<any> {
@@ -780,7 +780,7 @@ export class TicketQueryService {
 
         let viewerAccess: TicketViewerAccess | undefined;
         if (user) {
-            viewerAccess = resolveTicketViewerAccess(ticket, user);
+            viewerAccess = await resolveTicketViewerAccessWithFlow(ticket, user, this.ticketRepo.manager);
             if (viewerAccess === 'requester') {
                 ticket.messages = (ticket.messages ?? []).filter((m) => !m.isInternal);
             }

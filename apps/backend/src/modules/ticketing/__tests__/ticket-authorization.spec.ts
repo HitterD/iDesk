@@ -22,6 +22,7 @@ describe('Ticket Authorization Object Checks', () => {
         ticketRepo = {
             findOne: jest.fn(async ({ where: { id } }) => (id === 't-1' ? oracleTicket : normalTicket)),
             save: jest.fn(async (t) => t),
+            manager: { query: jest.fn().mockResolvedValue([]) },
         };
         messageRepo = {
             find: jest.fn(async () => []),
@@ -107,17 +108,17 @@ describe('Requester isolation on the same site', () => {
     const stranger = { id: 'stranger', role: UserRole.USER, siteId: 'site-1' };
 
     it("a USER cannot open another requester's ticket details", async () => {
-        const query = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket) } as any, { findOne: jest.fn() } as any, {} as any);
+        const query = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) } } as any, { findOne: jest.fn() } as any, {} as any);
         await expect(query.findOne('t-9', stranger)).rejects.toBeInstanceOf(ForbiddenException);
         await expect(query.assertCanView('t-9', stranger)).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it("a USER cannot read or reply to another requester's chat", async () => {
-        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) } };
         const messageRepo = { find: jest.fn().mockResolvedValue([{ id: 'm', content: 'rahasia' }]) };
         const manager = {
             findOne: jest.fn().mockResolvedValueOnce(ticket).mockResolvedValueOnce({ id: 'stranger', role: UserRole.USER, siteId: 'site-1' }),
-            create: jest.fn((_e, d) => d), save: jest.fn(async (_e, d) => d),
+            create: jest.fn((_e, d) => d), save: jest.fn(async (_e, d) => d), query: jest.fn().mockResolvedValue([]),
         };
         const messaging = new TicketMessagingService(
             ticketRepo as any, messageRepo as any, {} as any, {} as any,

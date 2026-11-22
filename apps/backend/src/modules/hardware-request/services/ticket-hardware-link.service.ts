@@ -37,6 +37,8 @@ const PHASE_TEXT: Record<HardwareTicketPhase, (no: string, at?: string) => strin
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */
 const PHASE_STATUS: Partial<Record<HardwareTicketPhase, TicketStatus>> = {
     SUBMITTED: TicketStatus.WAITING_VENDOR,
+    // The goods are in and an installation time is agreed: the delivery wait is over, IT carries on.
+    SCHEDULED: TicketStatus.IN_PROGRESS,
     REJECTED: TicketStatus.IN_PROGRESS,
     CANCELLED: TicketStatus.IN_PROGRESS,
     COMPLETED: TicketStatus.CLOSED,

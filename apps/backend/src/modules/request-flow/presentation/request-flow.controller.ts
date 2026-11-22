@@ -16,6 +16,7 @@ import { CreateEformTicketDto } from '../dto/create-eform-ticket.dto';
 import { CreateHardwareTicketDto } from '../dto/create-hardware-ticket.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
 import { ReviewDto } from '../dto/review.dto';
+import { RequestFlowQueryService, type RequestFlowView } from '../services/request-flow-query.service';
 import { RequestDocumentService } from '../services/request-document.service';
 import { FlowActor, REQUEST_SCANS_DIR, scanFileFilter, RequestFlowReviewService } from '../services/request-flow-review.service';
 import { CreatedRequestTicket, RequestFlowService } from '../services/request-flow.service';
@@ -42,6 +43,7 @@ export class RequestFlowController {
         private readonly flows: RequestFlowService,
         private readonly reviews: RequestFlowReviewService,
         private readonly documents: RequestDocumentService,
+        private readonly queries: RequestFlowQueryService,
     ) {}
 
     @Post('hardware')
@@ -56,6 +58,14 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'Create an E-Form Request ticket from the unified form' })
     createEform(@Request() req: { user: AuthenticatedUser }, @Body() dto: CreateEformTicketDto): Promise<CreatedRequestTicket> {
         return this.flows.createEform(req.user, dto);
+    }
+
+    // No @Roles: the requester, the flow's approvers and IT may read; the service decides.
+    @Get(':ticketId')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'Where a request ticket stands: phase, route, revisions and the hardware / e-form summary' })
+    view(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string): Promise<RequestFlowView> {
+        return this.queries.view({ userId: req.user.userId, role: req.user.role, siteId: req.user.siteId ?? null }, ticketId);
     }
 
     @Post(':ticketId/review')

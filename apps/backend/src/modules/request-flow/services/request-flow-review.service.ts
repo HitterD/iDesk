@@ -128,8 +128,8 @@ export class RequestFlowReviewService {
             actorId: actor.userId,
             phase: 'REVIEWED',
             text: `${actor.fullName} meninjau permintaan. Persetujuan: ${ROUTE_LABEL[dto.route]}${ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : ''}.`,
-            // Waiting on an approver holds the ticket's SLA; otherwise IT carries on.
-            target: next ? TicketStatus.WAITING_VENDOR : TicketStatus.IN_PROGRESS,
+            // Waiting on an approver (or on goods to be bought) holds the ticket's SLA; otherwise IT carries on.
+            target: this.stepper.holdTarget(ctx, next),
         });
         if (next && approverId) await this.notifier.askApprover(ctx, next, approverId);
         return { version };
@@ -322,8 +322,8 @@ export class RequestFlowReviewService {
         const { ctx, next } = outcome;
         await this.stepper.tell(ctx, {
             actorId: actor.userId, phase: 'SIGNED', text,
-            // The last signature releases the ticket's SLA hold; a step still to go keeps it.
-            target: next ? undefined : TicketStatus.IN_PROGRESS,
+            // A step still to go, or goods still to buy, keeps the SLA held; otherwise it is released.
+            target: this.stepper.holdTarget(ctx, next),
         });
         const nextApprover = next === 'GM' ? ctx.flow.gmId : next === 'MANAGER' ? ctx.flow.managerId : null;
         if (next && nextApprover) await this.notifier.askApprover(ctx, next, nextApprover);

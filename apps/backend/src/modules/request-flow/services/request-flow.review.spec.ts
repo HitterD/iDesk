@@ -14,6 +14,7 @@ import { RequestFlow } from '../entities/request-flow.entity';
 import type { FlowContext } from './request-flow-reader';
 import { RequestFlowReviewService, scanFileFilter, staleScanMessage, type FlowActor } from './request-flow-review.service';
 import { RequestFlowStepper } from './request-flow-stepper';
+import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 
 const IT: FlowActor = { userId: 'it-1', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', fullName: 'RM Bagastyo' };
 const MGR: FlowActor = { userId: 'mgr-1', role: UserRole.MANAGER, siteId: 'site-1', fullName: 'Pak Manager' };
@@ -308,5 +309,46 @@ describe('scan storage', () => {
     it('an unparsable QR gets its own message', async () => {
         const ctx = context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' });
         await expect(setup(ctx).service.paperSign(IT, TID, pdfFile(), 'hello')).rejects.toThrow('QR tidak valid. Pastikan Anda mengunggah dokumen hasil unduhan iDesk.');
+    });
+});
+
+describe('ticket SLA hold follows the flow phase', () => {
+    const lastTarget = (linked: { record: jest.Mock }) => (linked.record.mock.calls.at(-1)![0] as { target?: TicketStatus }).target;
+
+    it('review with an approval route holds the SLA (WAITING_VENDOR)', async () => {
+        const { service, linked } = setup(context());
+        await service.review(IT, TID, { route: 'MANAGER', managerId: 'mgr-1' });
+        expect(lastTarget(linked)).toBe(TicketStatus.WAITING_VENDOR);
+    });
+
+    it('review with route NONE keeps holding when hardware goes to procurement, and runs when it is from stock or an e-form', async () => {
+        const buy = setup(context({}, 'HARDWARE'));
+        await buy.service.review(IT, TID, { route: 'NONE', hardwareSource: 'NON_BUDGET' });
+        expect(lastTarget(buy.linked)).toBe(TicketStatus.WAITING_VENDOR);
+
+        const stock = setup(context({}, 'HARDWARE'));
+        await stock.service.review(IT, TID, { route: 'NONE', hardwareSource: 'IT_STOCK' });
+        expect(lastTarget(stock.linked)).toBe(TicketStatus.IN_PROGRESS);
+
+        const eform = setup(context());
+        await eform.service.review(IT, TID, { route: 'NONE' });
+        expect(lastTarget(eform.linked)).toBe(TicketStatus.IN_PROGRESS);
+    });
+
+    it('the last signature of purchased hardware does not release the SLA (procurement is next), an e-form does', async () => {
+        const hw = context({ flow: { route: 'MANAGER', managerId: 'mgr-1', hardwareSource: 'NON_BUDGET' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }, 'HARDWARE');
+        const buy = setup(hw);
+        await buy.service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
+        expect(lastTarget(buy.linked)).toBe(TicketStatus.WAITING_VENDOR);
+
+        const ef = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
+        await ef.service.decide(MGR, TID, { decision: 'APPROVE', signatureData: SIGNATURE });
+        expect(lastTarget(ef.linked)).toBe(TicketStatus.IN_PROGRESS);
+    });
+
+    it('returning to IT resumes the SLA', async () => {
+        const { service, linked } = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
+        await service.decide(MGR, TID, { decision: 'RETURN', note: 'Ganti barangnya' });
+        expect(lastTarget(linked)).toBe(TicketStatus.IN_PROGRESS);
     });
 });
