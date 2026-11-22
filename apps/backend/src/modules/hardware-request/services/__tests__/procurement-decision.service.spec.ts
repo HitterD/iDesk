@@ -16,7 +16,7 @@ describe('ProcurementDecisionService', () => {
   let mockEmitter: jest.Mocked<EventEmitter2>;
   let mockDataSource: jest.Mocked<DataSource>;
   let mockActivityRepo: { create: jest.Mock; save: jest.Mock };
-  let txManager: { getRepository: (e: unknown) => unknown };
+  let txManager: { query: jest.Mock; getRepository: (e: unknown) => unknown };
 
   beforeEach(async () => {
     mockItemRepo = { findBy: jest.fn(), save: jest.fn((x) => x) } as any;
@@ -24,6 +24,7 @@ describe('ProcurementDecisionService', () => {
     mockEmitter = { emit: jest.fn() } as any;
     mockActivityRepo = { create: jest.fn((x) => x), save: jest.fn(async (x) => x) };
     txManager = {
+      query: jest.fn(async () => []),
       getRepository: (e: any) => {
         if (e === HardwareRequestItem) return mockItemRepo;
         if (e === HardwareRequest) return mockReqRepo;
@@ -139,6 +140,27 @@ describe('ProcurementDecisionService', () => {
       expect(mockEmitter.emit).toHaveBeenCalledWith('procurement.completed', expect.objectContaining({ requestId: 'r1' }));
     });
 
+    it('the announcement carries the true request status', async () => {
+      mockReqRepo.findOne.mockResolvedValue({
+        id: 'r1', requesterId: 'u1', status: RequestStatus.PROCUREMENT, items: [{ id: 'i1', procurementDecision: 'APPROVED' }],
+      } as any);
+
+      await service.completeProcurement('r1', {}, 'ict-1');
+
+      expect(mockEmitter.emit).toHaveBeenCalledWith('hardware-request.procurement.completed', expect.objectContaining({ status: RequestStatus.AWAITING_DELIVERY }));
+    });
+
+    it('takes the flow row lock first when the request belongs to a request flow', async () => {
+      mockReqRepo.findOne.mockResolvedValue({
+        id: 'r1', requesterId: 'u1', status: RequestStatus.PROCUREMENT, items: [{ id: 'i1', procurementDecision: 'APPROVED' }],
+      } as any);
+
+      await service.completeProcurement('r1', {}, 'ict-1');
+
+      expect(txManager.query).toHaveBeenCalledWith(expect.stringMatching(/FROM request_flows[\s\S]*FOR UPDATE/), ['r1']);
+      expect(txManager.query.mock.invocationCallOrder[0]).toBeLessThan(mockReqRepo.findOne.mock.invocationCallOrder[0]);
+    });
+
     it('does not announce a finished procurement when everything was rejected', async () => {
       mockReqRepo.findOne.mockResolvedValue({
         id: 'r1', requesterId: 'u1', status: RequestStatus.PROCUREMENT, items: [{ id: 'i1', procurementDecision: 'REJECTED' }],
@@ -216,6 +238,17 @@ describe('ProcurementDecisionService', () => {
       await expect(attempt([approve(['i1', 'i2'])])).rejects.toThrow(BadRequestException);
       await expect(attempt([approve(['i1', 'i2', 'i3']), approve(['i1'])])).rejects.toThrow(BadRequestException);
       await expect(attempt([approve(['i1', 'i2', 'i3', 'zzz'])])).rejects.toThrow(BadRequestException);
+    });
+
+    it('a bad invoice date is a 400, not a database error', async () => {
+      mockReqRepo.findOne.mockResolvedValue(request());
+      await expect(service.recordWith(txManager as any, 'r1', 'a', {
+        lines: [{ itemIds: ['i1', 'i2', 'i3'], decision: 'APPROVED', vendor: 'V', unitCost: 1, invoiceDate: '2026-02-31' }],
+      })).rejects.toThrow('Tanggal invoice tidak valid');
+      mockReqRepo.findOne.mockResolvedValue(request());
+      await expect(service.recordWith(txManager as any, 'r1', 'a', {
+        lines: [{ itemIds: ['i1', 'i2', 'i3'], decision: 'APPROVED', vendor: 'V', unitCost: 1, invoiceDate: 'besok' }],
+      })).rejects.toThrow(BadRequestException);
     });
 
     it('a purchased line needs vendor and cost', async () => {

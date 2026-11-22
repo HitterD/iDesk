@@ -59,15 +59,18 @@ describe('HardwareRequestQueryService', () => {
         expect(qb.andWhere).toHaveBeenCalledWith('r.status IN (:...statuses)', { statuses: [RequestStatus.SUBMITTED] });
     });
 
-    it('category filter narrows the list by the items category snapshot', async () => {
+    const EXISTS_SQL = `EXISTS (SELECT 1 FROM hardware_request_items ci WHERE ci."requestId" = r.id AND ci."categorySnapshot"->>'category' IN (:...categories))`;
+
+    it('category filter narrows the list with an EXISTS, not by the selected items join', async () => {
         await service.list(
             { id: 'lead-1', role: HardwareRole.ICT_STAFF },
             { category: ['LAPTOP', 'MONITOR'] as any, page: 1, pageSize: 20 },
         );
-        expect(qb.andWhere).toHaveBeenCalledWith(
-            "items.categorySnapshot->>'category' IN (:...categories)",
-            { categories: ['LAPTOP', 'MONITOR'] },
-        );
+        expect(qb.andWhere).toHaveBeenCalledWith(EXISTS_SQL, { categories: ['LAPTOP', 'MONITOR'] });
+        const where = qb.andWhere.mock.calls.map((c: any[]) => c[0]).filter((q: string) => q.includes('categorySnapshot'));
+        expect(where.every((q: string) => !q.includes('items.categorySnapshot'))).toBe(true);
+        // the items relation stays selected whole: a request lists all its items
+        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('r.items', 'items');
     });
 
     it('category filter accepts a comma list', async () => {
@@ -75,10 +78,7 @@ describe('HardwareRequestQueryService', () => {
             { id: 'lead-1', role: HardwareRole.ICT_STAFF },
             { category: 'LAPTOP,MONITOR' as any, page: 1, pageSize: 20 },
         );
-        expect(qb.andWhere).toHaveBeenCalledWith(
-            "items.categorySnapshot->>'category' IN (:...categories)",
-            { categories: ['LAPTOP', 'MONITOR'] },
-        );
+        expect(qb.andWhere).toHaveBeenCalledWith(EXISTS_SQL, { categories: ['LAPTOP', 'MONITOR'] });
     });
 
     it('no category filter leaves the query alone', async () => {

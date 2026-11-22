@@ -21,6 +21,8 @@ export interface ActingUser {
     userRole?: UserRole;
 }
 
+const CATEGORY_EXISTS = `EXISTS (SELECT 1 FROM hardware_request_items ci WHERE ci."requestId" = r.id AND ci."categorySnapshot"->>'category' IN (:...categories))`;
+
 /** A list filter as sent: repeated params, or one comma-separated value. */
 const splitList = (value: string | readonly string[] | undefined): string[] =>
     (Array.isArray(value) ? value : [value]).flatMap((v) => String(v ?? '').split(',')).map((v) => v.trim()).filter(Boolean);
@@ -54,7 +56,8 @@ export class HardwareRequestQueryService {
 
         const categories = splitList(dto.category);
         if (categories.length > 0) {
-            qb.andWhere("items.categorySnapshot->>'category' IN (:...categories)", { categories });
+            // EXISTS, not a condition on the selected items join: a request lists all its items, not only the matching ones.
+            qb.andWhere(CATEGORY_EXISTS, { categories });
         }
 
         // Site isolation via SiteActor (UserRole + siteId). dto.siteId may be used by cross-site to narrow.

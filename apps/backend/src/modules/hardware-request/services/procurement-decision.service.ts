@@ -131,11 +131,15 @@ export class ProcurementDecisionService {
     if (outcome.approvedItems > 0) {
       this.emitter.emit(HR_EVT.PROCUREMENT_DONE, {
         requestId: outcome.request.id, actorId, occurredAt: new Date(), requesterId: outcome.request.requesterId,
+        status: outcome.request.status,
       });
     }
   }
 
   private async loadForProcurement(mgr: EntityManager, requestId: string): Promise<HardwareRequest> {
+    // A request on a request-flow ticket is serialised on its flow row, like every other step of that flow (a no-op
+    // otherwise), so the old procurement endpoints cannot interleave with the ticket's own steps.
+    await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
     const req = await mgr.getRepository(HardwareRequest).findOne({ where: { id: requestId }, relations: ['items'] });
     if (!req) throw new NotFoundException('request not found');
     if (req.status !== RequestStatus.PROCUREMENT) {
@@ -152,6 +156,7 @@ export class ProcurementDecisionService {
       if (line.decision === 'APPROVED' && (!line.vendor?.trim() || typeof line.unitCost !== 'number' || !(line.unitCost >= 0))) {
         throw new BadRequestException(MESSAGES.vendorCost);
       }
+      if (line.invoiceDate && !isRealDay(line.invoiceDate)) throw new BadRequestException(MESSAGES.invoiceDate);
       for (const id of line.itemIds) {
         if (!known.has(id) || lineOf.has(id)) throw new BadRequestException(MESSAGES.coverage);
         lineOf.set(id, line);
@@ -219,8 +224,17 @@ export interface ProcurementLine {
 export interface ProcurementOutcome { request: HardwareRequest; approvedItems: number; rejectedItems: number }
 
 const REJECT_NOTE_MIN = 5;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** YYYY-MM-DD that is a real calendar day (2026-02-31 is not). */
+const isRealDay = (value: string): boolean => {
+  if (!ISO_DAY.test(value)) return false;
+  const day = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === value;
+};
 const MESSAGES = {
   rejectReason: 'Isi alasan penolakan',
   vendorCost: 'Vendor dan harga wajib diisi untuk barang yang dibeli',
+  invoiceDate: 'Tanggal invoice tidak valid',
   coverage: 'Setiap barang yang belum diputuskan harus ada tepat satu kali',
 } as const;

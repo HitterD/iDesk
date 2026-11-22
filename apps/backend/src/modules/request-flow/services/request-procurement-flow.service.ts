@@ -1,11 +1,14 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { DataSource } from 'typeorm';
 import { HardwareRequest } from '../../hardware-request/domain/entities/hardware-request.entity';
+import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { HardwareRequestItem } from '../../hardware-request/domain/entities/hardware-request-item.entity';
+import { ActivityAction } from '../../hardware-request/domain/enums/activity-action.enum';
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { ProcurementDecisionService } from '../../hardware-request/services/procurement-decision.service';
 import { TicketHardwareLinkService } from '../../hardware-request/services/ticket-hardware-link.service';
+import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import type { ArrivalsDto } from '../dto/arrivals.dto';
@@ -29,6 +32,8 @@ const ARRIVAL_STATUSES: readonly string[] = [RequestStatus.AWAITING_DELIVERY, Re
 /** IT's purchase record and the arrival of the goods, for a hardware request that lives on a ticket. */
 @Injectable()
 export class RequestProcurementFlowService {
+    private readonly logger = new Logger(RequestProcurementFlowService.name);
+
     constructor(
         private readonly dataSource: DataSource,
         private readonly reader: RequestFlowReader,
@@ -74,14 +79,35 @@ export class RequestProcurementFlowService {
             await manager.save(HardwareRequestItem, coming.map((unit) => Object.assign(unit, { deliveryStatus: 'ARRIVED' as const, arrivedAt: now })));
             const entered = hardware.status === RequestStatus.AWAITING_DELIVERY;
             if (entered) await manager.update(HardwareRequest, { id: hardware.id }, { status: RequestStatus.INSTALLATION });
+            await manager.save(HardwareRequestActivity, manager.create(HardwareRequestActivity, {
+                requestId: hardware.id, actorId: actor.userId, action: ActivityAction.UPDATED,
+                fromStatus: hardware.status as RequestStatus, toStatus: entered ? RequestStatus.INSTALLATION : (hardware.status as RequestStatus),
+                metadata: { change: 'ITEMS_ARRIVED', itemIds: coming.map((unit) => unit.id) },
+            }));
             return { ctx, arrived: coming.length, entered };
         });
 
-        if (result.arrived === 0) return { arrived: 0 };
-        await this.stepper.tell(result.ctx, { actorId: actor.userId, phase: 'REVIEWED', text: `${result.arrived} barang tiba di gudang IT` });
-        // The first arrival ends the delivery wait: scheduling is IT's turn and the ticket's SLA runs again.
-        if (result.entered) await this.hardwareLink.resumeForInstallation(result.ctx.hardware!.id, actor.userId);
+        if (result.arrived > 0) {
+            await this.stepper.tell(result.ctx, { actorId: actor.userId, phase: 'REVIEWED', text: `${result.arrived} barang tiba di gudang IT` });
+        }
+        // The first arrival ends the delivery wait: scheduling is IT's turn and the ticket's SLA runs again. Should that
+        // step have failed, any later call retries it while the ticket is still waiting (the request is already in
+        // INSTALLATION by then); a failure never fails the arrival itself.
+        if (result.entered || this.stillWaiting(result.ctx)) await this.resume(result.ctx.hardware!.id, actor.userId);
         return { arrived: result.arrived };
+    }
+
+    /** The request is installing but its ticket never left the vendor wait: the resume did not happen (yet). */
+    private stillWaiting(ctx: FlowContext): boolean {
+        return ctx.hardware?.status === RequestStatus.INSTALLATION && ctx.ticket.status === TicketStatus.WAITING_VENDOR;
+    }
+
+    private async resume(requestId: string, actorId: string): Promise<void> {
+        try {
+            await this.hardwareLink.resumeForInstallation(requestId, actorId);
+        } catch (err) {
+            this.logger.error(`Resuming the ticket of request ${requestId} after arrival failed: ${err instanceof Error ? err.message : err}`);
+        }
     }
 
     private assertIct(actor: FlowActor, ticketId: string): void {

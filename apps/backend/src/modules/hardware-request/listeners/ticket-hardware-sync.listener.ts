@@ -10,6 +10,7 @@ import {
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
 import { RequestStatus } from '../domain/enums/request-status.enum';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import { TicketHardwareLinkService } from '../services/ticket-hardware-link.service';
 
 type InstallCompletedEvent = HrInstallCompleted & { status?: RequestStatus };
@@ -21,6 +22,7 @@ export class TicketHardwareSyncListener {
         private readonly link: TicketHardwareLinkService,
         @InjectRepository(HardwareRequest) private readonly reqRepo: Repository<HardwareRequest>,
         @InjectRepository(InstallationSchedule) private readonly schedRepo: Repository<InstallationSchedule>,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     @OnEvent(HR_EVT.SUBMITTED)
@@ -51,7 +53,8 @@ export class TicketHardwareSyncListener {
 
     @OnEvent(HardwareEvents.ProcurementCompleted)
     async onProcurementDone(e: ProcurementCompletedPayload) {
-        if (e.approvedItems > 0) return this.link.record(e.requestId, 'PROCUREMENT_DONE');
+        // A request-flow ticket gets exactly one message for the purchase (written by the flow itself).
+        if (e.approvedItems > 0) return (await this.flows.has(e.requestId)) ? undefined : this.link.record(e.requestId, 'PROCUREMENT_DONE');
         // Nothing was approved: procurement ends the request as REJECTED without the regular rejection event, so the
         // ticket would otherwise keep waiting on a request that is already over.
         const request = await this.reqRepo.findOne({ where: { id: e.requestId }, select: { id: true, rejectReason: true } });

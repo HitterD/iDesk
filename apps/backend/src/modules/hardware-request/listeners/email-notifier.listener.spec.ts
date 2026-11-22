@@ -3,6 +3,7 @@ import { EmailNotifierListener } from './email-notifier.listener';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 
 describe('EmailNotifierListener', () => {
     let listener: EmailNotifierListener;
@@ -18,6 +19,8 @@ describe('EmailNotifierListener', () => {
         requester: { fullName: 'User 1', email: 'u1@x.com' },
     }) };
 
+    const flows = { has: jest.fn() };
+
     beforeEach(async () => {
         const mod = await Test.createTestingModule({
             providers: [
@@ -25,10 +28,12 @@ describe('EmailNotifierListener', () => {
                 { provide: MailDispatchService, useValue: mailer },
                 { provide: NotificationCenterService, useValue: perm },
                 { provide: HardwareRequestQueryService, useValue: q },
+                { provide: RequestFlowMembership, useValue: flows },
             ],
         }).compile();
         listener = mod.get(EmailNotifierListener);
         jest.clearAllMocks();
+        flows.has.mockResolvedValue(false);
     });
 
     it('onSubmitted sends to AGENT_OPERATIONAL_SUPPORT via mail dispatch', async () => {
@@ -37,6 +42,18 @@ describe('EmailNotifierListener', () => {
         expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({
             to: 'lead1@x.com',
         }));
+    });
+
+    it('legacy procurement done still sends the SPP mail to the requester', async () => {
+        q.findById.mockResolvedValueOnce({ id: 'r1', requestNumber: 'HR-2026-0001', requester: { fullName: 'User 1', email: 'u1@x.com' } });
+        await listener.onProcurementDone({ requestId: 'r1', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(mailer.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'u1@x.com', subject: expect.stringContaining('SPP') }));
+    });
+
+    it('a request-flow request gets no "SPP diterbitkan" mail', async () => {
+        flows.has.mockResolvedValue(true);
+        await listener.onProcurementDone({ requestId: 'r1', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(mailer.send).not.toHaveBeenCalled();
     });
 
     it('onRejected includes reason in context', async () => {

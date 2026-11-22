@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { HardwareRequest } from '../../hardware-request/domain/entities/hardware-request.entity';
 import { HardwareRequestItem } from '../../hardware-request/domain/entities/hardware-request-item.entity';
+import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
+import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { UserRole } from '../../users/enums/user-role.enum';
 import type { FlowContext } from './request-flow-reader';
@@ -117,5 +119,56 @@ describe('RequestProcurementFlowService.arrive', () => {
     it('refuses before purchase is recorded and for non-IT staff', async () => {
         await expect(setup(context(RequestStatus.PROCUREMENT, [unit('a')])).service.arrive(IT, TID, { itemIds: ['a'] })).rejects.toThrow(ConflictException);
         await expect(setup(context(RequestStatus.AWAITING_DELIVERY, [unit('a')])).service.arrive({ ...IT, role: UserRole.USER }, TID, { itemIds: ['a'] })).rejects.toThrow(ForbiddenException);
+    });
+});
+
+describe('RequestProcurementFlowService.arrive: resume retry', () => {
+    const waiting = (status: string, items: HardwareRequestItem[]) => {
+        const ctx = context(status, items);
+        return { ...ctx, ticket: { ...(ctx.ticket as object), status: TicketStatus.WAITING_VENDOR } as never };
+    };
+
+    it('a failing resume never fails the arrival', async () => {
+        const { service, hardwareLink, manager } = setup(waiting(RequestStatus.AWAITING_DELIVERY, [unit('a')]));
+        hardwareLink.resumeForInstallation.mockRejectedValueOnce(new Error('ticket locked'));
+
+        await expect(service.arrive(IT, TID, { itemIds: ['a'] })).resolves.toEqual({ arrived: 1 });
+
+        expect(manager.update).toHaveBeenCalledWith(HardwareRequest, { id: 'hr-1' }, { status: RequestStatus.INSTALLATION });
+    });
+
+    it('a second call retries the resume while the ticket still waits, then stops', async () => {
+        const { service, hardwareLink } = setup(waiting(RequestStatus.INSTALLATION, [unit('a', { deliveryStatus: 'ARRIVED' })]));
+
+        await expect(service.arrive(IT, TID, { itemIds: ['a'] })).resolves.toEqual({ arrived: 0 });
+
+        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledTimes(1);
+        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1');
+    });
+
+    it('a later arrival retries the resume too when the ticket never resumed', async () => {
+        const { service, hardwareLink } = setup(waiting(RequestStatus.INSTALLATION, [unit('a', { deliveryStatus: 'ARRIVED' }), unit('b')]));
+
+        await service.arrive(IT, TID, { itemIds: ['b'] });
+
+        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledTimes(1);
+    });
+
+    it('a failed retry is swallowed as well', async () => {
+        const { service, hardwareLink } = setup(waiting(RequestStatus.INSTALLATION, [unit('a', { deliveryStatus: 'ARRIVED' })]));
+        hardwareLink.resumeForInstallation.mockRejectedValueOnce(new Error('still down'));
+        await expect(service.arrive(IT, TID, { itemIds: ['a'] })).resolves.toEqual({ arrived: 0 });
+    });
+
+    it('writes an activity row for the arrival', async () => {
+        const { service, manager } = setup(context(RequestStatus.AWAITING_DELIVERY, [unit('a'), unit('b')]));
+
+        await service.arrive(IT, TID, { itemIds: ['a', 'b'] });
+
+        const call = manager.save.mock.calls.find(([entity]) => entity === HardwareRequestActivity);
+        expect(call?.[1]).toMatchObject({
+            requestId: 'hr-1', actorId: 'it-1', action: 'UPDATED', fromStatus: RequestStatus.AWAITING_DELIVERY, toStatus: RequestStatus.INSTALLATION,
+            metadata: { change: 'ITEMS_ARRIVED', itemIds: ['a', 'b'] },
+        });
     });
 });

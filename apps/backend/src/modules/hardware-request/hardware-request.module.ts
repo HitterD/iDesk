@@ -41,6 +41,7 @@ import { WsAuthGuard } from './realtime/ws-auth.guard';
 import { HardwareScheduleTicketListener } from './listeners/hardware-schedule-ticket.listener';
 import { HardwareTicketStatusSyncListener } from './listeners/hardware-ticket-status-sync.listener';
 import { TicketHardwareSyncListener } from './listeners/ticket-hardware-sync.listener';
+import { RequestFlowMembership } from './services/request-flow-membership.service';
 import { TicketHardwareLinkService } from './services/ticket-hardware-link.service';
 import { TicketHardwareRequestService } from './services/ticket-hardware-request.service';
 import { TicketHardwareRequestController } from './presentation/ticket-hardware-request.controller';
@@ -102,6 +103,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         HardwareScheduleTicketListener,
         HardwareTicketStatusSyncListener,
         TicketHardwareLinkService,
+        RequestFlowMembership,
         TicketHardwareRequestService,
         TicketHardwareSyncListener,
         AgingReminderCron,

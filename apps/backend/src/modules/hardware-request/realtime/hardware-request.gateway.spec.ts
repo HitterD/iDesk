@@ -30,6 +30,12 @@ describe('HardwareRequestGateway', () => {
         expect(mockServer.emit).toHaveBeenCalledWith('status_changed', expect.objectContaining({ requestId: 'r1' }));
     });
 
+    it('procurement done broadcasts the true request status', () => {
+        gw.onProcurementDone({ requestId: 'r1', status: 'AWAITING_DELIVERY', requesterId: 'u1', occurredAt: new Date() } as any);
+        expect(mockServer.emit).toHaveBeenCalledWith('status_changed', expect.objectContaining({ status: 'AWAITING_DELIVERY' }));
+        expect(mockServer.emit).not.toHaveBeenCalledWith('status_changed', expect.objectContaining({ status: 'PARTIAL_DELIVERED' }));
+    });
+
     it('emits new_comment to request room on commented', () => {
         gw.onCommented({ requestId: 'r1', actorId: 'u1', commentId: 'c1', body: 'hi', subscribers: [], occurredAt: new Date() } as any);
         expect(mockServer.to).toHaveBeenCalledWith('hw_request_r1');

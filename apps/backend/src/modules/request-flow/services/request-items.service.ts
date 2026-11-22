@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { DataSource, EntityManager, In } from 'typeorm';
+import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { HardwareRequestItem } from '../../hardware-request/domain/entities/hardware-request-item.entity';
+import { ActivityAction } from '../../hardware-request/domain/enums/activity-action.enum';
 import { InstallationSchedule } from '../../hardware-request/domain/entities/installation-schedule.entity';
 import { InstallStatus } from '../../hardware-request/domain/enums/install-status.enum';
 import { ItemCategory } from '../../hardware-request/domain/enums/item-category.enum';
@@ -30,6 +32,7 @@ const MESSAGES = {
     notHardware: 'Permintaan ini bukan permintaan hardware',
     locked: 'Barang tidak bisa diubah pada tahap ini',
     arrived: 'Barang yang sudah tiba tidak bisa diubah',
+    purchased: 'Barang yang sudah dibeli tidak bisa diubah. Batalkan pembelian lewat IT terlebih dahulu.',
     unknownUnit: 'Barang tidak ditemukan pada permintaan ini',
     duplicateUnit: 'Satu barang tidak boleh muncul di dua baris',
     itemRequired: 'Barang harus dari katalog atau ditulis manual',
@@ -64,7 +67,14 @@ export class RequestItemsService {
             if (removed.length > 0) await manager.delete(HardwareRequestItem, removed.map((u) => u.id));
             const saved = await manager.save(HardwareRequestItem, rows.map((row) => (row.id ? row : manager.create(HardwareRequestItem, row))));
             const version = await this.documents.bump(ctx.flow.id, 'GEN', REVISION_LABEL, actor.userId, manager);
-            return { ctx, version, before, after: saved as HardwareRequestItem[] };
+            const change = { before: summary(before), after: summary(saved as HardwareRequestItem[]) };
+            // No signature data: the activity trail only says who changed what and why.
+            await manager.save(HardwareRequestActivity, manager.create(HardwareRequestActivity, {
+                requestId: ctx.hardware!.id, actorId: actor.userId, action: ActivityAction.UPDATED,
+                fromStatus: ctx.hardware!.status as RequestStatus, toStatus: ctx.hardware!.status as RequestStatus,
+                metadata: { change: 'ITEMS_EDITED', reason: dto.reason, ...change },
+            }));
+            return { ctx, version, ...change };
         });
 
         await this.afterEdit(actor, dto.reason, outcome);
@@ -80,12 +90,15 @@ export class RequestItemsService {
         if (!EDITABLE_PHASES.includes(phase)) throw new ConflictException(MESSAGES.locked);
     }
 
-    /** What the units look like afterwards: rows to save (kept ones carry their id) and units to drop. */
+    /**
+     * What the units look like afterwards: rows to save (kept ones carry their id) and units to drop. A reduction drops
+     * the most removable units first (not yet bought, then bought, then arrived); dropping a bought or arrived one is refused.
+     */
     private async plan(ctx: FlowContext, current: HardwareRequestItem[], lines: EditItemLineDto[]) {
         const byId = new Map(current.map((unit) => [unit.id, unit]));
         const claimed = new Set<string>();
         const rows: Partial<HardwareRequestItem>[] = [];
-        const canAdd = !NO_NEW_UNITS.includes(ctx.hardware!.status);
+        let added = 0;
 
         for (const line of lines) {
             const resolved = await this.resolve(line);
@@ -95,16 +108,16 @@ export class RequestItemsService {
                 if (claimed.has(id)) throw new BadRequestException(MESSAGES.duplicateUnit);
                 claimed.add(id);
                 return unit;
-            });
+            }).sort((x, y) => protection(y) - protection(x));
             keep.slice(0, line.quantity).forEach((unit) => rows.push(this.updated(unit, line, resolved)));
-            // Units beyond the new quantity are dropped; the ones the line asks for on top are new rows, one per unit.
-            keep.slice(line.quantity).forEach((unit) => claimed.add(unit.id));
             const extra = line.quantity - keep.length;
-            if (extra > 0 && !canAdd) throw new ConflictException(MESSAGES.bought);
+            added += Math.max(extra, 0);
             for (let n = 0; n < extra; n++) rows.push(this.fresh(ctx.hardware!.id, line, resolved));
         }
         const removed = current.filter((unit) => !rows.some((row) => row.id === unit.id));
         if (removed.some((unit) => unit.deliveryStatus === 'ARRIVED')) throw new ConflictException(MESSAGES.arrived);
+        if (removed.some((unit) => unit.procurementDecision === 'APPROVED')) throw new ConflictException(MESSAGES.purchased);
+        if (added > 0 && NO_NEW_UNITS.includes(ctx.hardware!.status)) throw new ConflictException(MESSAGES.bought);
         return { rows, removed };
     }
 
@@ -132,6 +145,11 @@ export class RequestItemsService {
             return { ...unit, notes, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
         }
         const sameName = unit.categorySnapshot.name === resolved.snapshot.name;
+        // A swap would leave the old purchase (vendor, cost, invoice) on a different item.
+        if (unit.procurementDecision === 'APPROVED' && !sameName) throw new ConflictException(MESSAGES.purchased);
+        if (unit.procurementDecision === 'APPROVED') {
+            return { ...unit, notes, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
+        }
         const replaces = line.replacesName ?? (sameName ? (unit.categorySnapshot as { replaces?: string }).replaces : undefined);
         return { ...unit, catalogId: resolved.catalogId, notes, categorySnapshot: this.withReplaces(resolved.snapshot, replaces) };
     }
@@ -145,10 +163,10 @@ export class RequestItemsService {
 
     /** The chat note with before and after, and a word to the approvers who already signed an older version. */
     private async afterEdit(
-        actor: FlowActor, reason: string, outcome: { ctx: FlowContext; before: HardwareRequestItem[]; after: HardwareRequestItem[] },
+        actor: FlowActor, reason: string, outcome: { ctx: FlowContext; before: string; after: string },
     ): Promise<void> {
         const { ctx, before, after } = outcome;
-        const text = `${actor.fullName} mengubah barang\nSebelum: ${summary(before)}\nSesudah: ${summary(after)}`;
+        const text = `${actor.fullName} mengubah barang\nSebelum: ${before}\nSesudah: ${after}`;
         await this.stepper.tell(ctx, { actorId: actor.userId, phase: 'REVIEWED', text, reason });
         const signers = [ctx.signed.manager ? ctx.flow.managerId : null, ctx.signed.gm ? ctx.flow.gmId : null]
             .filter((id): id is string => Boolean(id) && id !== actor.userId);
@@ -161,9 +179,18 @@ export class RequestItemsService {
     }
 }
 
-/** "2× Laptop A, 1× Mouse": units grouped by name, in order of appearance. */
+/** How much a unit must be kept: arrived over bought over not yet bought. */
+function protection(unit: HardwareRequestItem): number {
+    if (unit.deliveryStatus === 'ARRIVED') return 2;
+    return unit.procurementDecision === 'APPROVED' ? 1 : 0;
+}
+
+/**
+ * "2× Laptop A, 1× Mouse": units grouped by name, in order of appearance. Rows are one unit each; a legacy row with a
+ * larger quantity counts for that many here and is kept as one row when edited (its quantity is left as it was).
+ */
 function summary(units: HardwareRequestItem[]): string {
     const counts = new Map<string, number>();
-    for (const unit of units) counts.set(unit.categorySnapshot.name, (counts.get(unit.categorySnapshot.name) ?? 0) + 1);
+    for (const unit of units) counts.set(unit.categorySnapshot.name, (counts.get(unit.categorySnapshot.name) ?? 0) + (unit.quantity || 1));
     return [...counts].map(([name, count]) => `${count}× ${name}`).join(', ') || '-';
 }

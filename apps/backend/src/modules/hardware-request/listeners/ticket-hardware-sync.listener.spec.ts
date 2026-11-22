@@ -5,10 +5,11 @@ describe('TicketHardwareSyncListener', () => {
     const link = { record: jest.fn(), resumeForInstallation: jest.fn() };
     const reqRepo = { findOne: jest.fn(async () => ({ id: 'req-1', requesterId: 'user-1', rejectReason: 'Stok vendor kosong' })) };
     const schedRepo = { findOne: jest.fn(async () => ({ id: 's-1', scheduledStart: new Date('2026-10-27T02:00:00Z') })) };
-    const listener = new TicketHardwareSyncListener(link as any, reqRepo as any, schedRepo as any);
+    const flows = { has: jest.fn(async () => false) };
+    const listener = new TicketHardwareSyncListener(link as any, reqRepo as any, schedRepo as any, flows as any);
     const base = { requestId: 'req-1', occurredAt: new Date(), requesterId: 'user-1' };
 
-    beforeEach(() => { link.record.mockClear(); link.resumeForInstallation.mockClear(); });
+    beforeEach(() => { link.record.mockClear(); link.resumeForInstallation.mockClear(); flows.has.mockReset(); flows.has.mockResolvedValue(false); });
 
     it.each([
         ['user-1', 'DECLINED'],
@@ -52,6 +53,13 @@ describe('TicketHardwareSyncListener', () => {
     it('keeps saying procurement is done while something was approved', async () => {
         await listener.onProcurementDone({ requestId: 'req-1', ownerId: 'user-1', approvedItems: 2, rejectedItems: 1 });
         expect(link.record).toHaveBeenCalledWith('req-1', 'PROCUREMENT_DONE');
+    });
+
+    it('a request that belongs to a request flow gets no PROCUREMENT_DONE card (the flow writes its own message)', async () => {
+        flows.has.mockResolvedValue(true);
+        await listener.onProcurementDone({ requestId: 'req-1', ownerId: 'user-1', approvedItems: 2, rejectedItems: 0 });
+        expect(flows.has).toHaveBeenCalledWith('req-1');
+        expect(link.record).not.toHaveBeenCalled();
     });
 
     it('ends the ticket wait when procurement approved nothing, with the reason', async () => {
