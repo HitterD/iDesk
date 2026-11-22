@@ -154,6 +154,13 @@ describe('backfillRequestFlows', () => {
         expect(db.flows).toEqual([]);
     });
 
+    it('treats a soft-deleted source ticket as missing', () => {
+        for (const sql of [BACKFILL_SQL.selectHardware, BACKFILL_SQL.selectEform]) {
+            expect(sql).toContain('LEFT JOIN "tickets" t ON t."id" = r."sourceTicketId" AND t."deletedAt" IS NULL');
+            expect(sql).toContain('t."id" IS NOT NULL AS "sourceTicketExists"');
+        }
+    });
+
     it('adds a flow to a legacy ticket raised for exactly one request without changing its type', async () => {
         const { db, manager } = fakeDb();
         db.tickets.push({ id: 'legacy', ticketNumber: '011026-QC-0001', ticketType: TicketType.SERVICE });

@@ -1,18 +1,21 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 import { backfillRequestFlows } from '../modules/request-flow/services/request-flow-backfill';
 
-/** Every ticket type as of this migration (frozen: later additions belong to their own migration). */
-const TICKET_TYPES = [
-    'SERVICE', 'ICT_BUDGET', 'LOST_ITEM', 'ACCESS_REQUEST', 'HARDWARE_INSTALLATION', 'ORACLE_REQUEST',
-    'WEB_DEV_REQUEST', 'MOBILE_DEV_REQUEST', 'HARDWARE_REQUEST', 'EFORM_REQUEST',
-];
+const TICKET_TYPE_ENUM = 'tickets_tickettype_enum';
+
+/** Current values of the ticket type enum in their declared order, including values ADDed earlier in this transaction. */
+export const SELECT_TICKET_TYPES = `SELECT enumlabel FROM pg_enum WHERE enumtypid = '"${TICKET_TYPE_ENUM}"'::regtype ORDER BY enumsortorder`;
+
+/** The column-type change rewrites the whole tickets table; the pool's 15 s statement_timeout must not cut it off. */
+export const DISABLE_STATEMENT_TIMEOUT = 'SET LOCAL statement_timeout = 0';
 
 /**
  * Backfills a parent ticket + request flow for every existing hardware / e-form request (see `backfillRequestFlows`).
  *
  * 1794800000000 added HARDWARE_REQUEST / EFORM_REQUEST with `ALTER TYPE ... ADD VALUE`. TypeORM runs pending
  * migrations in one transaction and Postgres forbids using a value added in the same transaction, so the enum is
- * recreated here first (as in 1792800000000); a freshly created type's values are usable at once.
+ * recreated here first (as in 1792800000000); a freshly created type's values are usable at once. The value list is
+ * read from pg_enum so the original values and their order are kept exactly.
  */
 export class RequestFlowBackfill1794810000000 implements MigrationInterface {
     name = 'RequestFlowBackfill1794810000000';
@@ -27,14 +30,17 @@ export class RequestFlowBackfill1794810000000 implements MigrationInterface {
     }
 
     private async recreateTicketTypeEnum(queryRunner: QueryRunner): Promise<void> {
-        const list = TICKET_TYPES.map((v) => `'${v}'`).join(', ');
-        await queryRunner.query(`ALTER TYPE "tickets_tickettype_enum" RENAME TO "tickets_tickettype_enum_old"`);
-        await queryRunner.query(`CREATE TYPE "tickets_tickettype_enum" AS ENUM (${list})`);
+        const rows: { enumlabel: string }[] = await queryRunner.query(SELECT_TICKET_TYPES);
+        if (rows.length === 0) throw new Error(`Enum "${TICKET_TYPE_ENUM}" has no values`);
+        const list = rows.map((r) => `'${r.enumlabel.replace(/'/g, "''")}'`).join(', ');
+        await queryRunner.query(DISABLE_STATEMENT_TIMEOUT);
+        await queryRunner.query(`ALTER TYPE "${TICKET_TYPE_ENUM}" RENAME TO "${TICKET_TYPE_ENUM}_old"`);
+        await queryRunner.query(`CREATE TYPE "${TICKET_TYPE_ENUM}" AS ENUM (${list})`);
         await queryRunner.query(`ALTER TABLE "tickets" ALTER COLUMN "ticketType" DROP DEFAULT`);
         await queryRunner.query(
-            `ALTER TABLE "tickets" ALTER COLUMN "ticketType" TYPE "tickets_tickettype_enum" USING "ticketType"::text::"tickets_tickettype_enum"`,
+            `ALTER TABLE "tickets" ALTER COLUMN "ticketType" TYPE "${TICKET_TYPE_ENUM}" USING "ticketType"::text::"${TICKET_TYPE_ENUM}"`,
         );
         await queryRunner.query(`ALTER TABLE "tickets" ALTER COLUMN "ticketType" SET DEFAULT 'SERVICE'`);
-        await queryRunner.query(`DROP TYPE "tickets_tickettype_enum_old"`);
+        await queryRunner.query(`DROP TYPE "${TICKET_TYPE_ENUM}_old"`);
     }
 }

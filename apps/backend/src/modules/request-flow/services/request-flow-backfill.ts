@@ -43,7 +43,7 @@ const EFORM_TICKET_STATUS: Partial<Record<EFormStatus, TicketStatus>> = {
 const REQUESTER_JOINS = `
     LEFT JOIN "users" u ON u."id"::text = r."requesterId"::text
     LEFT JOIN "departments" d ON d."id"::text = u."departmentId"
-    LEFT JOIN "tickets" t ON t."id" = r."sourceTicketId"`;
+    LEFT JOIN "tickets" t ON t."id" = r."sourceTicketId" AND t."deletedAt" IS NULL`;
 
 /** Every statement the backfill runs, exported so tests can answer them by identity. */
 export const BACKFILL_SQL = {
