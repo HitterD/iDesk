@@ -59,6 +59,34 @@ describe('HardwareRequestQueryService', () => {
         expect(qb.andWhere).toHaveBeenCalledWith('r.status IN (:...statuses)', { statuses: [RequestStatus.SUBMITTED] });
     });
 
+    it('category filter narrows the list by the items category snapshot', async () => {
+        await service.list(
+            { id: 'lead-1', role: HardwareRole.ICT_STAFF },
+            { category: ['LAPTOP', 'MONITOR'] as any, page: 1, pageSize: 20 },
+        );
+        expect(qb.andWhere).toHaveBeenCalledWith(
+            "items.categorySnapshot->>'category' IN (:...categories)",
+            { categories: ['LAPTOP', 'MONITOR'] },
+        );
+    });
+
+    it('category filter accepts a comma list', async () => {
+        await service.list(
+            { id: 'lead-1', role: HardwareRole.ICT_STAFF },
+            { category: 'LAPTOP,MONITOR' as any, page: 1, pageSize: 20 },
+        );
+        expect(qb.andWhere).toHaveBeenCalledWith(
+            "items.categorySnapshot->>'category' IN (:...categories)",
+            { categories: ['LAPTOP', 'MONITOR'] },
+        );
+    });
+
+    it('no category filter leaves the query alone', async () => {
+        await service.list({ id: 'lead-1', role: HardwareRole.ICT_STAFF }, { page: 1, pageSize: 20 });
+        const calls = qb.andWhere.mock.calls.map((c: any[]) => c[0]);
+        expect(calls.some((s: string) => s.includes('categorySnapshot') && s.includes('IN'))).toBe(false);
+    });
+
     it('getById allows USER only for own request', async () => {
         repo.findOne.mockResolvedValue({ id: 'r1', requesterId: 'user-1' });
         const res = await service.getById({ id: 'user-1', role: HardwareRole.USER }, 'r1');

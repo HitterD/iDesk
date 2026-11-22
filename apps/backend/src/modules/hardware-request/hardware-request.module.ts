@@ -111,6 +111,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         HardwareDashboardService,
     ],
     exports: [
+        HardwareCatalogService,
         HardwareRequestCommandService,
         HardwareRequestQueryService,
         HardwareCommentService,
@@ -120,6 +121,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         ProcurementDecisionService,
         DeliveryTrackingService,
         MutualSchedulingService,
+        TicketHardwareLinkService,
     ],
 })
 export class HardwareRequestModule {}

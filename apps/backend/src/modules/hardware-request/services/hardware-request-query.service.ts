@@ -21,6 +21,10 @@ export interface ActingUser {
     userRole?: UserRole;
 }
 
+/** A list filter as sent: repeated params, or one comma-separated value. */
+const splitList = (value: string | readonly string[] | undefined): string[] =>
+    (Array.isArray(value) ? value : [value]).flatMap((v) => String(v ?? '').split(',')).map((v) => v.trim()).filter(Boolean);
+
 @Injectable()
 export class HardwareRequestQueryService {
     constructor(
@@ -46,6 +50,11 @@ export class HardwareRequestQueryService {
 
         if (dto.status && dto.status.length > 0) {
             qb.andWhere('r.status IN (:...statuses)', { statuses: dto.status });
+        }
+
+        const categories = splitList(dto.category);
+        if (categories.length > 0) {
+            qb.andWhere("items.categorySnapshot->>'category' IN (:...categories)", { categories });
         }
 
         // Site isolation via SiteActor (UserRole + siteId). dto.siteId may be used by cross-site to narrow.

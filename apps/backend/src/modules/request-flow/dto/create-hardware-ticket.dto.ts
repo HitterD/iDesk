@@ -40,7 +40,7 @@ class CatalogOrManual implements ValidatorConstraintInterface {
 
 /** Extra item fields from the catalog: short texts or numbers only. */
 @ValidatorConstraint({ name: 'itemFieldValues' })
-class ItemFieldValues implements ValidatorConstraintInterface {
+export class ItemFieldValues implements ValidatorConstraintInterface {
     validate(value: unknown): boolean {
         if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
         return Object.values(value).every((v) =>

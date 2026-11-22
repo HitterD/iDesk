@@ -1,5 +1,5 @@
 import {
-    Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Post, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors,
+    Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Post, Put, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -12,12 +12,17 @@ import { createStorage, FILE_SIZE_LIMITS } from '../../../shared/core/config/upl
 import { UserRole } from '../../users/enums/user-role.enum';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import { ApproveDto } from '../dto/approve.dto';
+import { ArrivalsDto } from '../dto/arrivals.dto';
 import { CreateEformTicketDto } from '../dto/create-eform-ticket.dto';
 import { CreateHardwareTicketDto } from '../dto/create-hardware-ticket.dto';
+import { EditItemsDto } from '../dto/edit-items.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
+import { ProcureDto } from '../dto/procure.dto';
 import { ReviewDto } from '../dto/review.dto';
 import { RequestFlowQueryService, type RequestFlowView } from '../services/request-flow-query.service';
 import { RequestDocumentService } from '../services/request-document.service';
+import { RequestItemsService } from '../services/request-items.service';
+import { RequestProcurementFlowService } from '../services/request-procurement-flow.service';
 import { FlowActor, REQUEST_SCANS_DIR, scanFileFilter, RequestFlowReviewService } from '../services/request-flow-review.service';
 import { CreatedRequestTicket, RequestFlowService } from '../services/request-flow.service';
 
@@ -44,6 +49,8 @@ export class RequestFlowController {
         private readonly reviews: RequestFlowReviewService,
         private readonly documents: RequestDocumentService,
         private readonly queries: RequestFlowQueryService,
+        private readonly items: RequestItemsService,
+        private readonly procurement: RequestProcurementFlowService,
     ) {}
 
     @Post('hardware')
@@ -91,6 +98,29 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'IT reminds the current approver (once per hour)' })
     remind(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
         return this.reviews.remind(actorOf(req), ticketId);
+    }
+
+    @Put(':ticketId/items')
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT edits the items of a hardware request (swap, add, remove units) with a reason' })
+    editItems(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: EditItemsDto) {
+        return this.items.edit(actorOf(req), ticketId, dto);
+    }
+
+    @Post(':ticketId/procurement')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT records the purchase per item (vendor, cost, invoice) or drops items' })
+    procure(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: ProcureDto) {
+        return this.procurement.procure(actorOf(req), ticketId, dto);
+    }
+
+    @Post(':ticketId/arrivals')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT marks purchased items as arrived at the IT warehouse' })
+    arrivals(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: ArrivalsDto) {
+        return this.procurement.arrive(actorOf(req), ticketId, dto);
     }
 
     @Get(':ticketId/document.pdf')
