@@ -1,14 +1,16 @@
 import { Link, useParams } from 'react-router-dom';
+import { BarChart3, CalendarDays, KeyRound, Package } from 'lucide-react';
+import { QueueHeader } from '@/features/ticket-board/components/QueueHeader';
 import { AccessExpiryTab } from '../tabs/AccessExpiryTab';
 import { CatalogTab } from '../tabs/CatalogTab';
 import { ScheduleTab } from '../tabs/ScheduleTab';
 import { SummaryTab } from '../tabs/SummaryTab';
 
 const TABS = [
-    { slug: 'jadwal', label: 'Jadwal Pemasangan' },
-    { slug: 'akses', label: 'Masa Berlaku Akses' },
-    { slug: 'katalog', label: 'Katalog Hardware' },
-    { slug: 'ringkasan', label: 'Ringkasan' },
+    { slug: 'jadwal', label: 'Jadwal Pemasangan', icon: CalendarDays },
+    { slug: 'akses', label: 'Masa Berlaku Akses', icon: KeyRound },
+    { slug: 'katalog', label: 'Katalog Hardware', icon: Package },
+    { slug: 'ringkasan', label: 'Ringkasan', icon: BarChart3 },
 ] as const;
 type Slug = (typeof TABS)[number]['slug'];
 
@@ -19,11 +21,11 @@ export function DevicesAccessPage({ today = wibToday() }: { today?: string }) {
     const { tab } = useParams<{ tab?: string }>();
     const current: Slug = TABS.some((t) => t.slug === tab) ? (tab as Slug) : 'jadwal';
     return (
-        <div className="ct-page">
-            <header className="ct-catalog-head"><div className="min-w-0"><h1>Perangkat & Akses</h1><p>Jadwal pemasangan, masa berlaku akses, katalog hardware dan ringkasan</p></div></header>
+        <div className="queue-page da-page space-y-4 pb-10 min-w-0">
+            <QueueHeader title="Perangkat & Akses" description="Jadwal pemasangan, masa berlaku akses, katalog, ringkasan" icon={Package} tone="red" />
             <div role="tablist" aria-label="Perangkat & Akses" className="da-tabs">
                 {TABS.map((t) => (
-                    <Link key={t.slug} to={`/devices-access/${t.slug}`} role="tab" aria-selected={current === t.slug} className={current === t.slug ? 'is-on' : ''}>{t.label}</Link>
+                    <Link key={t.slug} to={`/devices-access/${t.slug}`} role="tab" aria-selected={current === t.slug} className={current === t.slug ? 'is-on' : ''}><t.icon aria-hidden="true" />{t.label}</Link>
                 ))}
             </div>
             <div role="tabpanel">

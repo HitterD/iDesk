@@ -13,11 +13,17 @@ export interface ScheduleEvent {
     scheduleId: string; ticketId: string; ticketNumber: string; title: string; siteId: string | null;
     technicianId: string; technicianName: string; status: string; start: string | null; end: string | null;
 }
-export interface ScheduleWeek { weekStart: string; events: ScheduleEvent[]; load: Array<{ technicianId: string; technicianName: string; count: number }> }
+export interface ScheduleWeek {
+    weekStart: string; events: ScheduleEvent[]; load: Array<{ technicianId: string; technicianName: string; count: number }>;
+    unscheduled?: Array<{ ticketId: string; ticketNumber: string; title: string; requesterName: string }>;
+    rescheduleRequested?: number;
+}
 
 export interface CenterSummary {
     activeHardware: number; inProcurement: number; waitingInstall: number; doneThisMonth: number;
     byPhase: Array<{ phase: string; count: number }>;
+    topItems?: Array<{ name: string; count: number }>;
+    age?: { fresh: number; week: number; old: number };
 }
 
 const STALE_MS = 30_000;

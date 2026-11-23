@@ -76,4 +76,14 @@ describe('ScheduleTab', () => {
         renderTab();
         expect(await screen.findByRole('link', { name: /Pasang a/ })).toHaveAttribute('href', '/tickets/t-a');
     });
+
+    it('mockup: four KPI cards and the side panel with the queue that still needs a schedule', async () => {
+        vi.mocked(api.get).mockResolvedValue({ data: { ...WEEK, unscheduled: [{ ticketId: 't-q', ticketNumber: '150926-GEN-0011', title: 'Hardware Request HR-2026-0018', requesterName: 'User SPJ' }], rescheduleRequested: 2 } });
+        renderTab();
+        await screen.findByText('Pasang a');
+        for (const label of ['Minggu ini', 'Belum dijadwalkan', 'Menunggu pemohon pilih', 'Jadwal ulang']) expect(screen.getByText(label)).toBeInTheDocument();
+        const queue = screen.getByRole('region', { name: 'Perlu dijadwalkan' });
+        expect(within(queue).getByRole('link', { name: /Hardware Request HR-2026-0018/ })).toHaveAttribute('href', '/tickets/t-q');
+        expect(screen.getByRole('region', { name: 'Jadwal saya hari ini' })).toBeInTheDocument();
+    });
 });

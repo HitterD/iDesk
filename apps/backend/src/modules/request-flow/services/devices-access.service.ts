@@ -17,6 +17,10 @@ const WEEK_DAYS = 7;
 /** Schedules that occupy a technician's week (agreed, running, or proposed and waiting on the requester). */
 const WEEK_STATUSES = ['CONFIRMED', 'IN_PROGRESS', 'DONE', 'PROPOSED', 'PROPOSED_AWAITING_USER', 'RESCHEDULE_REQUESTED'];
 /** Hardware requests that are still in motion. */
+/** Schedules that still stand: a request with one of these is not in the scheduling queue. */
+const LIVE_SCHEDULE_STATUSES = ['PROPOSED', 'PROPOSED_AWAITING_USER', 'RESCHEDULE_REQUESTED', 'CONFIRMED', 'IN_PROGRESS'];
+const QUEUE_LIMIT = 50;
+const TOP_ITEMS_LIMIT = 6;
 const ACTIVE_HARDWARE = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'PROCUREMENT', 'AWAITING_DELIVERY', 'INSTALLATION', 'AWAITING_USER_CONFIRMATION'] as const;
 const REVOKE_DESCRIPTION = 'Masa berlaku akses sudah berakhir. Cabut akses dan konfirmasi ke pemohon.';
 
@@ -50,11 +54,19 @@ export interface ScheduleWeek {
     weekStart: string;
     events: ScheduleEvent[];
     load: Array<{ technicianId: string; technicianName: string; count: number }>;
+    /** Installing requests with no live schedule yet: IT's queue ("Perlu dijadwalkan"). */
+    unscheduled?: Array<{ ticketId: string; ticketNumber: string; title: string; requesterName: string }>;
+    /** Schedules the requester asked to move. */
+    rescheduleRequested?: number;
 }
 
 export interface CenterSummary {
     activeHardware: number; inProcurement: number; waitingInstall: number; doneThisMonth: number;
     byPhase: Array<{ phase: string; count: number }>;
+    /** Items asked for most in the last 30 days. */
+    topItems?: Array<{ name: string; count: number }>;
+    /** Requests still running by age: up to 3 days, 3 to 7 days, older. */
+    age?: { fresh: number; week: number; old: number };
 }
 
 export interface ApprovalItem extends FlowListFields {
@@ -147,7 +159,7 @@ export class DevicesAccessService {
         this.assertIt(actor);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || Number.isNaN(Date.parse(`${weekStart}T00:00:00Z`))) throw new BadRequestException(MESSAGES.badWeek);
         const siteId = this.siteOf(actor);
-        if (siteId === undefined) return { weekStart, events: [], load: [] };
+        if (siteId === undefined) return { weekStart, events: [], load: [], unscheduled: [], rescheduleRequested: 0 };
         const from = new Date(`${weekStart}T00:00:00+07:00`);
         const to = new Date(from.getTime() + WEEK_DAYS * DAY_MS);
         const events: ScheduleEvent[] = await this.dataSource.query(`/* SCHEDULE_ROWS */
@@ -161,7 +173,22 @@ export class DevicesAccessService {
             WHERE s."status"::text = ANY($1) AND s."scheduledStart" >= $2 AND s."scheduledStart" < $3
               AND ($4::text IS NULL OR t."siteId"::text = $4)
             ORDER BY s."scheduledStart" ASC`, [WEEK_STATUSES, from, to, siteId]);
-        return { weekStart, events, load: technicianLoad(events) };
+        const unscheduled: NonNullable<ScheduleWeek['unscheduled']> = await this.dataSource.query(`/* UNSCHEDULED_ROWS */
+            SELECT t."id" AS "ticketId", t."ticketNumber", t."title", COALESCE(u."fullName", '') AS "requesterName"
+            FROM request_flows f
+            JOIN hardware_requests h ON h."id" = f."hardwareRequestId"
+            JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+            LEFT JOIN users u ON u."id"::text = h."requesterId"::text
+            WHERE h."status"::text = 'INSTALLATION'
+              AND NOT EXISTS (SELECT 1 FROM installation_schedules s WHERE s."requestId" = h."id" AND s."status"::text = ANY($1))
+              AND ($2::text IS NULL OR t."siteId"::text = $2)
+            ORDER BY t."createdAt" ASC LIMIT ${QUEUE_LIMIT}`, [LIVE_SCHEDULE_STATUSES, siteId]);
+        const [moved]: Array<{ count: string }> = await this.dataSource.query(`/* RESCHEDULE_ROWS */
+            SELECT COUNT(*) AS "count" FROM installation_schedules s
+            JOIN request_flows f ON f."hardwareRequestId" = s."requestId"
+            JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+            WHERE s."status"::text = 'RESCHEDULE_REQUESTED' AND ($1::text IS NULL OR t."siteId"::text = $1)`, [siteId]);
+        return { weekStart, events, load: technicianLoad(events), unscheduled, rescheduleRequested: Number(moved?.count ?? 0) };
     }
 
     /** Request tickets waiting for the viewer's signature, newest first. */
@@ -193,7 +220,7 @@ export class DevicesAccessService {
     /** Counts of hardware requests by where they are, inside the staff member's site. */
     async summary(actor: FlowActor): Promise<CenterSummary> {
         const siteId = this.siteOf(actor);
-        const empty: CenterSummary = { activeHardware: 0, inProcurement: 0, waitingInstall: 0, doneThisMonth: 0, byPhase: [] };
+        const empty: CenterSummary = { activeHardware: 0, inProcurement: 0, waitingInstall: 0, doneThisMonth: 0, byPhase: [], topItems: [], age: { fresh: 0, week: 0, old: 0 } };
         if (siteId === undefined) return empty;
         const rows: Array<{ status: string; count: string; doneThisMonth: string }> = await this.dataSource.query(`/* SUMMARY_ROWS */
             SELECT h."status"::text AS "status", COUNT(*) AS "count",
@@ -210,7 +237,33 @@ export class DevicesAccessService {
             waitingInstall: count(['INSTALLATION']),
             doneThisMonth: rows.reduce((sum, r) => sum + Number(r.doneThisMonth), 0),
             byPhase: rows.map((r) => ({ phase: r.status, count: Number(r.count) })),
+            topItems: await this.topItems(siteId),
+            age: await this.ageOfRunning(siteId),
         };
+    }
+
+    private async topItems(siteId: string | null): Promise<NonNullable<CenterSummary['topItems']>> {
+        const rows: Array<{ name: string; count: string }> = await this.dataSource.query(`/* TOP_ITEM_ROWS */
+            SELECT i."categorySnapshot"->>'name' AS "name", COUNT(*) AS "count"
+            FROM hardware_request_items i
+            JOIN request_flows f ON f."hardwareRequestId" = i."requestId"
+            JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+            WHERE t."createdAt" >= now() - interval '30 days' AND ($1::text IS NULL OR t."siteId"::text = $1)
+            GROUP BY 1 ORDER BY 2 DESC LIMIT ${TOP_ITEMS_LIMIT}`, [siteId]);
+        return rows.map((r) => ({ name: r.name, count: Number(r.count) }));
+    }
+
+    private async ageOfRunning(siteId: string | null): Promise<NonNullable<CenterSummary['age']>> {
+        const rows: Array<{ bucket: 'fresh' | 'week' | 'old'; count: string }> = await this.dataSource.query(`/* AGE_ROWS */
+            SELECT CASE WHEN t."createdAt" >= now() - interval '3 days' THEN 'fresh'
+                        WHEN t."createdAt" >= now() - interval '7 days' THEN 'week' ELSE 'old' END AS "bucket", COUNT(*) AS "count"
+            FROM hardware_requests h
+            JOIN request_flows f ON f."hardwareRequestId" = h."id"
+            JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+            WHERE h."status"::text = ANY($1) AND ($2::text IS NULL OR t."siteId"::text = $2)
+            GROUP BY 1`, [ACTIVE_HARDWARE, siteId]);
+        const of = (bucket: string) => Number(rows.find((r) => r.bucket === bucket)?.count ?? 0);
+        return { fresh: of('fresh'), week: of('week'), old: of('old') };
     }
 
     private assertIt(actor: FlowActor): void {
