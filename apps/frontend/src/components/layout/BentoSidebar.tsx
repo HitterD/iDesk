@@ -29,7 +29,8 @@ import {
     Award,
     ClipboardCheck,
     HeartHandshake,
-    LucideIcon
+    LucideIcon,
+    PenLine,
 } from 'lucide-react';
 import { isAgentRole } from '@/lib/roleHome';
 import { useAuth, performLogout } from '../../stores/useAuth';
@@ -37,6 +38,7 @@ import { cn } from '@/lib/utils';
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { usePermissions as useIctPermissions } from '@/features/hardware-request/hooks/usePermissions';
 import { useDevicesAttention } from '@/features/devices-access/useDevicesAttention';
+import { useApprovals } from '@/features/client/pages/ApprovalsPage';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useCsiActive, useCsiMyResults } from '@/features/csi/hooks/useCsi';
@@ -150,6 +152,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const { isIctRole, isIctLead } = useIctPermissions();
     // What still needs IT on "Perangkat & Akses": installs not yet scheduled plus accesses ending soon (IT roles only).
     const devicesAttention = useDevicesAttention(isIctRole);
+    // Requests waiting for this manager's signature (only managers sign; the list is empty for everyone else).
+    const { data: approvalRows } = useApprovals();
+    const waitingApprovals = user?.role === 'MANAGER' ? (approvalRows?.length ?? 0) : 0;
     // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
     const { data: activeSurveys } = useCsiActive();
     const { data: myResults } = useCsiMyResults();
@@ -164,6 +169,9 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const getItemBadge = (key: string): BadgeInfo | null => {
         if (key === 'csi' && pendingSurveyCount > 0) {
             return { count: pendingSurveyCount, variant: 'destructive' };
+        }
+        if (key === 'approvals' && waitingApprovals > 0) {
+            return { count: waitingApprovals, variant: 'destructive' };
         }
         if (key === 'devices_access' && devicesAttention > 0) {
             return { count: devicesAttention, variant: 'destructive' };
@@ -235,6 +243,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 { key: 'mobile_dev_tickets', icon: Smartphone, tone: 'teal-deep', label: 'Mobile Developer Request', path: '/tickets/mobile-developer' },
                 // Hardware and E-Form requests are IT Support tickets now; this is IT's page for the install schedule, access validity and the catalog.
                 { key: 'devices_access', icon: Package, tone: 'orange', label: 'Perangkat & Akses', path: '/devices-access' },
+                // Managers sign requests from here; the item only exists while something waits for them.
+                { key: 'approvals', icon: PenLine, tone: 'orange', label: 'Persetujuan', path: '/manager/approvals' },
             ]
         },
 
@@ -408,13 +418,14 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
                     // Append static Request Center items
                     const otherRequestCenterItems = entry.items.filter((item) =>
-                        item.key === 'devices_access'
+                        item.key === 'devices_access' || (item.key === 'approvals' && waitingApprovals > 0)
                     );
 
                     const allItems = [...moduleItems, ...otherRequestCenterItems];
                     const visibleItems = allItems.filter((item) => {
                         if ('ictOnly' in item && (item as any).ictOnly) return isIctRole;
                         if ('ictLeadOnly' in item && (item as any).ictLeadOnly) return isIctLead;
+                        if (item.key === 'approvals') return waitingApprovals > 0;
                         return canAccessPage(item.key);
                     });
 
@@ -440,6 +451,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                     if ('ictLeadOnly' in item && item.ictLeadOnly) {
                         return isIctLead;
                     }
+                    if (item.key === 'approvals') return waitingApprovals > 0;
                     return canAccessPage(item.key);
                 });
 

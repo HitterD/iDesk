@@ -52,6 +52,20 @@ describe('LegacyRequestRedirect', () => {
         await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/tickets/t-3'));
     });
 
+    it('an old sub-page such as /hardware-requests/calendar is not an id: IT goes to Perangkat & Akses without asking the server', async () => {
+        currentUser = { id: 'it-1', role: 'AGENT_OPERATIONAL_SUPPORT' };
+        renderAt('/hardware-requests/calendar');
+        await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/devices-access'));
+        expect(api.get).not.toHaveBeenCalled();
+        expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it('a requester following an old sub-page goes home quietly', async () => {
+        renderAt('/hardware-requests/new');
+        await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/client/my-tickets'));
+        expect(api.get).not.toHaveBeenCalled();
+    });
+
     it('an unknown request goes home with a message, not to an error page', async () => {
         vi.mocked(api.get).mockImplementation(async () => { throw { response: { status: 404 } }; });
         renderAt(`/client/eform-access/${OLD}`);

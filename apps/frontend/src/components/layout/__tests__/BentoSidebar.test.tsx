@@ -11,11 +11,13 @@ const csiReportAccess = vi.hoisted(() => ({
     hc: { admin: false, services: [] as string[] },
     ict: { admin: false, services: [] as string[] },
 }));
+const approvalRows = vi.hoisted(() => ({ current: [] as Array<{ ticketId: string }> }));
 const ticketModules = vi.hoisted(() => ({ current: [] as Array<{ slug: string; name: string; icon?: string }> }));
 vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn((url: string) => {
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
+            if (url.startsWith('/request-flow/approvals')) return Promise.resolve({ data: approvalRows.current });
             if (url.startsWith('/request-flow/center/summary')) return Promise.resolve({ data: { activeHardware: 9, inProcurement: 3, waitingInstall: 3, doneThisMonth: 1, byPhase: [] } });
             if (url.startsWith('/request-flow/center/access')) return Promise.resolve({ data: { group: 'soon', counts: { soon: 2, expired: 0, active: 4, permanent: 1 }, items: [] } });
             if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
@@ -213,6 +215,33 @@ describe('BentoSidebar', () => {
 
         expect(screen.getByRole('link', { name: 'Dashboard Saya' })).toHaveAttribute('aria-current', 'page');
         expect(screen.getByRole('link', { name: 'Dashboard Tim' })).not.toHaveAttribute('aria-current');
+    });
+
+    it('a manager with requests waiting for a signature gets a Persetujuan link with the count', async () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manajer', role: 'MANAGER' };
+        approvalRows.current = [{ ticketId: 't-1' }, { ticketId: 't-2' }];
+        renderSidebar('/manager/dashboard');
+        const link = await screen.findByRole('link', { name: /Persetujuan/ });
+        expect(link).toHaveAttribute('href', '/manager/approvals');
+        expect(link).toHaveTextContent('2');
+        approvalRows.current = [];
+    });
+
+    it('the Persetujuan link also shows when the ticket queues come from dynamic modules', async () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manajer', role: 'MANAGER' };
+        ticketModules.current = [{ slug: 'it-support', name: 'IT Support Tickets', icon: 'ticket' }];
+        approvalRows.current = [{ ticketId: 't-1' }];
+        renderSidebar('/manager/dashboard');
+        expect(await screen.findByRole('link', { name: /Persetujuan/ })).toHaveAttribute('href', '/manager/approvals');
+        approvalRows.current = [];
+    });
+
+    it('nobody else sees Persetujuan, and a manager with nothing waiting does not either', async () => {
+        authUser.current = { id: 'mgr-1', fullName: 'Manajer', role: 'MANAGER' };
+        approvalRows.current = [];
+        renderSidebar('/manager/dashboard');
+        await screen.findByRole('link', { name: /IT Support Tickets/ });
+        expect(screen.queryByRole('link', { name: /Persetujuan/ })).not.toBeInTheDocument();
     });
 
     it('replaces Hardware Requests and E-Form Access with one "Perangkat & Akses" item', async () => {
