@@ -65,10 +65,15 @@ export class TicketHardwareLinkService {
      * The request just entered INSTALLATION after delivery: the wait is over and scheduling is IT's turn, so the ticket's
      * SLA runs again. A ticket that is not waiting on the request (manual vendor wait released, in progress, closed) is left alone.
      */
-    async resumeForInstallation(requestId: string, actorId?: string | null): Promise<void> {
+    /**
+     * With `silentUnlessMoved` (a retry) nothing is posted unless the ticket really leaves the wait, so repeating the call
+     * is harmless on a ticket another request or an agent keeps held. Resolves to whether the ticket moved.
+     */
+    async resumeForInstallation(requestId: string, actorId?: string | null, options: { silentUnlessMoved?: boolean } = {}): Promise<boolean> {
         const request = await this.reqRepo.findOne({ where: { id: requestId } }).catch(() => null);
-        if (!request?.sourceTicketId) return;
-        await this.linked.record({
+        if (!request?.sourceTicketId) return false;
+        return this.linked.record({
+            silentUnlessMoved: options.silentUnlessMoved,
             ticketId: request.sourceTicketId,
             actorId,
             target: TicketStatus.IN_PROGRESS,

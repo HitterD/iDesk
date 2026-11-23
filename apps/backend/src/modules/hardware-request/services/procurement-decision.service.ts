@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -28,6 +28,8 @@ export class ProcurementDecisionService {
     dto: ProcurementDecisionDto,
     actorId: string,
   ): Promise<HardwareRequestItem[]> {
+    const flows: unknown[] = await this.dataSource.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 LIMIT 1', [requestId]);
+    if (flows.length > 0) throw new ConflictException(MESSAGES.useTicket);
     const req = await this.reqRepo.findOne({ where: { id: requestId } });
     if (!req) throw new NotFoundException('request not found');
     if (req.status === RequestStatus.APPROVED) {
@@ -74,6 +76,7 @@ export class ProcurementDecisionService {
     actorId: string,
   ): Promise<HardwareRequest> {
     const outcome = await this.dataSource.transaction(async (mgr) => {
+      await this.assertNotOnTicketFlow(mgr, requestId);
       const req = await this.loadForProcurement(mgr, requestId);
       return this.finish(mgr, req, actorId, dto);
     });
@@ -91,6 +94,7 @@ export class ProcurementDecisionService {
     actorId: string,
     input: { lines: ProcurementLine[]; note?: string },
   ): Promise<ProcurementOutcome> {
+    await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
     const req = await this.loadForProcurement(mgr, requestId);
     const pending = req.items.filter((i) => !i.procurementDecision);
     const lineOf = this.assignLines(pending, input.lines);
@@ -136,10 +140,16 @@ export class ProcurementDecisionService {
     }
   }
 
+  /**
+   * A request on a request-flow ticket is bought through the ticket (one way to do it, and the only one that tells the
+   * ticket's chat). The flow row is locked first, like every other step of that flow, so nothing interleaves.
+   */
+  private async assertNotOnTicketFlow(mgr: EntityManager, requestId: string): Promise<void> {
+    const flows: unknown[] = await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
+    if (flows.length > 0) throw new ConflictException(MESSAGES.useTicket);
+  }
+
   private async loadForProcurement(mgr: EntityManager, requestId: string): Promise<HardwareRequest> {
-    // A request on a request-flow ticket is serialised on its flow row, like every other step of that flow (a no-op
-    // otherwise), so the old procurement endpoints cannot interleave with the ticket's own steps.
-    await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
     const req = await mgr.getRepository(HardwareRequest).findOne({ where: { id: requestId }, relations: ['items'] });
     if (!req) throw new NotFoundException('request not found');
     if (req.status !== RequestStatus.PROCUREMENT) {
@@ -234,6 +244,7 @@ const isRealDay = (value: string): boolean => {
 };
 const MESSAGES = {
   rejectReason: 'Isi alasan penolakan',
+  useTicket: 'Gunakan alur tiket untuk pembelian ini',
   vendorCost: 'Vendor dan harga wajib diisi untuk barang yang dibeli',
   invoiceDate: 'Tanggal invoice tidak valid',
   coverage: 'Setiap barang yang belum diputuskan harus ada tepat satu kali',

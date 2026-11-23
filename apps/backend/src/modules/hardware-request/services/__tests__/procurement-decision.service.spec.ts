@@ -7,7 +7,7 @@ import { HardwareRequest } from '../../domain/entities/hardware-request.entity';
 import { HardwareRequestItem } from '../../domain/entities/hardware-request-item.entity';
 import { HardwareRequestActivity } from '../../domain/entities/hardware-request-activity.entity';
 import { RequestStatus } from '../../domain/enums/request-status.enum';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 
 describe('ProcurementDecisionService', () => {
   let service: ProcurementDecisionService;
@@ -32,7 +32,7 @@ describe('ProcurementDecisionService', () => {
         return {};
       },
     };
-    mockDataSource = { transaction: jest.fn((cb: any) => cb(txManager)) } as any;
+    mockDataSource = { transaction: jest.fn((cb: any) => cb(txManager)), query: jest.fn(async () => []) } as any;
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -159,6 +159,23 @@ describe('ProcurementDecisionService', () => {
 
       expect(txManager.query).toHaveBeenCalledWith(expect.stringMatching(/FROM request_flows[\s\S]*FOR UPDATE/), ['r1']);
       expect(txManager.query.mock.invocationCallOrder[0]).toBeLessThan(mockReqRepo.findOne.mock.invocationCallOrder[0]);
+    });
+
+    it('the old complete endpoint refuses a request-flow request (one way to do it: the ticket)', async () => {
+      txManager.query.mockResolvedValueOnce([{ id: 'flow-1' }]);
+      mockReqRepo.findOne.mockResolvedValue({ id: 'r1', requesterId: 'u1', status: RequestStatus.PROCUREMENT, items: [{ id: 'i1', procurementDecision: 'APPROVED' }] } as any);
+
+      await expect(service.completeProcurement('r1', {}, 'ict-1')).rejects.toThrow(new ConflictException('Gunakan alur tiket untuk pembelian ini'));
+      expect(mockItemRepo.save).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('the old per-item decision endpoint refuses a request-flow request too', async () => {
+      (mockDataSource as any).query.mockResolvedValueOnce([{ id: 'flow-1' }]);
+      mockReqRepo.findOne.mockResolvedValue({ id: 'r1', status: RequestStatus.PROCUREMENT } as any);
+
+      await expect(service.decideItems('r1', { decisions: [{ itemId: 'i1', decision: 'APPROVED' }] }, 'u')).rejects.toThrow(ConflictException);
+      expect(mockItemRepo.save).not.toHaveBeenCalled();
     });
 
     it('does not announce a finished procurement when everything was rejected', async () => {

@@ -93,7 +93,8 @@ export class RequestProcurementFlowService {
         // The first arrival ends the delivery wait: scheduling is IT's turn and the ticket's SLA runs again. Should that
         // step have failed, any later call retries it while the ticket is still waiting (the request is already in
         // INSTALLATION by then); a failure never fails the arrival itself.
-        if (result.entered || this.stillWaiting(result.ctx)) await this.resume(result.ctx.hardware!.id, actor.userId);
+        if (result.entered) await this.resume(result.ctx.hardware!.id, actor.userId);
+        else if (this.stillWaiting(result.ctx)) await this.resume(result.ctx.hardware!.id, actor.userId, true);
         return { arrived: result.arrived };
     }
 
@@ -102,9 +103,10 @@ export class RequestProcurementFlowService {
         return ctx.hardware?.status === RequestStatus.INSTALLATION && ctx.ticket.status === TicketStatus.WAITING_VENDOR;
     }
 
-    private async resume(requestId: string, actorId: string): Promise<void> {
+    /** A retry is silent: it posts nothing unless the ticket really leaves the vendor wait. */
+    private async resume(requestId: string, actorId: string, retry = false): Promise<void> {
         try {
-            await this.hardwareLink.resumeForInstallation(requestId, actorId);
+            await this.hardwareLink.resumeForInstallation(requestId, actorId, retry ? { silentUnlessMoved: true } : undefined);
         } catch (err) {
             this.logger.error(`Resuming the ticket of request ${requestId} after arrival failed: ${err instanceof Error ? err.message : err}`);
         }

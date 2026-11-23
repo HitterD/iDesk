@@ -38,7 +38,7 @@ function setup(ctx: FlowContext) {
     const outcome = { request: { id: 'hr-1', status: RequestStatus.AWAITING_DELIVERY, requesterId: 'req-1' }, approvedItems: 2, rejectedItems: 0 };
     const procurement = { recordWith: jest.fn(async () => outcome), announce: jest.fn() };
     const stepper = { tell: jest.fn(async () => undefined) };
-    const hardwareLink = { resumeForInstallation: jest.fn(async () => undefined) };
+    const hardwareLink = { resumeForInstallation: jest.fn(async (..._args: unknown[]): Promise<boolean> => true) };
     const service = new RequestProcurementFlowService(dataSource as never, reader as never, procurement as never, stepper as never, hardwareLink as never);
     return { service, manager, procurement, stepper, hardwareLink, outcome };
 }
@@ -87,7 +87,7 @@ describe('RequestProcurementFlowService.arrive', () => {
         expect(saved[0].arrivedAt).toBeInstanceOf(Date);
         expect(manager.update).toHaveBeenCalledWith(HardwareRequest, { id: 'hr-1' }, { status: RequestStatus.INSTALLATION });
         expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ text: '1 barang tiba di gudang IT' }));
-        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1');
+        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1', undefined);
     });
 
     it('a later arrival during installation changes no status and does not resume again', async () => {
@@ -143,7 +143,7 @@ describe('RequestProcurementFlowService.arrive: resume retry', () => {
         await expect(service.arrive(IT, TID, { itemIds: ['a'] })).resolves.toEqual({ arrived: 0 });
 
         expect(hardwareLink.resumeForInstallation).toHaveBeenCalledTimes(1);
-        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1');
+        expect(hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1', { silentUnlessMoved: true });
     });
 
     it('a later arrival retries the resume too when the ticket never resumed', async () => {
@@ -152,6 +152,36 @@ describe('RequestProcurementFlowService.arrive: resume retry', () => {
         await service.arrive(IT, TID, { itemIds: ['b'] });
 
         expect(hardwareLink.resumeForInstallation).toHaveBeenCalledTimes(1);
+    });
+
+    it('repeated arrivals on a ticket that stays held post the "tiba" message once and retry silently', async () => {
+        const first = setup(waiting(RequestStatus.AWAITING_DELIVERY, [unit('a'), unit('b')]));
+        first.hardwareLink.resumeForInstallation.mockResolvedValue(false);
+        await first.service.arrive(IT, TID, { itemIds: ['a'] });
+
+        const second = setup(waiting(RequestStatus.INSTALLATION, [unit('a', { deliveryStatus: 'ARRIVED' }), unit('b')]));
+        second.hardwareLink.resumeForInstallation.mockResolvedValue(false);
+        await second.service.arrive(IT, TID, { itemIds: ['a'] });
+        await second.service.arrive(IT, TID, { itemIds: ['a'] });
+
+        expect(first.stepper.tell).toHaveBeenCalledTimes(1);
+        expect(second.stepper.tell).not.toHaveBeenCalled();
+        expect(second.hardwareLink.resumeForInstallation).toHaveBeenCalledTimes(2);
+        for (const call of second.hardwareLink.resumeForInstallation.mock.calls) expect(call[2]).toEqual({ silentUnlessMoved: true });
+    });
+
+    it('a failed first resume is retried silently, succeeds, and the "tiba" message was posted once', async () => {
+        const first = setup(waiting(RequestStatus.AWAITING_DELIVERY, [unit('a')]));
+        first.hardwareLink.resumeForInstallation.mockRejectedValueOnce(new Error('down'));
+        await first.service.arrive(IT, TID, { itemIds: ['a'] });
+
+        const retry = setup(waiting(RequestStatus.INSTALLATION, [unit('a', { deliveryStatus: 'ARRIVED' })]));
+        retry.hardwareLink.resumeForInstallation.mockResolvedValue(true);
+        await expect(retry.service.arrive(IT, TID, { itemIds: ['a'] })).resolves.toEqual({ arrived: 0 });
+
+        expect(first.stepper.tell).toHaveBeenCalledTimes(1);
+        expect(retry.stepper.tell).not.toHaveBeenCalled();
+        expect(retry.hardwareLink.resumeForInstallation).toHaveBeenCalledWith('hr-1', 'it-1', { silentUnlessMoved: true });
     });
 
     it('a failed retry is swallowed as well', async () => {

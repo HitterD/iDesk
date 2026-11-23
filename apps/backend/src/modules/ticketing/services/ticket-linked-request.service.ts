@@ -34,6 +34,8 @@ export interface LinkedPhase {
     /** Chat text (also used by email and search); the structured event drives the card. */
     text: string;
     event: LinkedRequestEvent;
+    /** Post the message only when the ticket's status really changes (a retry must not repeat the card). */
+    silentUnlessMoved?: boolean;
 }
 
 /**
@@ -53,7 +55,8 @@ export class TicketLinkedRequestService {
         private readonly workloadService: WorkloadService,
     ) {}
 
-    async record(phase: LinkedPhase): Promise<void> {
+    /** Resolves to whether the ticket's status changed; false as well when nothing could be recorded (never throws). */
+    async record(phase: LinkedPhase): Promise<boolean> {
         try {
             const result = await this.dataSource.transaction(async (manager) => {
                 const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
@@ -62,6 +65,7 @@ export class TicketLinkedRequestService {
                 const target = await this.settleTarget(manager, ticket.id, phase);
                 const changes = await this.moveTicket(manager, ticket, target);
                 if (changes.length > 0) await manager.save(Ticket, ticket);
+                if (phase.silentUnlessMoved && changes.length === 0) return null;
                 const systemEvent: TicketSystemEvent = {
                     v: 1,
                     actor: actor ? { id: actor.id, name: actor.fullName } : null,
@@ -77,9 +81,12 @@ export class TicketLinkedRequestService {
                 }));
                 return { ticket, message, moved: changes.length > 0 };
             });
-            if (result) await this.publish(result.ticket, result.message, result.moved);
+            if (!result) return false;
+            await this.publish(result.ticket, result.message, result.moved);
+            return result.moved;
         } catch (err: any) {
             this.logger.error(`Failed to record a linked request step on ticket ${phase.ticketId}: ${err?.message ?? err}`);
+            return false;
         }
     }
 

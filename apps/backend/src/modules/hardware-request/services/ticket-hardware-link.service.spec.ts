@@ -117,6 +117,38 @@ describe('TicketHardwareLinkService', () => {
             expect(ticket.status).toBe(TicketStatus.CANCELLED);
         });
 
+        it('a silent resume posts nothing and reports false while another request keeps the ticket held', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+
+            const moved = await service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true });
+
+            expect(moved).toBe(false);
+            expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+            expect(message()).toBeUndefined();
+            expect(gateway.notifyNewMessage).not.toHaveBeenCalled();
+            expect(gateway.notifyTicketUpdate).not.toHaveBeenCalled();
+        });
+
+        it('a silent resume still records the card when it really moves the ticket', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+
+            const moved = await service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true });
+
+            expect(moved).toBe(true);
+            expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+            expect(message()).toBeDefined();
+        });
+
+        it('the first (non-silent) resume keeps posting its card even when the ticket stays held', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+
+            await expect(service.resumeForInstallation('req-1', 'agent-1')).resolves.toBe(false);
+
+            expect(message()).toBeDefined();
+        });
+
         it('ignores requests that did not come from a ticket', async () => {
             request.sourceTicketId = null;
             await service.resumeForInstallation('req-1');
