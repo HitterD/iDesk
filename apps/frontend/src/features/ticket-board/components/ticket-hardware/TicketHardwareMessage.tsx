@@ -24,9 +24,4 @@ export const TicketHardwareMessage: React.FC<TicketHardwareMessageProps> = ({ ti
     );
 };
 
-const PROPOSABLE_TEAMS = new Set([undefined, null, '', 'OPS_SUPPORT']);
-const FINISHED = new Set(['RESOLVED', 'CLOSED', 'CANCELLED']);
 
-/** ICT can propose hardware from an open IT support ticket. */
-export const canProposeHardware = (ticket: { handlingTeam?: string | null; status: string }, isAgentView: boolean) =>
-    isAgentView && PROPOSABLE_TEAMS.has(ticket.handlingTeam ?? undefined) && !FINISHED.has(ticket.status);

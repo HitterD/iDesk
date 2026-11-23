@@ -166,7 +166,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
                                     : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/80'
                                 }`}
                         >
-                            {scope === 'hardware-requests' ? 'HW Requests' : scope.charAt(0).toUpperCase() + scope.slice(1)}
+                            {scope === 'hardware-requests' ? 'Hardware' : scope.charAt(0).toUpperCase() + scope.slice(1)}
                         </button>
                     ))}
                 </div>
@@ -314,7 +314,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onClose, isModal = f
                                 <div className="mb-4">
                                     <div className="flex items-center gap-2 px-3 py-1 text-xs text-[hsl(var(--muted-foreground))]">
                                         <HardDrive className="w-3 h-3" />
-                                        <span>Hardware Requests ({results.hardwareRequests.length})</span>
+                                        <span>Hardware Request ({results.hardwareRequests.length})</span>
                                     </div>
                                     {results.hardwareRequests.map(req => (
                                         <button

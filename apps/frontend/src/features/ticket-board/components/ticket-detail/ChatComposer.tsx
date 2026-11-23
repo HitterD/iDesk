@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, Cpu, Eye, Globe, KeyRound, Loader2, Lock, Paperclip, Pencil, Plus, Reply, Smile, Upload, X } from 'lucide-react';
+import { ArrowUp, Check, Eye, Globe, Loader2, Lock, Paperclip, Pencil, Plus, Reply, Smile, Upload, X } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { toast } from 'sonner';
 import TextareaAutosize from 'react-textarea-autosize';
@@ -45,8 +45,6 @@ interface ChatComposerProps {
     onTypingStart?: () => void;
     onTypingStop?: () => void;
     /** Shown to ICT on an open IT support ticket: propose a hardware request for the requester to confirm. */
-    onProposeHardware?: () => void;
-    onProposeEForm?: () => void;
     /**
      * Editing one of the viewer's messages: the box holds its text and Send saves it instead.
      * `maxLength` is what is left of the message limit once a reply's quote is put back in front.
@@ -93,9 +91,7 @@ const PlusMenuPanel: React.FC<{
     onShowStickers: () => void;
     onSticker: (sticker: string) => void;
     onClose: () => void;
-    onProposeHardware?: () => void;
-    onProposeEForm?: () => void;
-}> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose, onProposeHardware, onProposeEForm }) => {
+}> = ({ view, canAttach, fileCount, onAttach, onShowStickers, onSticker, onClose }) => {
     if (view === 'stickers') {
         return (
             <div className="td-menu td-sticker-menu" role="dialog" aria-label="Sticker">
@@ -126,18 +122,6 @@ const PlusMenuPanel: React.FC<{
                 <Smile aria-hidden="true" />
                 <span>Sticker</span>
             </button>
-            {onProposeHardware && (
-                <button type="button" role="menuitem" className="td-menu-item" onClick={() => { onClose(); onProposeHardware(); }}>
-                    <Cpu aria-hidden="true" />
-                    <span>Hardware request<small>Usulkan barang, pemohon tinggal konfirmasi</small></span>
-                </button>
-            )}
-            {onProposeEForm && (
-                <button type="button" role="menuitem" className="td-menu-item" onClick={() => { onClose(); onProposeEForm(); }}>
-                    <KeyRound aria-hidden="true" />
-                    <span>Akses E-Form<small>Usulkan akses (VPN, email, …), pemohon tinggal tanda tangan</small></span>
-                </button>
-            )}
         </div>
     );
 };
@@ -154,8 +138,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onSendSticker,
     onTypingStart,
     onTypingStop,
-    onProposeHardware,
-    onProposeEForm,
     editing = null,
     onCancelEdit,
     onSaveEdit,
@@ -488,8 +470,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 onShowStickers={() => setPlusMenu('stickers')}
                                 onSticker={onSendSticker}
                                 onClose={() => setPlusMenu('closed')}
-                                onProposeHardware={onProposeHardware}
-                                onProposeEForm={onProposeEForm}
                             />
                         )}
                         <input

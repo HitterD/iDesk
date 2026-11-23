@@ -81,3 +81,25 @@ describe('PermissionsService cache invalidation', () => {
         expect(cache.delByPattern).toHaveBeenCalledWith('perm:u-1:*');
     });
 });
+
+describe('PermissionsService page definitions after the request unification', () => {
+    const service = new PermissionsService({} as never, {} as never, {} as never, {} as never, { delAsync: jest.fn() } as never, { notifyPresetChange: jest.fn() } as never);
+    const keys = (role: 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN') => service.getAvailablePagesForRole(role).map((page) => page.key);
+
+    it('requesters and managers no longer have the Hardware Requests / E-Form Access pages: those are tickets now', () => {
+        for (const role of ['USER', 'MANAGER'] as const) {
+            expect(keys(role)).not.toContain('hardware_requests');
+            expect(keys(role)).not.toContain('eform_access');
+            expect(keys(role)).not.toContain('devices_access');
+        }
+    });
+
+    it('IT staff (AGENT, ADMIN) get the one Perangkat & Akses page instead of the two', () => {
+        for (const role of ['AGENT', 'ADMIN'] as const) {
+            expect(keys(role)).toContain('devices_access');
+            expect(keys(role)).not.toContain('hardware_requests');
+            expect(keys(role)).not.toContain('eform_access');
+        }
+        expect(service.getAvailablePagesForRole('AGENT').find((page) => page.key === 'devices_access')).toMatchObject({ route: '/devices-access' });
+    });
+});

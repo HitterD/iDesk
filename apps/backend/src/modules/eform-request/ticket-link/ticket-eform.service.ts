@@ -10,7 +10,6 @@ import { isTicketRequesterSide, validateTicketAccess } from '../../ticketing/uti
 import { validateTicketSiteAccess } from '../../ticketing/utils/site-access.util';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { ProposeEFormFromTicketDto } from './propose-eform.dto';
 import { TicketEFormLinkService } from './ticket-eform-link.service';
 import { accessName, eformCode } from './eform-ticket.util';
 
@@ -51,50 +50,6 @@ export class TicketEFormService {
         private readonly link: TicketEFormLinkService,
         private readonly notifications: NotificationService,
     ) {}
-
-    async propose(actorId: string, ticketId: string, dto: ProposeEFormFromTicketDto): Promise<TicketEFormSummary> {
-        const { actor, ticket } = await this.loadForStaff(actorId, ticketId);
-        if (ticket.handlingTeam && ticket.handlingTeam !== HandlingTeam.OPS_SUPPORT) {
-            throw new BadRequestException('Akses E-Form hanya bisa diusulkan dari tiket IT Support.');
-        }
-        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
-            throw new BadRequestException('Tiket sudah selesai. Buka kembali tiket sebelum mengusulkan akses.');
-        }
-        const pending = await this.repo.findOne({ where: { sourceTicketId: ticket.id, status: EFormStatus.DRAFT } });
-        if (pending) {
-            throw new ConflictException(`Usulan ${accessName(pending.formType, pending.id)} masih menunggu pemohon.`);
-        }
-        const requester = await this.userRepo.findOne({ where: { id: ticket.userId }, relations: ['department'] });
-        if (!requester) throw new BadRequestException('Pemohon tiket tidak ditemukan.');
-
-        const draft = await this.repo.save(this.repo.create({
-            formType: dto.formType,
-            status: EFormStatus.DRAFT,
-            requesterId: requester.id,
-            requesterName: requester.fullName,
-            requesterEmail: requester.email,
-            requesterDepartment: requester.department?.name ?? '',
-            formData: { alasan: dto.note, ...pickDetails(dto.details) },
-            requestedWebsites: dto.formType === EFormType.WEBSITE ? dto.requestedWebsites || null : null,
-            networkPurpose: dto.formType === EFormType.NETWORK ? dto.networkPurpose || null : null,
-            termsAccepted: false,
-            siteId: ticket.siteId ?? requester.siteId ?? null,
-            sourceTicketId: ticket.id,
-            proposedById: actor.id,
-        } as Partial<EFormRequest>));
-
-        await this.link.record(draft.id, 'PROPOSED', { actorId: actor.id });
-        await this.notifications.create({
-            userId: requester.id,
-            type: NotificationType.TICKET_UPDATED,
-            title: 'Usulan akses dari tim IT',
-            message: `Tiket #${ticket.ticketNumber}: ${actor.fullName} mengusulkan ${accessName(draft.formType, draft.id)}. Lengkapi dan tanda tangani.`,
-            ticketId: ticket.id,
-            link: `/tickets/${ticket.id}`,
-        });
-        const [summary] = await this.summarize([draft.id]);
-        return summary;
-    }
 
     async listForTicket(viewerId: string, ticketId: string): Promise<TicketEFormSummary[]> {
         const viewer = await this.userRepo.findOne({ where: { id: viewerId } });

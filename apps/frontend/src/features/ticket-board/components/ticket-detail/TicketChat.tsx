@@ -34,8 +34,8 @@ import { UserAvatar } from '@/components/ui/UserAvatar';
 import { formatDateTimeID, formatRelativeTime } from '@/lib/utils/dateFormat';
 import { PDFPreviewModal, usePDFPreview } from '@/features/reports/components/PDFPreviewModal';
 import { isToastHandledByApi } from '@/features/client/components/resolution/resolutionApi';
-import { ProposeHardwareDialog, TicketHardwareMessage, canProposeHardware } from '../ticket-hardware';
-import { ProposeEFormDialog, TicketEFormMessage, canProposeEForm } from '../ticket-eform';
+import { TicketHardwareMessage } from '../ticket-hardware';
+import { TicketEFormMessage } from '../ticket-eform';
 
 interface TicketChatProps {
     ticket: TicketDetail;
@@ -134,8 +134,6 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [highlightedId, setHighlightedId] = useState<string | null>(null);
-    const [proposingHardware, setProposingHardware] = useState(false);
-    const [proposingEForm, setProposingEForm] = useState(false);
     const { user } = useAuth();
     const pdfPreview = usePDFPreview();
     const isTicketClosed = ticket.status === 'CLOSED' || ticket.status === 'CANCELLED';
@@ -638,18 +636,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                     onSendSticker={handleSendSticker}
                     onTypingStart={onTypingStart}
                     onTypingStop={onTypingStop}
-                    onProposeHardware={canProposeHardware(ticket, isAgentView) ? () => setProposingHardware(true) : undefined}
-                    onProposeEForm={canProposeEForm(ticket, isAgentView, user?.role) ? () => setProposingEForm(true) : undefined}
                 />
-            )}
-
-            {canProposeHardware(ticket, isAgentView) && (
-                <ProposeHardwareDialog open={proposingHardware} onOpenChange={setProposingHardware} ticketId={ticket.id}
-                    ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
-            )}
-            {canProposeEForm(ticket, isAgentView, user?.role) && (
-                <ProposeEFormDialog open={proposingEForm} onOpenChange={setProposingEForm} ticketId={ticket.id}
-                    ticketNumber={ticket.ticketNumber} requesterName={toDisplayName(ticket.user?.fullName)} defaultReason={ticket.title} />
             )}
 
             <ConfirmationDialog

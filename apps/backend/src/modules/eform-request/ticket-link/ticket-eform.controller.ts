@@ -1,11 +1,10 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { ProposeEFormFromTicketDto } from './propose-eform.dto';
 import { TicketEFormService } from './ticket-eform.service';
 
 /**
- * E-form access raised from an IT support ticket. The requester completes a proposal with the regular
- * `POST /eform-request` (passing `draftId`), or declines it with `cancel-proposal`. Role and ticket checks live in
+ * E-form access once proposed from an IT support ticket. Proposing is gone (IT files a request ticket for the requester
+ * instead); a proposal that is still waiting can be listed and declined or withdrawn with `cancel-proposal`. Role and ticket checks live in
  * the service, which knows the ticket.
  */
 @Controller()
@@ -16,11 +15,6 @@ export class TicketEFormController {
     @Get('tickets/:ticketId/eform-requests')
     async list(@Req() req: any, @Param('ticketId', new ParseUUIDPipe()) ticketId: string) {
         return { success: true, data: await this.service.listForTicket(req.user.userId, ticketId) };
-    }
-
-    @Post('tickets/:ticketId/eform-requests')
-    async propose(@Req() req: any, @Param('ticketId', new ParseUUIDPipe()) ticketId: string, @Body() dto: ProposeEFormFromTicketDto) {
-        return { success: true, data: await this.service.propose(req.user.userId, ticketId, dto) };
     }
 
     @Post('eform-request/:id/cancel-proposal')

@@ -124,13 +124,15 @@ describe('TicketChat hardware request entry', () => {
 
     const openPlus = () => fireEvent.click(screen.getByRole('button', { name: 'Lampiran & sticker' }));
 
-    it('offers ICT a hardware request in the + menu of an IT support ticket', () => {
+    it('no longer proposes a Hardware Request or E-Form from the + menu: IT files it from Buat Tiket on behalf of the requester', () => {
         renderChat();
         openPlus();
-        expect(screen.getByRole('menuitem', { name: /Hardware request/ })).toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: /Hardware request/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: /Akses E-Form/ })).not.toBeInTheDocument();
+        expect(screen.getByRole('menuitem', { name: /Lampirkan file/ })).toBeInTheDocument();
     });
 
-    it('keeps it out of the requester menu', () => {
+    it('the requester menu has no such entries either', () => {
         currentUser = REQUESTER;
         renderChat();
         openPlus();

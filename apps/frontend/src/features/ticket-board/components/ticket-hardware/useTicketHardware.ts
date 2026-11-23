@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ticketHardwareApi, type ProposeHardwarePayload } from './api';
+import { ticketHardwareApi } from './api';
 
 const ACTIVE_POLL_MS = 30_000;
 const ENDED = new Set(['REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED']);
@@ -26,17 +26,6 @@ function useRefresh(ticketId: string) {
         queryClient.invalidateQueries({ queryKey: ticketHardwareKey(ticketId) }),
         queryClient.invalidateQueries({ queryKey: ['ticket', ticketId], exact: true }),
     ]);
-}
-
-export function useProposeHardware(ticketId: string) {
-    const refresh = useRefresh(ticketId);
-    return useMutation({
-        mutationFn: (payload: ProposeHardwarePayload) => ticketHardwareApi.propose(ticketId, payload),
-        onSuccess: async (request) => {
-            await refresh();
-            toast.success(`${request.requestNumber} dikirim ke pemohon untuk dikonfirmasi`);
-        },
-    });
 }
 
 export function useAnswerProposal(ticketId: string) {
