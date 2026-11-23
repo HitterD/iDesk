@@ -114,6 +114,32 @@ describe('DevicesAccessService.schedule', () => {
     });
 });
 
+describe('DevicesAccessService.schedule: the side panel of the mockup', () => {
+    it('lists the installing requests nobody scheduled yet, inside the site, with requester and ticket', async () => {
+        const queue = [{ ticketId: 't-9', ticketNumber: 'C', title: 'Printer', requesterName: 'Leony' }];
+        const { service, query } = setup([['UNSCHEDULED_ROWS', queue], ['RESCHEDULE_ROWS', [{ count: '2' }]]]);
+        const week = await service.schedule(IT, '2026-11-23');
+        expect(week.unscheduled).toEqual(queue);
+        expect(week.rescheduleRequested).toBe(2);
+        const sql = query.mock.calls.map((c) => String(c[0])).find((q) => q.includes('UNSCHEDULED_ROWS'))!;
+        expect(sql).toContain(`h."status"::text = 'INSTALLATION'`);
+        expect(sql).toContain('NOT EXISTS');
+    });
+});
+
+describe('DevicesAccessService.summary: the cards of the mockup', () => {
+    it('adds the most requested items of the last 30 days and the age of the requests still running', async () => {
+        const { service } = setup([
+            ['SUMMARY_ROWS', [{ status: 'INSTALLATION', count: '1', doneThisMonth: '0' }]],
+            ['TOP_ITEM_ROWS', [{ name: 'Laptop', count: '3' }, { name: 'Mouse', count: '1' }]],
+            ['AGE_ROWS', [{ bucket: 'fresh', count: '4' }, { bucket: 'week', count: '1' }, { bucket: 'old', count: '2' }]],
+        ]);
+        const summary = await service.summary(IT);
+        expect(summary.topItems).toEqual([{ name: 'Laptop', count: 3 }, { name: 'Mouse', count: 1 }]);
+        expect(summary.age).toEqual({ fresh: 4, week: 1, old: 2 });
+    });
+});
+
 describe('DevicesAccessService.approvals', () => {
     it('lists only tickets waiting for my signature', async () => {
         const waiting = {

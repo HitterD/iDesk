@@ -75,4 +75,11 @@ describe('AccessExpiryTab', () => {
         renderTab();
         expect(await screen.findByText('Tidak ada akses di kelompok ini.')).toBeInTheDocument();
     });
+
+    it('mockup: each row has a timeline bar from start to end with a marker for today', async () => {
+        renderTab();
+        await screen.findAllByRole('listitem');
+        expect(document.querySelectorAll('.da-tl-fill').length).toBeGreaterThan(0);
+        expect(document.querySelectorAll('.da-tl-today').length).toBeGreaterThan(0);
+    });
 });

@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { CatalogApi } from '@/features/hardware-request/api/catalog.api';
 import type { HardwareCatalog } from '@/features/hardware-request/types';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
+import { CheckCircle2, EyeOff, LayoutGrid, Package, Plus, Search } from 'lucide-react';
+import { Kpi } from '../Kpi';
 import { CatalogEditDialog } from './CatalogEditDialog';
 import type { CatalogDraft } from '../rules';
 
@@ -44,25 +46,31 @@ export function CatalogTab() {
     return (
         <div>
             <div className="da-kpis">
-                <div className="da-kpi" aria-label="Total barang"><span className="da-kpi__v">{items.length}</span><span>Total barang</span></div>
-                <div className="da-kpi" aria-label="Tampil di form"><span className="da-kpi__v">{items.length - hidden}</span><span>Tampil di form</span></div>
-                <div className="da-kpi" aria-label="Disembunyikan"><span className="da-kpi__v">{hidden}</span><span>Disembunyikan</span></div>
-                <div className="da-kpi" aria-label="Kategori terisi"><span className="da-kpi__v">{new Set(items.map((i) => i.category)).size}</span><span>Kategori terisi</span></div>
+                <Kpi icon={Package} tone="neutral" label="Total barang" value={items.length} />
+                <Kpi icon={CheckCircle2} tone="green" label="Tampil di form" value={items.length - hidden} />
+                <Kpi icon={EyeOff} tone="neutral" label="Disembunyikan" value={hidden} />
+                <Kpi icon={LayoutGrid} tone="navy" label="Kategori terisi" value={new Set(items.map((i) => i.category)).size} />
             </div>
-            <div className="req-ffoot">
-                <input aria-label="Cari barang" placeholder="Cari kode atau nama barang" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <div className="da-filters">
+                <label className="da-field"><Search aria-hidden="true" /><input aria-label="Cari barang" placeholder="Cari kode atau nama barang" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
                 <select aria-label="Filter status" value={status} onChange={(e) => setStatus(e.target.value)}>
                     <option value="">Semua status</option><option value="true">Tampil di form</option><option value="false">Disembunyikan</option>
                 </select>
-                <button type="button" className="req-btn req-btn--primary req-btn--navy" onClick={() => setEditing({})}>Tambah barang</button>
+                <button type="button" className="req-btn req-btn--primary req-btn--navy" onClick={() => setEditing({})}><Plus aria-hidden="true" />Tambah barang</button>
             </div>
             {isLoading && <p aria-busy="true">Memuat…</p>}
             {isError && <p role="alert" className="req-dialog__error">Gagal memuat katalog.</p>}
-            <ul className="da-rows">
+            <div className="da-card da-ctable">
+            <div className="da-crow da-crow--head" aria-hidden="true"><span>Urutan</span><span>Kode</span><span>Nama barang</span><span>Kategori</span><span>Isian tambahan</span><span>Tampil di form</span><span /></div>
+            {!isLoading && shown.length === 0 && <p className="da-empty">Tidak ada barang.</p>}
+            <ul className="da-crows">
                 {shown.map((item) => (
-                    <li key={item.id} className="da-row">
-                        <div><b>{item.name}</b><small>{item.code} · {item.category}{(item.requiredFields ?? []).length ? ` · ${(item.requiredFields ?? []).length} isian` : ''}</small></div>
-                        <span>Urutan {item.displayOrder}</span>
+                    <li key={item.id} className="da-crow">
+                        <span className="da-mono">{item.displayOrder}</span>
+                        <span className="da-mono">{item.code}</span>
+                        <div><b>{item.name}</b>{String((item.defaultSpecs as { spec?: string } | undefined)?.spec ?? '') && <small>{String((item.defaultSpecs as { spec?: string }).spec)}</small>}</div>
+                        <span className="da-pk-cat">{item.category}</span>
+                        <span className="da-small">{(item.requiredFields ?? []).length ? (item.requiredFields ?? []).map((f) => (f as { label?: string }).label ?? '').filter(Boolean).join(', ') : '—'}</span>
                         <button
                             type="button" role="switch" aria-checked={item.active} aria-label={`Tampil di form: ${item.name}`} className={`da-sw ${item.active ? 'is-on' : ''}`}
                             onClick={() => toggle.mutate({ id: item.id, active: !item.active }, { onError: (err) => toast.error(getApiErrorMessage(err, 'Gagal mengubah')) })}
@@ -71,6 +79,7 @@ export function CatalogTab() {
                     </li>
                 ))}
             </ul>
+            </div>
             {editing && (
                 <CatalogEditDialog
                     open onClose={() => setEditing(null)} initial={editing.item ? toDraft(editing.item) : blank} editingId={editing.item?.id}
