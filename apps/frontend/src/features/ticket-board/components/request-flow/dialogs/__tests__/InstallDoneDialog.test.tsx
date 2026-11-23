@@ -8,6 +8,11 @@ vi.mock('@/components/ui/SignaturePad', () => ({
     ),
 }));
 
+vi.mock('@/features/hardware-request/components/barcode/BarcodeScannerModal', () => ({
+    BarcodeScannerModal: ({ open, onCapture }: { open: boolean; onCapture: (code: string) => void }) => (open ? <button type="button" onClick={() => onCapture('SCAN-001')}>Hasil scan</button> : null),
+}));
+vi.mock('@/lib/api', () => ({ default: { post: vi.fn(async () => ({ data: { success: true, urls: ['/uploads/foto.png'] } })) } }));
+
 afterEach(cleanup);
 
 const items = [
@@ -59,5 +64,23 @@ describe('InstallDoneDialog', () => {
             assets: [{ itemId: 'i-1', code: 'AST-001' }, { itemId: 'i-1', code: 'AST-002' }, { itemId: 'i-2', code: 'AST-003' }],
             signatureData: 'data:image/png;base64,AAAA',
         }));
+    });
+
+    it('a scan fills the code of the unit it was started for', () => {
+        render(<InstallDoneDialog open onClose={vi.fn()} signerName="Yudi" items={items} onSubmit={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Scan kode aset Monitor' }));
+        fireEvent.click(screen.getByText('Hasil scan'));
+        expect(screen.getByLabelText('Kode aset Monitor')).toHaveValue('SCAN-001');
+    });
+
+    it('sends the optional handover photo with the report', async () => {
+        const onSubmit = vi.fn(async () => undefined);
+        render(<InstallDoneDialog open onClose={vi.fn()} signerName="Yudi" items={[items[1]]} onSubmit={onSubmit} />);
+        fireEvent.change(screen.getByLabelText('Kode aset Monitor'), { target: { value: 'AST-009' } });
+        fireEvent.change(screen.getByLabelText('Foto serah terima'), { target: { files: [new File(['x'], 'foto.png', { type: 'image/png' })] } });
+        await screen.findByText(/Foto terlampir/);
+        fireEvent.click(screen.getByText('Simpan tanda tangan'));
+        fireEvent.click(screen.getByRole('button', { name: 'Selesaikan pemasangan' }));
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ photoUrl: '/uploads/foto.png' })));
     });
 });

@@ -197,6 +197,7 @@ export interface TicketTypeCardActionArgs {
 export interface TicketCardConfig {
     key: string;
     pageKey?: string;
+    requestKind?: 'HARDWARE' | 'EFORM';
     section: 'ticketing' | 'request';
     /** Not displayed; kept as catalogue search keywords. */
     eyebrow: string;
@@ -259,8 +260,7 @@ export const TICKETING_CARDS: readonly TicketCardConfig[] = [
 export const REQUEST_CARDS: readonly TicketCardConfig[] = [
     {
         key: 'hardware-request',
-        // Kept until the menu permissions are migrated (Task 14): the same people who saw the old module see this card.
-        pageKey: 'hardware_requests',
+        requestKind: 'HARDWARE',
         section: 'request',
         eyebrow: 'Procurement',
         title: 'Hardware Request',
@@ -272,7 +272,7 @@ export const REQUEST_CARDS: readonly TicketCardConfig[] = [
     },
     {
         key: 'eform-request',
-        pageKey: 'eform_access',
+        requestKind: 'EFORM',
         section: 'request',
         eyebrow: 'Network & Access',
         title: 'E-Form Request',

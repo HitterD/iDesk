@@ -33,10 +33,10 @@ describe('listFieldsOf', () => {
 });
 
 describe('loadFlowListFields', () => {
-    it('ordinary tickets get null fields and cost no query', async () => {
+    it('ordinary tickets get null fields when no flow exists', async () => {
         const manager = { query: jest.fn(async () => []) };
         const map = await loadFlowListFields(manager as never, [{ id: 'a', ticketType: 'SERVICE' }, { id: 'b', ticketType: null }], IT);
-        expect(manager.query).not.toHaveBeenCalled();
+        expect(manager.query).toHaveBeenCalledTimes(1);
         expect(map.get('a')).toEqual({ requestKind: null, flowPhase: null, flowPhaseLabel: null, flowPaused: false, needsMyAction: false });
     });
 
@@ -47,7 +47,7 @@ describe('loadFlowListFields', () => {
                 return [];
             }),
         };
-        const map = await loadFlowListFields(manager as never, [{ id: 't-1', ticketType: 'HARDWARE_REQUEST' }], IT);
+        const map = await loadFlowListFields(manager as never, [{ id: 't-1', ticketType: 'SERVICE' }], IT);
         expect(manager.query).toHaveBeenCalledTimes(1);
         expect(map.get('t-1')).toMatchObject({ requestKind: 'HARDWARE', flowPhase: 'procure', needsMyAction: true });
     });

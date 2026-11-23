@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { draftKey } from '../useRequestDraft';
 import { EformRequestForm } from '../EformRequestForm';
 
 vi.mock('@/components/ui/SignaturePad', () => ({
@@ -81,6 +82,12 @@ describe('EformRequestForm', () => {
         unmount();
         render(<EformRequestForm {...baseProps} onSubmit={vi.fn()} onCancel={vi.fn()} />);
         expect(screen.getByLabelText('Keperluan')).toHaveValue('Draf saya');
+    });
+
+    it('a renewal does not reuse the draft of a new request', () => {
+        localStorage.setItem(draftKey('u-1', 'eform'), JSON.stringify({ reason: 'draf pengajuan baru' }));
+        render(<EformRequestForm {...baseProps} renew={{ kind: 'VPN', to: '2026-12-31', reason: 'WFH' }} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+        expect(screen.queryByDisplayValue('draf pengajuan baru')).toBeNull();
     });
 
     it('a renewal starts from the old kind and from the old end date', () => {

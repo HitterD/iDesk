@@ -11,6 +11,7 @@ import type { HardwareRequestItem, InstallationSchedule } from '@/features/hardw
 import { AccessCard } from './AccessCard';
 import { DocumentPane } from './DocumentPane';
 import type { RequestFlowView } from './flowTypes';
+import { canEditItems } from './nextStep';
 import { NextStepBar } from './NextStepBar';
 import { ProgressCard } from './ProgressCard';
 import { RequestItemsCard } from './RequestItemsCard';
@@ -39,12 +40,13 @@ interface RequestFlowPanelProps {
      * Where this instance sits (mockup ticket-unify): `bar` = the next-step bar above the conversation (it also owns the
      * dialogs), `rail` = the progress / items / document cards in the right inspector. Omitted = both, stacked.
      */
-    slot?: 'bar' | 'rail';
+    slot?: 'bar' | 'rail' | 'details' | 'document';
+    onOpenDocument?: () => void;
 }
 
 type Dialog =
     | 'review' | 'approve' | 'paper' | 'procure' | 'arrived' | 'schedule' | 'pickSlot' | 'installDone' | 'fulfill' | 'issue'
-    | 'editItems' | 'docNumber' | 'credentials' | 'rejectIT' | 'cancelReq' | null;
+    | 'editItems' | 'reviewItems' | 'docNumber' | 'credentials' | 'rejectIT' | 'cancelReq' | null;
 
 /** Actions that run at once, with no dialog: the endpoint call each one makes. */
 function directCall(act: string, ticketId: string, view: RequestFlowView): FlowCall | null {
@@ -64,7 +66,7 @@ const DIALOG_ACTS: Record<string, Dialog> = {
 };
 
 /** Hardware / E-Form ticket: the next-step bar, the progress, the items or access, the document, and every dialog behind a step. */
-export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requesterName = 'Pemohon', slot }: RequestFlowPanelProps) {
+export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requesterName = 'Pemohon', slot, onOpenDocument }: RequestFlowPanelProps) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -77,12 +79,12 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
 
     const catalog = useQuery<CatalogEntry[]>({
         queryKey: ['request-flow', 'catalog'],
-        enabled: dialog === 'editItems',
+        enabled: dialog === 'editItems' || dialog === 'reviewItems',
         queryFn: async () => ((await api.get('/hardware-requests/catalog', { params: { includeInactive: 'false' } })).data?.data ?? []) as CatalogEntry[],
     });
 
-    const showBar = slot !== 'rail';
-    const showCards = slot !== 'bar';
+    const showBar = !slot || slot === 'bar';
+    const showCards = !slot || slot === 'rail' || slot === 'details';
     if (isLoading) return slot === 'bar' ? null : <div className="req-card" aria-busy="true">Memuat…</div>;
     if (isError || !view) return slot === 'rail' ? null : <div className="req-card" role="alert">Gagal memuat alur permintaan. Muat ulang halaman.</div>;
 
@@ -103,7 +105,11 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
 
     const onAct = (act: string) => {
         if (act === 'renew') { navigate(`/client/create?type=eform&renewFrom=${ticketId}`); return; }
-        if (act === 'tabDoc') { document.getElementById('request-document')?.scrollIntoView({ behavior: 'smooth' }); return; }
+        if (act === 'tabDoc') {
+            if (onOpenDocument) onOpenDocument();
+            else document.getElementById('request-document')?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
         if (act === 'showCred') {
             void api.get(`/request-flow/${ticketId}/credentials`).then((res) => { setCredentials(res.data as Credentials); setDialog('credentials'); })
                 .catch((err) => toast.error(getApiErrorMessage(err, 'Gagal membuka kredensial')));
@@ -135,14 +141,22 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
             {showCards && (
                 <div className="req-panel__cards">
                     <ProgressCard view={view} />
-                    {view.hardware && <RequestItemsCard items={view.hardware.items} assets={view.hardware.assets} />}
+                    {view.hardware && <RequestItemsCard items={view.hardware.items} assets={view.hardware.assets} onEdit={canEditItems(view) ? () => setDialog('editItems') : undefined} />}
                     {view.eform && <AccessCard eform={view.eform} onEditNumber={isIt ? () => setDialog('docNumber') : undefined} />}
-                    <div id="request-document"><DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)} /></div>
+                    {slot !== 'details' && (onOpenDocument
+                        ? <button type="button" className="req-card req-link" onClick={onOpenDocument}>Lihat dokumen v{view.documentVersion}</button>
+                        : <div id="request-document"><DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)} /></div>)}
                 </div>
             )}
 
-            {dialog === 'review' && (
-                <ReviewDialog open onClose={close} isHardware={view.kind === 'HARDWARE'} proposedManagerId={view.managerId} requesterId={requesterId}
+            {slot === 'document' && (
+                <DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)}
+                    onImport={isIt && (view.phase === 'appr_mgr' || view.phase === 'appr_gm') ? () => setDialog('paper') : undefined} />
+            )}
+
+            {(dialog === 'review' || dialog === 'reviewItems') && (
+                <ReviewDialog open={dialog === 'review'} onClose={close}
+                    onEditItems={canEditItems(view) ? () => setDialog('reviewItems') : undefined} isHardware={view.kind === 'HARDWARE'} proposedManagerId={view.managerId} requesterId={requesterId}
                     onSubmit={(payload) => send(flowCalls.review(ticketId, payload))} />
             )}
             {dialog === 'approve' && (
@@ -171,8 +185,8 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
                     onSubmit={(payload) => send(flowCalls.fulfill(ticketId, payload))} />
             )}
             {dialog === 'issue' && <IssueDialog open onClose={close} kind={view.kind} onSubmit={(note) => send(flowCalls.confirm(ticketId, { result: 'ISSUE', note }))} />}
-            {dialog === 'editItems' && (
-                <EditItemsDialog open onClose={close} catalog={catalog.data ?? []} initial={basket} onSubmit={(payload) => send(flowCalls.editItems(ticketId, payload))} />
+            {(dialog === 'editItems' || dialog === 'reviewItems') && (
+                <EditItemsDialog open onClose={dialog === 'reviewItems' ? () => setDialog('review') : close} catalog={catalog.data ?? []} initial={basket} onSubmit={(payload) => send(flowCalls.editItems(ticketId, payload))} />
             )}
             {dialog === 'docNumber' && <DocNumberDialog open onClose={close} current={view.eform?.documentNumber ?? view.hardware?.requestNumber ?? ''} onSubmit={(value) => send(flowCalls.documentNumber(ticketId, value))} />}
             {dialog === 'credentials' && credentials && <CredentialDialog open onClose={close} credentials={credentials} />}

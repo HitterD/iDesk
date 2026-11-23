@@ -17,6 +17,12 @@ describe('DetailTabs', () => {
         expect(chat).toHaveAttribute('title', '7 pesan');
     });
 
+    it('shows Rincian and Dokumen for request tickets on desktop', () => {
+        render(<DetailTabs value="chat" onChange={vi.fn()} requestDocumentVersion={2} />);
+        expect(screen.getByRole('button', { name: 'Rincian' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Dokumen' })).toHaveTextContent('v2');
+    });
+
     it('renders no badge when no count is given', () => {
         render(<DetailTabs value="chat" onChange={vi.fn()} />);
         expect(screen.queryByTestId('chat-tab-count')).not.toBeInTheDocument();

@@ -7,6 +7,8 @@ import { ScheduleTab } from '../tabs/ScheduleTab';
 
 vi.mock('@/lib/api', () => ({ default: { get: vi.fn() } }));
 
+vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'u-2' } }) }));
+
 afterEach(cleanup);
 
 const ev = (id: string, tech: string, techId: string, start: string, over: Record<string, unknown> = {}) => ({
@@ -46,7 +48,7 @@ describe('ScheduleTab', () => {
         await screen.findByText('Pasang a');
         fireEvent.click(screen.getByRole('button', { name: 'BENY' }));
         expect(screen.queryByText('Pasang a')).toBeNull();
-        expect(screen.getByText('Pasang b')).toBeInTheDocument();
+        expect(within(screen.getByRole('region', { name: 'Kalender pemasangan' })).getByText('Pasang b')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Semua teknisi' }));
         expect(screen.getByText('Pasang a')).toBeInTheDocument();
     });
@@ -63,6 +65,16 @@ describe('ScheduleTab', () => {
         const load = screen.getByRole('region', { name: 'Beban teknisi minggu ini' });
         expect(await within(load).findByText('YUDI')).toBeInTheDocument();
         expect(load.querySelector('.hot')).not.toBeNull();
+    });
+
+    it('keeps my installation today when browsing another week', async () => {
+        vi.mocked(api.get).mockImplementation(async (_url, config) => ({ data: config?.params.weekStart === WEEK.weekStart ? WEEK : { events: [], load: [] } }));
+        renderTab();
+        const today = await screen.findByRole('region', { name: 'Jadwal saya hari ini' });
+        expect(await within(today).findByRole('link', { name: /Pasang b/ })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Minggu berikutnya' }));
+        await waitFor(() => expect(within(screen.getByRole('region', { name: 'Kalender pemasangan' })).queryByText('Pasang b')).not.toBeInTheDocument());
+        expect(within(today).getByRole('link', { name: /Pasang b/ })).toBeInTheDocument();
     });
 
     it('moves to the next week', async () => {

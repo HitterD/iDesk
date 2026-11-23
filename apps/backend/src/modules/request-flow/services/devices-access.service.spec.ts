@@ -154,6 +154,28 @@ describe('DevicesAccessService.approvals', () => {
     });
 });
 
+describe('DevicesAccessService.approvalHistory', () => {
+    const actor = { userId: 'mgr-1', role: UserRole.MANAGER, siteId: 'site-1', fullName: 'M' };
+
+    it('asks only for signatures made by the signed-in person, newest first, with a limit', async () => {
+        const { service, query } = setup();
+        await service.approvalHistory(actor);
+        const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+        expect(sql).toContain('APPROVAL_HISTORY');
+        expect(sql).toContain("'signerId' = $1");
+        expect(sql).toContain('s."signerId"::text = $1');
+        expect(sql).toMatch(/ORDER BY "signedAt" DESC LIMIT 200/);
+        expect(params).toEqual(['mgr-1']);
+    });
+
+    it('returns the ticket, the requester and where the request stands now', async () => {
+        const row = { ticketId: 't-1', ticketNumber: 'A', title: 'Akses VPN', requesterName: 'Andi', kind: 'EFORM', status: 'CONFIRMED', route: 'MANAGER', returnedReason: null, managerId: 'mgr-1', gmId: null, requesterId: 'r', managerSigned: true, gmSigned: false, hasOpenSchedule: false, signedAt: '2026-11-20T01:00:00.000Z' };
+        const { service } = setup([['APPROVAL_HISTORY', [row]]]);
+        const result = await service.approvalHistory(actor);
+        expect(result[0]).toMatchObject({ ticketId: 't-1', ticketNumber: 'A', requesterName: 'Andi', requestKind: 'EFORM', signedAt: '2026-11-20T01:00:00.000Z' });
+    });
+});
+
 describe('DevicesAccessService.approvals: the row limit', () => {
     it('leaves finished requests out in SQL, so old history cannot push a waiting request past the limit', async () => {
         const { service, query } = setup();

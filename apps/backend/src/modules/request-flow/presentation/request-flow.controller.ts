@@ -95,6 +95,13 @@ export class RequestFlowController {
         return this.center.approvals(actorOf(req));
     }
 
+    @Get('approvals/history')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'Request tickets I already signed' })
+    approvalHistory(@Request() req: { user: AuthenticatedUser }) {
+        return this.center.approvalHistory(actorOf(req));
+    }
+
     // Old page links (emails, notifications) carry the old request id: find the ticket that replaced it.
     @Get('by-legacy/:kind/:id')
     @Roles(...REQUESTER_ROLES)

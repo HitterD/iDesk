@@ -158,9 +158,10 @@ export class TicketsController {
     @ApiResponse({ status: 200, description: 'Return all tickets.' })
     @ApiQuery({ name: 'queue', required: false, enum: ['it-support', 'oracle', 'web-dev', 'mobile-dev'] })
     @ApiQuery({ name: 'handlingTeam', required: false, enum: REPORT_TEAMS, description: 'ADMIN/MANAGER: one team, or ALL_DEV' })
-    async findAll(@Request() req: any, @Query('queue') queue?: string, @Query('handlingTeam') handlingTeam?: string) {
+    async findAll(@Request() req: any, @Query('queue') queue?: string, @Query('handlingTeam') handlingTeam?: string, @Query('requestKind') requestKind?: string) {
+        const kind = requestKind === 'IT' || requestKind === 'HARDWARE' || requestKind === 'EFORM' ? requestKind : undefined;
         const team = handlingTeam && (REPORT_TEAMS as readonly string[]).includes(handlingTeam) ? handlingTeam as ReportTeam : undefined;
-        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null, queue, team);
+        return this.ticketQueryService.findAll(req.user.userId, req.user.role, req.user.siteId ?? null, queue, team, kind);
     }
 
     @Get('paginated')

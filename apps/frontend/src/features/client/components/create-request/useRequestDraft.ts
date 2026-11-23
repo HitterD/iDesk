@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 const SAVE_DELAY_MS = 500;
 
-export const draftKey = (userId: string, kind: 'hardware' | 'eform'): string => `idesk:req-draft:${userId}:${kind}`;
+export const draftKey = (userId: string, kind: 'hardware' | 'eform' | 'eform-renew'): string => `idesk:req-draft:${userId}:${kind}`;
 
 function read<T>(key: string, initial: T): T {
     try {
         const raw = localStorage.getItem(key);
-        return raw ? (JSON.parse(raw) as T) : initial;
+        if (!raw) return initial;
+        const saved = JSON.parse(raw) as T;
+        // An older draft may lack fields added since: fill them from the initial value.
+        return saved && typeof saved === 'object' && !Array.isArray(saved) ? { ...initial, ...saved } : saved;
     } catch {
         return initial;
     }

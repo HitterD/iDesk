@@ -45,4 +45,10 @@ describe('useRequestDraft', () => {
         expect(result.current[0]).toEqual({ reason: 'ok' });
         spy.mockRestore();
     });
+
+    it('fills fields an older draft does not have from the initial value', () => {
+        localStorage.setItem(KEY, JSON.stringify({ reason: 'lama' }));
+        const { result } = renderHook(() => useRequestDraft(KEY, { reason: '', shotUrls: [] as string[] }));
+        expect(result.current[0]).toEqual({ reason: 'lama', shotUrls: [] });
+    });
 });

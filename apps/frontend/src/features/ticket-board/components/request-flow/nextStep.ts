@@ -52,7 +52,7 @@ function baseStep(view: RequestFlowView, viewerId?: string): NextStep {
     const step = (o: Partial<NextStep> & Pick<NextStep, 'icon' | 'title' | 'sub'>): NextStep => ({ mine: false, tone, more: NO_ACTIONS, ...o });
     const { phase, viewerRoleInFlow: role } = view;
     const schedule = view.hardware?.schedule ?? null;
-    const slotsOffered = Boolean(schedule && schedule.chosen === null);
+    const slotsOffered = canPickSlot(schedule);
 
     if (phase === 'done' && view.kind === 'EFORM' && role === 'REQUESTER') {
         const end = view.eform?.endDate;
@@ -96,12 +96,16 @@ function baseStep(view: RequestFlowView, viewerId?: string): NextStep {
     return step({ tone: 'navy', icon: 'hourglass', title: `Sedang diproses: menunggu ${waitingFor(view)}`, sub: 'Tidak ada yang perlu Anda lakukan sekarang. Anda akan diberi notifikasi.' });
 }
 
+function canPickSlot(schedule: NonNullable<RequestFlowView['hardware']>['schedule'] | undefined): boolean {
+    return schedule?.status === 'PROPOSED_AWAITING_USER' && schedule.chosen === null && schedule.slots.length > 0;
+}
+
 /** Who the request waits for, in words the page can show to anyone. */
 function waitingFor(view: RequestFlowView): string {
     switch (view.phase) {
         case 'appr_mgr': return 'tanda tangan atasan';
         case 'appr_gm': return 'tanda tangan GM';
-        case 'schedule': return view.hardware?.schedule?.chosen === null ? 'pemohon memilih jadwal' : 'IT menyiapkan jadwal';
+        case 'schedule': return canPickSlot(view.hardware?.schedule) ? 'pemohon memilih jadwal' : 'IT menyiapkan jadwal';
         case 'confirm': return 'konfirmasi pemohon';
         default: return 'tim IT';
     }
@@ -110,10 +114,15 @@ function waitingFor(view: RequestFlowView): string {
 type Make = (o: Partial<NextStep> & Pick<NextStep, 'icon' | 'title' | 'sub'>) => NextStep;
 type Action = (act: string, label: string, icon: string, cls?: string) => StepAction;
 
+const ITEM_EDIT_PHASES: ReadonlyArray<RequestFlowView['phase']> = ['review', 'appr_mgr', 'appr_gm', 'procure', 'delivery', 'schedule'];
+
+export const canEditItems = (view: RequestFlowView): boolean =>
+    view.kind === 'HARDWARE' && view.viewerRoleInFlow === 'ICT' && ITEM_EDIT_PHASES.includes(view.phase);
+
 function forIt(view: RequestFlowView, step: Make, P: Action, slotsOffered: boolean, viewerId?: string): NextStep {
     const { phase } = view;
     const schedule = view.hardware?.schedule ?? null;
-    const editMore: StepAction[] = ['review', 'appr_mgr', 'appr_gm', 'procure', 'delivery', 'schedule'].includes(phase)
+    const editMore: StepAction[] = canEditItems(view)
         ? [{ act: 'editItems', label: 'Ubah / ganti barang', icon: 'pen' }] : NO_ACTIONS;
     switch (phase) {
         case 'review':

@@ -31,6 +31,7 @@ export interface TicketDetail {
     priority: string;
     category: string;
     ticketType?: string;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
     siteId?: string | null;
     site?: { id?: string; code: string; name: string } | null;

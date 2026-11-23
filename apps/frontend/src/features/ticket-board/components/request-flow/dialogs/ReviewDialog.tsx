@@ -47,11 +47,12 @@ interface ReviewDialogProps {
     /** The manager the requester proposed, if any: the starting point. */
     proposedManagerId?: string | null;
     requesterId?: string;
+    onEditItems?: () => void;
     onSubmit: (payload: Record<string, string>) => Promise<unknown>;
 }
 
 /** IT's review: where the items come from (hardware), who must approve, and a message for them. */
-export function ReviewDialog({ open, onClose, isHardware, proposedManagerId, requesterId, onSubmit }: ReviewDialogProps) {
+export function ReviewDialog({ open, onClose, isHardware, proposedManagerId, requesterId, onSubmit, onEditItems }: ReviewDialogProps) {
     const [choice, setChoice] = useState<ReviewChoice>({
         route: proposedManagerId ? 'MANAGER' : 'NONE', managerId: proposedManagerId ?? '', gmId: '', hardwareSource: null,
     });
@@ -63,6 +64,7 @@ export function ReviewDialog({ open, onClose, isHardware, proposedManagerId, req
             open={open} onClose={onClose} title="Tinjau permintaan" intro="Tentukan siapa yang harus menyetujui. Anda yang mengatur alurnya."
             submitLabel={route.button} canSubmit={reviewReady(choice, isHardware)} onSubmit={() => onSubmit(reviewPayload(choice, isHardware, message))}
         >
+            {onEditItems && <button type="button" className="req-btn" onClick={onEditItems}>Ubah barang</button>}
             {isHardware && (
                 <div role="radiogroup" aria-label="Sumber barang" className="req-dialog__choices">
                     <b>Barang berasal dari</b>

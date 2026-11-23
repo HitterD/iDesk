@@ -39,14 +39,14 @@ export function canSpanAllTeams(role: UserRole): boolean {
 
 /** Team filter (one team, or ALL_DEV for every developer team): the same rule the reports use. */
 export type RequestKindFilter = 'IT' | 'HARDWARE' | 'EFORM';
-const REQUEST_TICKET_TYPES = ['HARDWARE_REQUEST', 'EFORM_REQUEST'];
+const FLOW_EXISTS = 'EXISTS (SELECT 1 FROM request_flows rf WHERE rf."ticketId" = ticket.id)';
 
-/** The "Tipe" filter of the ticket list: ordinary IT tickets, or one kind of request ticket. */
+/** The persisted flow is authoritative, including for legacy ticket types. */
 function applyRequestKindFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, kind?: RequestKindFilter): void {
     if (kind === 'HARDWARE' || kind === 'EFORM') {
-        qb.andWhere('ticket.ticketType = :requestType', { requestType: `${kind}_REQUEST` });
+        qb.andWhere('EXISTS (SELECT 1 FROM request_flows rf WHERE rf."ticketId" = ticket.id AND rf.kind = :requestKind)', { requestKind: kind });
     } else if (kind === 'IT') {
-        qb.andWhere('(ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...requestTypes))', { requestTypes: REQUEST_TICKET_TYPES });
+        qb.andWhere(`NOT ${FLOW_EXISTS}`);
     }
 }
 
@@ -246,6 +246,7 @@ export class TicketQueryService {
         userSiteId: string | null = null,
         queue?: string,
         handlingTeam?: ReportTeam,
+        requestKind?: RequestKindFilter,
     ): Promise<Ticket[]> {
         const query = this.ticketRepo.createQueryBuilder('ticket')
             .leftJoinAndSelect('ticket.user', 'user')
@@ -290,7 +291,7 @@ export class TicketQueryService {
             );
         } else if (canSpanAllTeams(role)) {
             // ADMIN / MANAGER team dashboard: every ICT team on every site, minus Request Center.
-            query.where('(ticket.ticketType NOT IN (:...excludedTypes) OR ticket.ticketType IS NULL)', {
+            query.where(`(ticket.ticketType NOT IN (:...excludedTypes) OR ticket.ticketType IS NULL OR ${FLOW_EXISTS})`, {
                 excludedTypes: [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION]
             });
             query.andWhere('(ticket.category NOT IN (:...requestCenterCategories) OR ticket.category IS NULL)', { requestCenterCategories: REQUEST_CENTER_CATEGORIES });
@@ -301,23 +302,26 @@ export class TicketQueryService {
         } else if (isNonOracleAgent(role)) {
             // Normal agents see everything EXCEPT developer requests
             query.where('(ticket."handlingTeam" = :opsTeam)', { opsTeam: HandlingTeam.OPS_SUPPORT });
-            query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
+            query.andWhere(`(ticket.ticketType NOT IN (:...excludedTypes) OR ${FLOW_EXISTS})`, { 
                 excludedTypes: [TicketType.ORACLE_REQUEST, TicketType.WEB_DEV_REQUEST, TicketType.MOBILE_DEV_REQUEST, TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
             });
             applySiteFilter(query, role, userSiteId);
         } else {
             // Normal user sees only their own tickets OR tickets where they are a participant
             query.where('(ticket.userId = :userId OR EXISTS (SELECT 1 FROM ticket_participants tp WHERE tp."ticketId" = ticket.id AND tp."userId" = :userId))', { userId });
-            query.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', { 
+            query.andWhere(`(ticket.ticketType NOT IN (:...excludedTypes) OR ${FLOW_EXISTS})`, { 
                 excludedTypes: [TicketType.ICT_BUDGET, TicketType.HARDWARE_INSTALLATION] 
             });
         }
 
         applyServiceScopeFilter(query, role);
+        applyRequestKindFilter(query, requestKind);
         const rawTickets = await query.getMany();
         const sla = await this.slaSnapshotFor(rawTickets);
+        const flowFields = await loadFlowListFields(this.ticketRepo.manager, rawTickets, { userId, role });
         return rawTickets.map((ticket) => ({
             ...ticket,
+            ...flowFields.get(ticket.id),
             slaTarget: ensureSlaTarget(ticket, sla),
             hasUnreadChat: computeHasUnreadChat(ticket, role, { id: userId, siteId: userSiteId }),
             isParticipant: role === UserRole.USER && ticket.userId !== userId,
@@ -420,7 +424,7 @@ export class TicketQueryService {
 
             // Only apply default exclusion if an explicit ticketType filter is not provided
             if (!ticketType) {
-                qb.andWhere('ticket.ticketType NOT IN (:...excludedTypes)', {
+                qb.andWhere(`(ticket.ticketType NOT IN (:...excludedTypes) OR ${FLOW_EXISTS})`, {
                     excludedTypes: ['ICT_BUDGET', 'HARDWARE_INSTALLATION']
                 });
             }
@@ -831,7 +835,8 @@ export class TicketQueryService {
         const pinViewer = user?.id
             ? { id: user.id, role: user.role, assignedToId: ticket.assignedToId }
             : undefined;
-        return { ...ticket, messages: presentThread(messages, people, pinViewer), createdBy, slaTarget, viewerAccess };
+        const flowFields = user?.id ? await loadFlowListFields(this.ticketRepo.manager, [ticket], { userId: user.id, role: user.role }) : undefined;
+        return { ...ticket, ...flowFields?.get(ticket.id), messages: presentThread(messages, people, pinViewer), createdBy, slaTarget, viewerAccess };
     }
 
     async getDashboardStats(

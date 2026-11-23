@@ -1,11 +1,11 @@
 import React from 'react';
-import { History, MessageCircle, SlidersHorizontal } from 'lucide-react';
+import { FileCheck, History, Package, MessageCircle, SlidersHorizontal } from 'lucide-react';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { PinnedMessagesBar, type PinnedBarItem } from './PinnedMessagesBar';
 import { quotableText } from './messageThread';
 
-export type DetailTab = 'chat' | 'details' | 'activity';
+export type DetailTab = 'chat' | 'details' | 'document' | 'activity';
 
 /** Below lg the inspector has no column of its own, so it becomes a third segment. */
 const DESKTOP_QUERY = '(min-width: 1024px)';
@@ -53,6 +53,7 @@ interface DetailTabsProps {
     onChange: (tab: DetailTab) => void;
     /** Badge on the "Percakapan" segment; omitted → no badge. */
     messageCount?: number;
+    requestDocumentVersion?: number | null;
     /** Pinned messages, shown in the empty space beside the tabs while the conversation is open. */
     pins?: PinnedBarItem[];
     onJumpToPin?: (messageId: string) => void;
@@ -60,12 +61,19 @@ interface DetailTabsProps {
 }
 
 /** Mockup `.convo-head .seg`: Percakapan / Aktivitas (+ Properti on narrow screens). */
-export const DetailTabs: React.FC<DetailTabsProps> = ({ value, onChange, messageCount, pins = [], onJumpToPin, onUnpinPin }) => {
+export const DetailTabs: React.FC<DetailTabsProps> = ({ value, onChange, messageCount, pins = [], onJumpToPin, onUnpinPin, requestDocumentVersion }) => {
     const isDesktop = useMediaQuery(DESKTOP_QUERY);
     const chat = chatOption(messageCount);
-    const options = isDesktop ? [chat, ACTIVITY] : [chat, DETAILS, ACTIVITY];
+    const isRequest = requestDocumentVersion !== undefined;
+    const documentTab: SegmentedOption<DetailTab> = {
+        value: 'document', icon: FileCheck,
+        label: <>Dokumen{requestDocumentVersion != null && <span aria-hidden="true" className="td-tab-count">v{requestDocumentVersion}</span>}</>,
+    };
+    const options = isRequest
+        ? [chat, { ...DETAILS, label: 'Rincian', icon: Package }, documentTab, ACTIVITY]
+        : isDesktop ? [chat, ACTIVITY] : [chat, DETAILS, ACTIVITY];
     // Leaving desktop "details" (panel toggle on a narrow window) falls back to the conversation.
-    const shown = isDesktop && value === 'details' ? 'chat' : value;
+    const shown = !isRequest && isDesktop && value === 'details' ? 'chat' : value;
     const tabs = (
         <SegmentedControl
             options={options}

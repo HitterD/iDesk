@@ -7,9 +7,8 @@ import api from '@/lib/api';
 import { BentoCreateTicketPage } from '../BentoCreateTicketPage';
 
 const mockPageAccess = {
-    hardware_requests: false,
     tickets: true,
-    eform_access: true,
+    devices_access: true,
 };
 
 const ATTRIBUTES = {
@@ -95,13 +94,12 @@ afterEach(() => {
 });
 
 describe('BentoCreateTicketPage catalogue', () => {
-    it('hides Hardware & Budget card when user lacks pageAccess and never shows Lost Item Report', () => {
-        renderPage();
-        expect(screen.getByRole('heading', { name: 'Service Ticket' })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'E-Form Request' })).toBeInTheDocument();
+    it.each(['USER', 'AGENT_OPERATIONAL_SUPPORT'])('shows both request forms to %s without legacy page permissions', (role) => {
+        authState.user = { ...authState.user, role };
+        renderPage(role === 'USER' ? '/client/create' : '/tickets/create');
+        expect(screen.getByRole('button', { name: 'Pilih Hardware Request' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Pilih E-Form Request' })).toBeInTheDocument();
         expect(screen.queryByText('Lost Item Report')).not.toBeInTheDocument();
-        expect(screen.queryByText('Hardware Request')).not.toBeInTheDocument();
-        expect(screen.queryByAltText('Maskot Pengadaan Hardware')).not.toBeInTheDocument();
     });
 
     it('falls back to the catalogue for an unknown type query parameter', () => {

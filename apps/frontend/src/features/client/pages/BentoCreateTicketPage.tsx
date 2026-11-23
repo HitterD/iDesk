@@ -615,7 +615,7 @@ export const BentoCreateTicketPage: React.FC = () => {
         const visibleTicketingCards = TICKETING_CARDS.filter(isVisible);
         const visibleRequestCards = REQUEST_CARDS.filter(isVisible);
         const renderCard = (card: TicketCardConfig) => (
-            <TicketTypeCard key={card.key} title={card.title} description={card.description} mascotImg={card.mascotImg}
+            <TicketTypeCard key={card.key} title={card.title} requestKind={card.requestKind} description={card.description} mascotImg={card.mascotImg}
                 mascotAlt={card.mascotAlt} ctaLabel={card.ctaLabel}
                 onSelect={() => card.action({ setTicketType, navigate, getBasePath })} />
         );

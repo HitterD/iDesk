@@ -1,8 +1,9 @@
-import { Package } from 'lucide-react';
+import { Package, Pencil } from 'lucide-react';
 import type { FlowItem } from './flowTypes';
 
 interface RequestItemsCardProps {
     items: FlowItem[];
+    onEdit?: () => void;
     assets: Array<{ code: string; itemId: string }>;
 }
 
@@ -17,10 +18,10 @@ function itemState(item: FlowItem): string | null {
 }
 
 /** The items of a hardware request. Vendor and cost appear only when the API sent them (IT). */
-export function RequestItemsCard({ items, assets }: RequestItemsCardProps) {
+export function RequestItemsCard({ items, assets, onEdit }: RequestItemsCardProps) {
     return (
         <section className="req-card" aria-label="Barang">
-            <h3><Package aria-hidden="true" />Barang <span className="r">{items.length} unit</span></h3>
+            <h3><Package aria-hidden="true" />Barang <span className="r">{onEdit ? <button type="button" className="req-link" onClick={onEdit}><Pencil aria-hidden="true" />Ubah barang</button> : `${items.length} unit`}</span></h3>
             <ul className="req-items">
                 {items.map((item) => {
                     const codes = assets.filter((asset) => asset.itemId === item.id);

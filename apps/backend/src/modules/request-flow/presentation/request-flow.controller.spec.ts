@@ -38,6 +38,10 @@ describe('RequestFlowController roles', () => {
         expect(rolesOf('myAccess')).toEqual(Object.values(UserRole));
     });
 
+    it('approval history is open to every signed-in role; the service returns only my own signatures', () => {
+        expect(rolesOf('approvalHistory')).toEqual(Object.values(UserRole));
+    });
+
     it('approvals is open to every signed-in role; only the flow approvers get rows', () => {
         expect(rolesOf('approvals')).toEqual(Object.values(UserRole));
     });
@@ -46,7 +50,7 @@ describe('RequestFlowController roles', () => {
         const names = Object.getOwnPropertyNames(RequestFlowController.prototype);
         const path = (m: string) => Reflect.getMetadata('path', RequestFlowController.prototype[m as keyof RequestFlowController]) as string;
         const firstParam = names.findIndex((n) => String(path(n)).startsWith(':ticketId'));
-        for (const m of ['approvals', 'byLegacy', 'myAccess', 'centerSchedule', 'centerAccess', 'centerSummary']) {
+        for (const m of ['approvals', 'approvalHistory', 'byLegacy', 'myAccess', 'centerSchedule', 'centerAccess', 'centerSummary']) {
             expect(names.indexOf(m)).toBeLessThan(firstParam);
         }
     });

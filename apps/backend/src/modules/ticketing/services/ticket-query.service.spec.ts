@@ -202,8 +202,8 @@ describe('TicketQueryService request kind filter', () => {
     }
 
     it.each([
-        ['HARDWARE', 'ticket.ticketType = :requestType', { requestType: 'HARDWARE_REQUEST' }],
-        ['EFORM', 'ticket.ticketType = :requestType', { requestType: 'EFORM_REQUEST' }],
+        ['HARDWARE', expect.stringContaining('rf.kind = :requestKind'), { requestKind: 'HARDWARE' }],
+        ['EFORM', expect.stringContaining('rf.kind = :requestKind'), { requestKind: 'EFORM' }],
     ])('requestKind %s returns only that kind of request ticket', async (requestKind, sql, params) => {
         const { qb, service } = build();
         await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', { requestKind });
@@ -213,14 +213,14 @@ describe('TicketQueryService request kind filter', () => {
     it('requestKind IT leaves out both request kinds', async () => {
         const { qb, service } = build();
         await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', { requestKind: 'IT' });
-        expect(qb.andWhere).toHaveBeenCalledWith('(ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...requestTypes))', { requestTypes: ['HARDWARE_REQUEST', 'EFORM_REQUEST'] });
+        expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('NOT EXISTS (SELECT 1 FROM request_flows'));
     });
 
     it('no requestKind adds no request-type predicate', async () => {
         const { qb, service } = build();
         await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', {});
         const sqls = qb.andWhere.mock.calls.map(([sql]: [string]) => sql);
-        expect(sqls.some((q: string) => q.includes('requestType'))).toBe(false);
+        expect(sqls.some((q: string) => q.includes(':requestKind'))).toBe(false);
     });
 
     it('a requester sees own request tickets in My Tickets (they are not excluded)', async () => {
@@ -251,7 +251,7 @@ describe('TicketQueryService request kind filter', () => {
         });
         const service = new TicketQueryService({ createQueryBuilder: jest.fn(() => qb) } as any, {} as any, {} as any) as any;
         await service.getQueueStats('it-support', 'a-1', UserRole.AGENT, 'site-1', { requestKind: 'HARDWARE' });
-        expect(qb.andWhere).toHaveBeenCalledWith('ticket.ticketType = :requestType', { requestType: 'HARDWARE_REQUEST' });
+        expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('rf.kind = :requestKind'), { requestKind: 'HARDWARE' });
     });
 });
 
@@ -312,7 +312,7 @@ describe('TicketQueryService.findOne', () => {
             messages: [{ id: 'm1', isInternal: false }, { id: 'm2', isInternal: true }],
             participants: [], user: { id: 'req-1' },
         };
-        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), save: jest.fn() };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) }, save: jest.fn() };
         const slaConfigRepo = { findOne: jest.fn().mockResolvedValue({ resolutionTimeMinutes: 60 }) };
         const service = new TicketQueryService(ticketRepo as any, slaConfigRepo as any, {} as any);
 
@@ -330,7 +330,7 @@ describe('TicketQueryService.findOne', () => {
             createdById: 'agent-1',
             createdBy: { id: 'agent-1', fullName: 'Rm Bagastyo', email: 'b@x.id', password: 'hash', phoneNumber: '08' },
         };
-        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) } };
         const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
 
         const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
@@ -348,7 +348,7 @@ describe('TicketQueryService.findOne deleted messages', () => {
             messages: [{ id: 'm1', isInternal: false, content: 'rahasia', senderId: 'req-1', attachments: ['/uploads/tickets/t-1/x.png'],
                 deletedAt: new Date(), deletedById: 'req-1' }],
         };
-        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket) } as any, { findOne: jest.fn() } as any, {} as any);
+        const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) } } as any, { findOne: jest.fn() } as any, {} as any);
 
         const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
 
@@ -368,7 +368,7 @@ describe('TicketQueryService.findOne reply links and pins', () => {
                 { id: 'b', content: '\u21a9 Ani: kode akses 4471\n\nnoted', senderId: 'ag-1', replyToId: 'a', isInternal: false },
             ],
         };
-        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket) };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]) } };
         const service = new TicketQueryService(ticketRepo as any, { findOne: jest.fn() } as any, {} as any);
 
         const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
@@ -388,7 +388,7 @@ describe('TicketQueryService.findOne mentions', () => {
             handlingTeam: 'OPS_SUPPORT', participants: [], user: { id: 'req-1' },
             messages: [{ id: 'a', content: '@Andi cek', senderId: 'req-1', mentionedUserIds: ['ag-1'] }],
         };
-        const manager = { find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) };
+        const manager = { query: jest.fn().mockResolvedValue([]), find: jest.fn().mockResolvedValue([{ id: 'ag-1', fullName: 'Andi' }]) };
         const service = new TicketQueryService({ findOne: jest.fn().mockResolvedValue(ticket), manager } as any, { findOne: jest.fn() } as any, {} as any);
 
         const result = await service.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
@@ -510,7 +510,7 @@ describe('TicketQueryService queue stats', () => {
                 },
             ],
         };
-        const repo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { find: jest.fn() } };
+        const repo = { findOne: jest.fn().mockResolvedValue(ticket), manager: { query: jest.fn().mockResolvedValue([]), find: jest.fn() } };
         const q = new TicketQueryService(repo as any, { findOne: jest.fn() } as any, {} as any);
 
         const reqView = await q.findOne('t-1', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });

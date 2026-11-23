@@ -53,7 +53,7 @@ describe('nextStep: IT', () => {
     });
 
     it('schedule after the requester asked for another time: shows the count and asks for new slots', () => {
-        const n = as(view({ phase: 'schedule', rescheduleCount: 1, hardware: hw(schedule({ chosen: 0, status: 'RESCHEDULE_REQUESTED', resched: 1 })) }), 'ICT');
+        const n = as(view({ phase: 'schedule', rescheduleCount: 1, hardware: hw(schedule({ chosen: null, status: 'RESCHEDULE_REQUESTED', resched: 1 })) }), 'ICT');
         expect(n.title).toContain('1/3');
         expect(n.primary?.act).toBe('schedule');
     });
@@ -78,6 +78,11 @@ describe('nextStep: IT', () => {
 describe('nextStep: requester, approver, observer', () => {
     it('requester confirms a finished install: a primary yes and a secondary issue button', () => {
         expect(as(view({ phase: 'confirm' }), 'REQUESTER')).toMatchObject({ mine: true, primary: { act: 'confirm', label: 'Ya, sudah berfungsi' }, second: { act: 'reportIssue' } });
+    });
+
+    it('requester cannot pick retired slots after requesting a reschedule', () => {
+        const n = as(view({ phase: 'schedule', hardware: hw(schedule({ status: 'RESCHEDULE_REQUESTED' })) }), 'REQUESTER');
+        expect(n.primary).toBeUndefined();
     });
 
     it('requester picks a slot when IT proposed some', () => {
