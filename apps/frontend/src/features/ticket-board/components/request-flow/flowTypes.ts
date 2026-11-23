@@ -20,6 +20,8 @@ export interface FlowSchedule {
     /** Index into `slots` the requester chose; null while none is chosen. */
     chosen: number | null;
     technicianName: string | null;
+    /** The only person who may start the installation. */
+    technicianId: string | null;
     status: string;
     resched: number;
     note: string | null;

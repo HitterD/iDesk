@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Ellipsis, Hourglass, User } from 'lucide-react';
 import type { RequestFlowView } from './flowTypes';
+import { useAuth } from '@/stores/useAuth';
 import { nextStep, type StepAction } from './nextStep';
 import { stageInfo } from './progress';
 import { stepIcon } from './stepIcons';
@@ -28,7 +29,8 @@ function ActionButton({ action, primary, onAct }: { action: StepAction; primary?
 
 /** The one bar under the ticket header: what happens next, who is up, and the single button to press. */
 export function NextStepBar({ view, onAct }: NextStepBarProps) {
-    const step = nextStep(view);
+    const { user } = useAuth();
+    const step = nextStep(view, user?.id);
     const { stages, curIdx } = stageInfo(view);
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);

@@ -158,3 +158,23 @@ describe('nextStep: cancel the request', () => {
         expect(n.primary?.act).not.toBe('cancelReq');
     });
 });
+
+describe('nextStep: only the assigned technician starts the installation', () => {
+    const confirmed = (technicianId: string | null) => view({ phase: 'install', hardware: hw(schedule({ chosen: 0, status: 'CONFIRMED', technicianId, technicianName: 'Yudi' })) });
+
+    it('the assigned technician gets the start button', () => {
+        expect(nextStep(confirmed('tech-1'), 'tech-1').primary?.act).toBe('startInstall');
+    });
+
+    it('another IT person is told who installs and gets no start button (the server would refuse with 403)', () => {
+        const n = nextStep(confirmed('tech-1'), 'it-2');
+        expect(n.primary).toBeUndefined();
+        expect(n.mine).toBe(false);
+        expect(n.sub).toContain('Yudi');
+    });
+
+    it('without a viewer id, or a technician on record, the start button stays', () => {
+        expect(nextStep(confirmed('tech-1')).primary?.act).toBe('startInstall');
+        expect(nextStep(confirmed(null), 'it-2').primary?.act).toBe('startInstall');
+    });
+});

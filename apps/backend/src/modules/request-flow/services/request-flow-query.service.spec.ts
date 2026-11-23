@@ -127,7 +127,7 @@ describe('RequestFlowQueryService.view', () => {
         expect(view.hardware).toMatchObject({
             requestNumber: 'HR-2026-0042', division: 'QC', recipients: ['Leony', 'Budi'],
             assets: [{ code: 'AST-1', itemId: 'it-1' }],
-            schedule: { slots, chosen: 1, technicianName: 'Teknisi A', status: 'CONFIRMED', resched: 2, note: 'Bawa kabel LAN' },
+            schedule: { slots, chosen: 1, technicianName: 'Teknisi A', technicianId: 'tech-1', status: 'CONFIRMED', resched: 2, note: 'Bawa kabel LAN' },
         });
         // The dialogs call the hardware endpoints, which are keyed by the hardware request and the schedule.
         expect(view.hardware!.requestId).toBe('hr-1');

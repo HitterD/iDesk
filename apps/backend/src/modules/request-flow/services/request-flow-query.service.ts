@@ -41,6 +41,8 @@ export interface ScheduleView {
     /** Index into `slots` of the slot the requester chose; null while none is chosen. */
     chosen: number | null;
     technicianName: string | null;
+    /** Only this technician may start the installation. */
+    technicianId: string | null;
     status: InstallStatus;
     resched: number;
     /** IT's note written with the proposed slots. */
@@ -182,6 +184,7 @@ export class RequestFlowQueryService {
             slots: direct ? [{ start: new Date(row.scheduledStart!).toISOString(), end: new Date(row.scheduledEnd!).toISOString() }] : slots,
             chosen: direct ? 0 : index >= 0 ? index : null,
             technicianName: people.get(row.technicianId) ?? null,
+            technicianId: row.technicianId ?? null,
             status: row.status,
             resched: row.rescheduleCount,
             note: row.note ?? null,

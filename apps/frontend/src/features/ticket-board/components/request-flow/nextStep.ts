@@ -30,8 +30,8 @@ const slotLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', w
  * What the viewer should do next, from the request's phase and how the viewer relates to it. One primary button at
  * most, so nobody has to guess which one to press; the table follows the approved mockup (`nextOf`).
  */
-export function nextStep(view: RequestFlowView): NextStep {
-    const base = baseStep(view);
+export function nextStep(view: RequestFlowView, viewerId?: string): NextStep {
+    const base = baseStep(view, viewerId);
     if (!canCancel(view)) return base;
     return { ...base, more: [...base.more, { act: 'cancelReq', label: 'Batalkan permintaan', icon: 'xC', danger: true }] };
 }
@@ -45,7 +45,7 @@ function canCancel(view: RequestFlowView): boolean {
     return false;
 }
 
-function baseStep(view: RequestFlowView): NextStep {
+function baseStep(view: RequestFlowView, viewerId?: string): NextStep {
     const tone = view.kind === 'HARDWARE' ? 'hw' : 'ef';
     const primaryClass = view.kind === 'HARDWARE' ? 'hwb' : 'efb';
     const P = (act: string, label: string, icon: string, cls: string = primaryClass): StepAction => ({ act, label, icon, cls });
@@ -71,7 +71,7 @@ function baseStep(view: RequestFlowView): NextStep {
         return step({ tone: 'navy', icon: 'xC', title: 'Permintaan ditolak', sub: 'Alasannya ada di percakapan. Silakan buat tiket baru bila masih dibutuhkan.' });
     }
 
-    if (role === 'ICT') return forIt(view, step, P, slotsOffered);
+    if (role === 'ICT') return forIt(view, step, P, slotsOffered, viewerId);
     if (role === 'REQUESTER') {
         if (phase === 'schedule' && slotsOffered) {
             return step({ mine: true, icon: 'cal', title: 'Pilih waktu pemasangan', sub: 'IT mengusulkan beberapa waktu. Pilih yang Anda bisa, atau minta waktu lain.', primary: P('pickSlot', 'Pilih waktu', 'cal', 'navy') });
@@ -110,7 +110,7 @@ function waitingFor(view: RequestFlowView): string {
 type Make = (o: Partial<NextStep> & Pick<NextStep, 'icon' | 'title' | 'sub'>) => NextStep;
 type Action = (act: string, label: string, icon: string, cls?: string) => StepAction;
 
-function forIt(view: RequestFlowView, step: Make, P: Action, slotsOffered: boolean): NextStep {
+function forIt(view: RequestFlowView, step: Make, P: Action, slotsOffered: boolean, viewerId?: string): NextStep {
     const { phase } = view;
     const schedule = view.hardware?.schedule ?? null;
     const editMore: StepAction[] = ['review', 'appr_mgr', 'appr_gm', 'procure', 'delivery', 'schedule'].includes(phase)
@@ -149,6 +149,15 @@ function forIt(view: RequestFlowView, step: Make, P: Action, slotsOffered: boole
         case 'install': {
             const running = schedule?.status === 'IN_PROGRESS';
             const when = schedule && schedule.chosen !== null ? slotLabel.format(new Date(schedule.slots[schedule.chosen].start)) : '';
+            // The server lets only the assigned technician start; anyone else would get a 403, so no button.
+            const otherTechnician = Boolean(!running && viewerId && schedule?.technicianId && schedule.technicianId !== viewerId);
+            if (otherTechnician) {
+                return step({
+                    tone: 'navy', icon: 'wrench', title: `Pemasangan ${when}`,
+                    sub: `Teknisi ${schedule?.technicianName ?? 'IT'} yang memulai pemasangan ini.`,
+                    more: [{ act: 'reschedule', label: 'Ubah jadwal', icon: 'cal' }],
+                });
+            }
             return running
                 ? step({ mine: true, icon: 'wrench', title: 'Pemasangan sedang berjalan', sub: 'Selesai? Catat barcode aset dan foto serah terima.', primary: P('installDone', 'Selesaikan pemasangan', 'barcode') })
                 : step({
