@@ -77,7 +77,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
     });
 
     // A Hardware / E-Form ticket is driven by its request flow; the requester and the approver answer from its panel.
-    const isRequestTicket = ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const isRequestTicket = Boolean(ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
     const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const replyMutation = useMutation({
@@ -198,7 +198,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
         setIsSidebarOpen(prev => !prev);
     };
 
-    const requestPanelProps = { ticketId: ticket.id, ticketNumber: ticket.ticketNumber ?? ticket.id, requesterId: ticket.user?.id, requesterName: ticket.user?.fullName ?? undefined };
+    const requestPanelProps = { ticketId: ticket.id, ticketNumber: ticket.ticketNumber ?? ticket.id, requesterId: ticket.user?.id, requesterName: ticket.user?.fullName ?? undefined, onOpenDocument: () => setMainTab('document') };
 
     return (
         <div key={id} className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
@@ -215,6 +215,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 flow={requestFlow ? { kind: requestFlow.kind, phaseLabel: requestFlow.phaseLabel } : undefined}
                 tabs={(
                     <DetailTabs
+                        requestDocumentVersion={isRequestTicket ? requestFlow?.documentVersion ?? null : undefined}
                         value={mainTab}
                         onChange={setMainTab}
                         messageCount={countChatMessages(ticket.messages)}
@@ -234,7 +235,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
 
                     {/* Requester confirmation of an agent-resolved ticket */}
-                    {isRequester && ticket.status === 'RESOLVED' && (
+                    {isRequester && !isRequestTicket && ticket.status === 'RESOLVED' && (
                         <ResolutionConfirmationBanner ticketId={ticket.id} deadlineAt={ticket.resolutionDeadlineAt} />
                     )}
 
@@ -255,11 +256,15 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                                 onTypingStop={sendTypingStop}
                                 showCannedResponses={false}
                             />
+                        ) : mainTab === 'document' && isRequestTicket ? (
+                            <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-4">
+                                <RequestFlowPanel slot="document" {...requestPanelProps} />
+                            </div>
                         ) : mainTab === 'details' ? (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-3 pb-20">
-                                {isRequestTicket && <RequestFlowPanel slot="rail" {...requestPanelProps} />}
+                                {isRequestTicket && <RequestFlowPanel slot="details" {...requestPanelProps} />}
                                 <ClientTicketInspector ticket={ticket} />
-                                {!isClosed && (
+                                {!isClosed && !isRequestTicket && (
                                     <div className="ticket-panel">
                                         <Button variant="danger" className="w-full" onClick={() => setIsCancelDialogOpen(true)}>
                                             <XCircle aria-hidden="true" /><span>Batalkan tiket</span>

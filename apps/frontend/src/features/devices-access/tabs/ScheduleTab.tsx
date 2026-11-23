@@ -26,12 +26,14 @@ export function ScheduleTab({ today }: { today: string }) {
     const [weekStart, setWeekStart] = useState(() => mondayOf(today));
     const [tech, setTech] = useState('');
     const { data, isLoading, isError } = useScheduleWeek(weekStart);
+    const currentWeek = mondayOf(today);
+    const { data: todayWeek } = useScheduleWeek(currentWeek, weekStart !== currentWeek);
     const events = data?.events ?? [];
     const shown = events.filter((event) => !tech || event.technicianId === tech);
     const days = groupWeek(weekStart, shown);
     const waiting = events.filter((event) => WAITING.includes(event.status)).length;
     const queue = data?.unscheduled ?? [];
-    const mine = events.filter((event) => event.technicianId === user?.id && event.start && wibDay(event.start) === today);
+    const mine = (weekStart === currentWeek ? events : todayWeek?.events ?? []).filter((event) => event.technicianId === user?.id && event.start && wibDay(event.start) === today);
     const weekEnd = addDays(weekStart, WEEK_DAYS - 1);
 
     return (

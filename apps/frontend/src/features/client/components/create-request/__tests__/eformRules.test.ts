@@ -43,7 +43,7 @@ describe('efMissing', () => {
         [{ kind: 'NETWORK', net: '' }, 'Isi tujuan jaringan'],
         [{ kind: 'FLASHDISK', host: '' }, 'Isi hostname PC'],
         [{ kind: 'EMAIL', email: '' }, 'Isi usulan alamat email'],
-        [{ kind: 'SYNOLOGY_NAS', folders: [], shots: 0 }, 'Tambahkan minimal satu folder atau screenshot'],
+        [{ kind: 'SYNOLOGY_NAS', folders: [], shotUrls: [] }, 'Tambahkan minimal satu folder atau screenshot'],
         [{ kind: 'SYNOLOGY_NAS', acct: 'EXISTING', acctName: '', folders: [{ srv: 'NAS1', path: '/QC', rw: 'RO' }] }, 'Isi nama akun Synology'],
     ] as const)('names what is missing: %j', (over, message) => {
         expect(efMissing(form({ to: '2027-01-01', ...over } as Partial<EformForm>))).toBe(message);
@@ -92,5 +92,10 @@ describe('toEformPayload', () => {
         const payload = toEformPayload(form({ kind: 'EMAIL', email: 'budi.santoso', emailType: 'SHARING', to: '' }), 'Leony');
         expect(payload.endDate).toBeUndefined();
         expect(payload.formData).toMatchObject({ emailAddress: 'budi.santoso@kapalapi.co.id' });
+    });
+
+    it('NAS payload keeps the uploaded screenshot references, not only a count', () => {
+        const form = { ...emptyEform('SYNOLOGY_NAS', '2026-12-01'), shotUrls: ['/uploads/a.png', '/uploads/b.png'] };
+        expect(toEformPayload(form, 'Leony')).toMatchObject({ formData: { screenshots: ['/uploads/a.png', '/uploads/b.png'] } });
     });
 });

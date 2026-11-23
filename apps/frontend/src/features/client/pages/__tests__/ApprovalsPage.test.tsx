@@ -40,6 +40,26 @@ describe('ApprovalsPage', () => {
         expect(api.get).toHaveBeenCalledWith('/request-flow/approvals');
     });
 
+    it('filters the approval list by type and title', async () => {
+        vi.mocked(api.get).mockResolvedValue({ data: [row(), row({ ticketId: 't-2', title: 'Laptop Design', requestKind: 'HARDWARE' })] });
+        renderPage();
+        await screen.findByText('Laptop Design');
+        fireEvent.change(screen.getByLabelText('Tipe permintaan'), { target: { value: 'EFORM' } });
+        expect(screen.queryByText('Laptop Design')).not.toBeInTheDocument();
+        fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'tidak cocok' } });
+        expect(screen.queryByText('Akses VPN')).not.toBeInTheDocument();
+    });
+
+    it('"Sudah selesai" lists what I already signed, from the history endpoint', async () => {
+        vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url === '/request-flow/approvals/history' ? [{ ...row({ ticketId: 't-7', title: 'Akses lama' }), signedAt: '2026-11-20T01:00:00.000Z' }] : [row()] }));
+        renderPage();
+        await screen.findByText('Akses VPN');
+        fireEvent.click(screen.getByRole('button', { name: 'Sudah selesai' }));
+        expect(await screen.findByText('Akses lama')).toBeInTheDocument();
+        expect(screen.queryByText('Akses VPN')).not.toBeInTheDocument();
+        expect(screen.queryByText('Menunggu tanda tangan Anda')).not.toBeInTheDocument();
+    });
+
     it('a row opens its ticket, where the one green button is', async () => {
         vi.mocked(api.get).mockResolvedValue({ data: [row()] });
         renderPage();

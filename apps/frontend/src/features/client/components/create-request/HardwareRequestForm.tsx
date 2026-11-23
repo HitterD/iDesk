@@ -18,7 +18,7 @@ interface HardwareRequestFormProps {
 
 /** The Hardware request form: pick items, say who they are for and why, sign, send. */
 export function HardwareRequestForm({ userId, userName, userDepartment, catalog, onSubmit, onCancel }: HardwareRequestFormProps) {
-    const initial: HardwareForm = { title: '', justification: '', division: userDepartment, recipients: [], managerId: '', lines: [], signature: null };
+    const initial: HardwareForm = { title: '', justification: '', division: userDepartment, recipients: userName.trim() ? [userName.trim()] : [], managerId: '', lines: [], signature: null };
     const [form, setForm, clearDraft] = useRequestDraft<HardwareForm>(draftKey(userId, 'hardware'), initial);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);

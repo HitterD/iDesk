@@ -39,6 +39,23 @@ describe('CatalogTab', () => {
         expect(screen.getByLabelText('Disembunyikan')).toHaveTextContent('1');
     });
 
+    it('filters by hardware category', async () => {
+        renderTab();
+        await screen.findByText('Laptop Standar');
+        fireEvent.change(screen.getByRole('combobox', { name: 'Filter kategori' }), { target: { value: 'MONITOR' } });
+        expect(screen.getByText('Monitor 27 inci')).toBeInTheDocument();
+        expect(screen.queryByText('Laptop Standar')).not.toBeInTheDocument();
+    });
+
+    it('requires confirmation before deleting a catalogue entry', async () => {
+        vi.mocked(hrHttp.delete).mockResolvedValue(ok(undefined));
+        renderTab();
+        fireEvent.click(await screen.findByRole('button', { name: 'Hapus Laptop Standar' }));
+        expect(hrHttp.delete).not.toHaveBeenCalled();
+        fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Hapus barang' }));
+        await waitFor(() => expect(hrHttp.delete).toHaveBeenCalledWith('/catalog/c-1'));
+    });
+
     it('a hidden item is shown with the status filter "Disembunyikan"', async () => {
         renderTab();
         await screen.findByText('Laptop Standar');

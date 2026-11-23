@@ -79,7 +79,7 @@ function NasFields({ form, patch }: Props) {
     const upload = async (files: FileList | null) => {
         const chosen = Array.from(files ?? []);
         if (chosen.length === 0) return;
-        if (form.shots + chosen.length > SHOTS_MAX) { toast.error(`Maksimal ${SHOTS_MAX} screenshot.`); return; }
+        if (form.shotUrls.length + chosen.length > SHOTS_MAX) { toast.error(`Maksimal ${SHOTS_MAX} screenshot.`); return; }
         const bad = chosen.find((f) => !f.type.startsWith('image/') || f.size > SHOT_BYTES_MAX);
         if (bad) { toast.error(`Berkas "${bad.name}" harus gambar dan maksimal 5MB.`); return; }
         setUploading(true);
@@ -87,7 +87,7 @@ function NasFields({ form, patch }: Props) {
             const body = new FormData();
             chosen.forEach((file) => body.append('files', file));
             const res = await api.post('/uploads', body, { headers: { 'Content-Type': 'multipart/form-data' } });
-            if (res.data?.success && Array.isArray(res.data.urls)) patch({ shots: form.shots + res.data.urls.length });
+            if (res.data?.success && Array.isArray(res.data.urls)) patch({ shotUrls: [...form.shotUrls, ...(res.data.urls as string[])] });
             else toast.error('Gagal mengunggah screenshot.');
         } catch { toast.error('Terjadi kesalahan saat mengunggah screenshot.'); }
         finally { setUploading(false); if (fileInput.current) fileInput.current.value = ''; }
@@ -117,7 +117,7 @@ function NasFields({ form, patch }: Props) {
             )}
             <label className="req-dialog__field"><span>Screenshot folder (opsional, maks {SHOTS_MAX})</span>
                 <input ref={fileInput} type="file" accept="image/*" multiple aria-label="Screenshot folder" disabled={uploading} onChange={(e) => void upload(e.target.files)} />
-                {form.shots > 0 && <small>{form.shots} screenshot terlampir</small>}
+                {form.shotUrls.length > 0 && <small>{form.shotUrls.length} screenshot terlampir</small>}
             </label>
         </>
     );

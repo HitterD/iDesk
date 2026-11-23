@@ -73,6 +73,11 @@ export interface ApprovalItem extends FlowListFields {
     ticketId: string; ticketNumber: string; title: string; requesterName: string;
 }
 
+/** A request the signed-in person already signed, and when. */
+export interface ApprovalHistoryItem extends ApprovalItem { signedAt: string }
+
+const APPROVAL_HISTORY_LIMIT = 200;
+
 const NO_ACCESS_VIEW = (group: AccessGroup): AccessView => ({ group, counts: { soon: 0, expired: 0, active: 0, permanent: 0 }, items: [] });
 
 /** The IT-side pages that sit beside the ticket list: the install schedule, access validity, and "waiting for my signature". */
@@ -215,6 +220,34 @@ export class DevicesAccessService {
             .map((row) => ({ row, fields: listFieldsOf({ ...row, signed: { manager: row.managerSigned, gm: row.gmSigned } }, actor) }))
             .filter(({ fields }) => fields.needsMyAction)
             .map(({ row, fields }) => ({ ticketId: row.ticketId, ticketNumber: row.ticketNumber, title: row.title, requesterName: row.requesterName, ...fields }));
+    }
+
+    /** Requests this person signed (newest first). Only their own signatures: nobody sees another approver's history. */
+    async approvalHistory(actor: FlowActor): Promise<ApprovalHistoryItem[]> {
+        const rows: Array<FlowListRow & { ticketNumber: string; title: string; requesterName: string; managerSigned: boolean; gmSigned: boolean; signedAt: Date | string }> = await this.dataSource.query(`/* APPROVAL_HISTORY */
+            SELECT * FROM (
+                SELECT f."ticketId", t."ticketNumber", t."title", f."kind", f."route", f."returnedReason", f."managerId", f."gmId",
+                    COALESCE(h."status"::text, e."status"::text) AS "status",
+                    COALESCE(h."requesterId"::text, e."requesterId"::text) AS "requesterId",
+                    COALESCE(ru."fullName", e."requesterName") AS "requesterName",
+                    true AS "managerSigned", false AS "gmSigned", false AS "hasOpenSchedule",
+                    COALESCE(a."createdAt", s."signedAt") AS "signedAt"
+                FROM request_flows f
+                JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+                LEFT JOIN hardware_requests h ON h."id" = f."hardwareRequestId"
+                LEFT JOIN eform_requests e ON e."id" = f."eformRequestId"
+                LEFT JOIN users ru ON ru."id"::text = h."requesterId"::text
+                LEFT JOIN hardware_request_activities a ON a."requestId" = h."id" AND a."action"::text = 'UPDATED'
+                    AND a."metadata"::jsonb->>'signerId' = $1 AND a."metadata"::jsonb->>'step' IN ('MANAGER', 'GM')
+                LEFT JOIN eform_signatures s ON s."eformRequestId" = e."id" AND s."signerId"::text = $1 AND s."signerRole" IN ('MANAGER', 'GM')
+                WHERE a."id" IS NOT NULL OR s."id" IS NOT NULL
+            ) signed
+            ORDER BY "signedAt" DESC LIMIT ${APPROVAL_HISTORY_LIMIT}`, [actor.userId]);
+        return rows.map((row) => ({
+            ticketId: row.ticketId, ticketNumber: row.ticketNumber, title: row.title, requesterName: row.requesterName,
+            ...listFieldsOf({ ...row, signed: { manager: row.managerSigned, gm: row.gmSigned } }, actor),
+            signedAt: new Date(row.signedAt).toISOString(),
+        }));
     }
 
     /** Counts of hardware requests by where they are, inside the staff member's site. */

@@ -32,7 +32,6 @@ export interface ListViewer { userId: string; role: UserRole | string }
 const NO_FLOW: FlowListFields = { requestKind: null, flowPhase: null, flowPhaseLabel: null, flowPaused: false, needsMyAction: false };
 /** Phases where the next move is IT's. */
 const IT_PHASES: readonly FlowPhase[] = ['review', 'procure', 'delivery', 'schedule', 'install', 'fulfill'];
-const REQUEST_TYPE_KIND: Record<string, RequestKind> = { HARDWARE_REQUEST: 'HARDWARE', EFORM_REQUEST: 'EFORM' };
 
 function needsAction(row: FlowListRow, phase: FlowPhase, viewer: ListViewer): boolean {
     if (phase === 'appr_mgr') return viewer.userId === row.managerId;
@@ -72,7 +71,7 @@ export async function loadFlowListFields(
     manager: Pick<EntityManager, 'query'>, tickets: { id: string; ticketType?: string | null }[], viewer: ListViewer,
 ): Promise<Map<string, FlowListFields>> {
     const result = new Map<string, FlowListFields>(tickets.map((t) => [t.id, NO_FLOW]));
-    const ids = tickets.filter((t) => t.ticketType && REQUEST_TYPE_KIND[t.ticketType]).map((t) => t.id);
+    const ids = tickets.map((t) => t.id);
     if (ids.length === 0) return result;
     const rows: (Omit<FlowListRow, 'signed'> & { managerSigned: boolean; gmSigned: boolean })[] = await manager.query(FLOW_LIST_SQL, [ids]);
     for (const { managerSigned, gmSigned, ...rest } of rows) {

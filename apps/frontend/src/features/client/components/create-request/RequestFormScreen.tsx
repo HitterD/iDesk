@@ -64,7 +64,7 @@ export function RequestFormScreen({ type, onBack, renewFrom }: RequestFormScreen
         try {
             const created = (await api.post(`/request-flow/${type}`, payload)).data as { ticketId: string; ticketNumber: string };
             toast.success(`Tiket ${created.ticketNumber} dibuat`);
-            navigate(`/tickets/${created.ticketId}`);
+            navigate(`${user.role === 'USER' ? '/client' : ''}/tickets/${created.ticketId}`);
         } catch (err) {
             throw new Error(getApiErrorMessage(err, 'Gagal mengirim permintaan. Coba lagi.'));
         }

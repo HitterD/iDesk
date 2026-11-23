@@ -39,7 +39,7 @@ export function EformRequestForm({ userId, userName, userDepartment, today, rene
         ...emptyEform(renew?.kind ?? 'VPN', start), dept: userDepartment,
         ...(renew ? { need: renew.need ?? '', reason: renew.reason ?? '' } : {}),
     };
-    const [form, setForm, clearDraft] = useRequestDraft<EformForm>(draftKey(userId, 'eform'), initial);
+    const [form, setForm, clearDraft] = useRequestDraft<EformForm>(draftKey(userId, renew ? 'eform-renew' : 'eform'), initial);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const patch = (change: Partial<EformForm>) => { setError(''); setForm({ ...form, ...change }); };

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '@/lib/api';
@@ -115,6 +115,18 @@ describe('RequestFlowPanel', () => {
         expect(groups[0]).toHaveAccessibleName(/Mouse/);
     });
 
+    it('lets IT edit hardware from Review and returns to the review without advancing', async () => {
+        renderPanel(view('review', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] } }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Tinjau sekarang' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Stok IT' }));
+        const review = screen.getByRole('dialog', { name: 'Tinjau permintaan' });
+        fireEvent.click(within(review).getByRole('button', { name: 'Ubah barang' }));
+        const editor = await screen.findByRole('dialog', { name: 'Ubah / ganti barang' });
+        fireEvent.click(within(editor).getByRole('button', { name: 'Batal' }));
+        expect(await screen.findByRole('radio', { name: 'Stok IT' })).toHaveAttribute('aria-checked', 'true');
+        expect(api.post).not.toHaveBeenCalled();
+    });
+
     it('shows the items card for hardware and the access card for an e-form', async () => {
         renderPanel(view('review', 'ICT'));
         expect(await screen.findByRole('region', { name: 'Akses' })).toBeInTheDocument();
@@ -136,6 +148,12 @@ describe('RequestFlowPanel slots (mockup: next-step bar above the chat, cards in
         expect(await screen.findByRole('button', { name: 'Tinjau sekarang' })).toBeInTheDocument();
         expect(screen.queryByRole('region', { name: 'Progres' })).not.toBeInTheDocument();
         expect(screen.queryByRole('region', { name: 'Akses' })).not.toBeInTheDocument();
+    });
+
+    it('opens the hardware editor from the inspector during IT review', async () => {
+        renderSlot(view('review', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] } }), 'rail');
+        fireEvent.click(await screen.findByRole('button', { name: 'Ubah barang' }));
+        expect(await screen.findByRole('dialog', { name: 'Ubah / ganti barang' })).toBeInTheDocument();
     });
 
     it('the rail slot shows the cards (progress, items or access, document) and no next-step bar', async () => {

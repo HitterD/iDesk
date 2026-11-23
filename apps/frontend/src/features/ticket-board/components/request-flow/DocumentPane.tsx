@@ -7,10 +7,11 @@ interface DocumentPaneProps {
     revisions: FlowRevision[];
     /** Downloads the PDF of a version (only the latest can be rendered). */
     onDownload: (version: number) => void;
+    onImport?: () => void;
 }
 
 /** The single document of the ticket: every signature or change added a version; the latest is the one to download. */
-export function DocumentPane({ revisions, onDownload }: DocumentPaneProps) {
+export function DocumentPane({ revisions, onDownload, onImport }: DocumentPaneProps) {
     const ordered = [...revisions].sort((a, b) => b.version - a.version);
     const latest = ordered[0]?.version;
     return (
@@ -19,6 +20,7 @@ export function DocumentPane({ revisions, onDownload }: DocumentPaneProps) {
             {latest !== undefined && (
                 <button type="button" className="req-btn" onClick={() => onDownload(latest)}><Download aria-hidden="true" />Unduh dokumen v{latest}</button>
             )}
+            {onImport && <button type="button" className="req-btn" onClick={onImport}>Impor bertanda tangan</button>}
             <ol className="req-revs">
                 {ordered.map((revision) => (
                     <li key={revision.version}>

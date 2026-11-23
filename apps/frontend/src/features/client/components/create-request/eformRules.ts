@@ -32,12 +32,12 @@ export interface EformForm {
     acctName: string;
     servers: NasServer[];
     folders: NasFolder[];
-    shots: number;
+    shotUrls: string[];
 }
 
 export const emptyEform = (kind: EformKind, from: string): EformForm => ({
     kind, from, to: '', reason: '', dept: '', managerId: '', terms: false, signature: null, need: '', websites: '', net: '', host: '',
-    usb: 'RO', fdInfo: '', email: '', emailType: 'PERSONAL', acct: 'NEW', acctName: '', servers: [], folders: [], shots: 0,
+    usb: 'RO', fdInfo: '', email: '', emailType: 'PERSONAL', acct: 'NEW', acctName: '', servers: [], folders: [], shotUrls: [],
 });
 
 /** The part before the @: lowercase letters, digits, dot, dash and underscore only. */
@@ -73,7 +73,7 @@ export function efMissing(form: EformForm): string {
     if (kind === 'NETWORK' && !form.net.trim()) return 'Isi tujuan jaringan';
     if (kind === 'FLASHDISK' && !form.host.trim()) return 'Isi hostname PC';
     if (kind === 'EMAIL' && !form.email) return 'Isi usulan alamat email';
-    if (kind === 'SYNOLOGY_NAS' && form.folders.length === 0 && !form.shots) return 'Tambahkan minimal satu folder atau screenshot';
+    if (kind === 'SYNOLOGY_NAS' && form.folders.length === 0 && form.shotUrls.length === 0) return 'Tambahkan minimal satu folder atau screenshot';
     if (kind === 'SYNOLOGY_NAS' && form.acct === 'EXISTING' && !form.acctName.trim()) return 'Isi nama akun Synology';
     if (!form.to && !PERMANENT_KINDS.includes(kind)) return 'Isi tanggal selesai';
     if (form.to && form.to < form.from) return 'Tanggal selesai sebelum mulai';
@@ -102,7 +102,7 @@ function typeData(form: EformForm): Record<string, unknown> {
         case 'EMAIL': return { proposedEmail: form.email, emailDomain: EMAIL_DOMAIN, emailAddress: `${form.email}${EMAIL_DOMAIN}`, accountType: form.emailType };
         case 'SYNOLOGY_NAS': return {
             nasSelections: form.folders.map((f) => ({ nasId: f.srv, nasName: f.srv, folderPath: f.path, accessLevel: f.rw === 'RW' ? 'READ_WRITE' : 'READ_ONLY' })),
-            ...(form.shots ? { screenshots: form.shots } : {}),
+            ...(form.shotUrls.length ? { screenshots: form.shotUrls } : {}),
         };
         default: return {};
     }

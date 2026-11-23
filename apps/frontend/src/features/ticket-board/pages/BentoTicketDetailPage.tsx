@@ -117,7 +117,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
     });
 
     // A Hardware / E-Form ticket is driven by its request flow; ordinary tickets never load it.
-    const isRequestTicket = ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const isRequestTicket = Boolean(ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
     const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const isAdmin = user?.role === 'ADMIN';
@@ -436,7 +436,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
         }
     };
 
-    const requestPanelProps = { ticketId: ticket.id, ticketNumber: ticket.ticketNumber ?? ticket.id, requesterId: ticket.user?.id, requesterName: ticket.user?.fullName ?? undefined };
+    const requestPanelProps = { ticketId: ticket.id, ticketNumber: ticket.ticketNumber ?? ticket.id, requesterId: ticket.user?.id, requesterName: ticket.user?.fullName ?? undefined, onOpenDocument: () => setMainTab('document') };
 
     return (
         <div className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
@@ -461,6 +461,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
                 onResolveOpenChange={setResolveOpen}
                 tabs={(
                     <DetailTabs
+                        requestDocumentVersion={isRequestTicket ? requestFlow?.documentVersion ?? null : undefined}
                         value={mainTab}
                         onChange={setMainTab}
                         messageCount={countChatMessages(ticket.messages)}
@@ -517,9 +518,13 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
                                 onTypingStart={() => sendTypingStart({ fullName: currentUser.fullName })}
                                 onTypingStop={sendTypingStop}
                             />
+                        ) : mainTab === 'document' && isRequestTicket ? (
+                            <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-4">
+                                <RequestFlowPanel slot="document" {...requestPanelProps} />
+                            </div>
                         ) : mainTab === 'details' ? (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4">
-                                {isRequestTicket && <RequestFlowPanel slot="rail" {...requestPanelProps} />}
+                                {isRequestTicket && <RequestFlowPanel slot="details" {...requestPanelProps} />}
                                 <TicketSidebar
                                     ticket={ticket}
                                     agents={agents}

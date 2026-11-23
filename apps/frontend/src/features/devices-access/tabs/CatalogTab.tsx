@@ -1,3 +1,4 @@
+import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -26,10 +27,18 @@ export function CatalogTab() {
     const client = useQueryClient();
     const { data: items = [], isLoading, isError } = useQuery({ queryKey: KEY, queryFn: () => CatalogApi.list({ includeInactive: true }), staleTime: 60_000 });
     const [query, setQuery] = useState('');
+    const [category, setCategory] = useState('');
+    const categories = [...new Set(items.map((i) => i.category))].sort();
     const [status, setStatus] = useState('');
     const [editing, setEditing] = useState<{ item?: HardwareCatalog } | null>(null);
+    const [deleting, setDeleting] = useState<HardwareCatalog | null>(null);
     const refresh = () => { void client.invalidateQueries({ queryKey: ['catalog'] }); void client.invalidateQueries({ queryKey: KEY }); };
 
+    const remove = useMutation({
+        mutationFn: CatalogApi.remove,
+        onSuccess: () => { setDeleting(null); refresh(); },
+        onError: (err) => toast.error(getApiErrorMessage(err, 'Gagal menghapus barang')),
+    });
     const toggle = useMutation({ mutationFn: ({ id, active }: { id: string; active: boolean }) => CatalogApi.update(id, { active }), onSuccess: refresh });
     const save = useMutation({
         mutationFn: ({ id, draft }: { id?: string; draft: CatalogDraft }) => (id ? CatalogApi.update(id, toPayload(draft)) : CatalogApi.create(toPayload(draft))),
@@ -37,8 +46,8 @@ export function CatalogTab() {
     });
 
     const shown = useMemo(() => items
-        .filter((i) => (status === '' || String(i.active) === status) && (!query || `${i.code} ${i.name}`.toLowerCase().includes(query.toLowerCase())))
-        .sort((a, b) => a.displayOrder - b.displayOrder), [items, status, query]);
+        .filter((i) => (!category || i.category === category) && (status === '' || String(i.active) === status) && (!query || `${i.code} ${i.name}`.toLowerCase().includes(query.toLowerCase())))
+        .sort((a, b) => a.displayOrder - b.displayOrder), [items, status, query, category]);
     const hidden = items.filter((i) => !i.active).length;
     const nextOrder = items.reduce((max, i) => Math.max(max, i.displayOrder), 0) + ORDER_STEP;
     const blank: CatalogDraft = { code: '', name: '', category: 'LAPTOP', spec: '', active: true, displayOrder: nextOrder, fields: [] };
@@ -53,6 +62,10 @@ export function CatalogTab() {
             </div>
             <div className="da-filters">
                 <label className="da-field"><Search aria-hidden="true" /><input aria-label="Cari barang" placeholder="Cari kode atau nama barang" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+                <select aria-label="Filter kategori" value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <option value="">Semua kategori</option>
+                    {categories.map((value) => <option key={value}>{value}</option>)}
+                </select>
                 <select aria-label="Filter status" value={status} onChange={(e) => setStatus(e.target.value)}>
                     <option value="">Semua status</option><option value="true">Tampil di form</option><option value="false">Disembunyikan</option>
                 </select>
@@ -75,11 +88,16 @@ export function CatalogTab() {
                             type="button" role="switch" aria-checked={item.active} aria-label={`Tampil di form: ${item.name}`} className={`da-sw ${item.active ? 'is-on' : ''}`}
                             onClick={() => toggle.mutate({ id: item.id, active: !item.active }, { onError: (err) => toast.error(getApiErrorMessage(err, 'Gagal mengubah')) })}
                         ><i /></button>
-                        <div className="da-row__acts"><button type="button" className="req-btn" aria-label={`Ubah ${item.name}`} onClick={() => setEditing({ item })}>Ubah</button></div>
+                        <div className="da-row__acts"><button type="button" className="req-btn" aria-label={`Ubah ${item.name}`} onClick={() => setEditing({ item })}>Ubah</button><button type="button" className="req-btn" aria-label={`Hapus ${item.name}`} onClick={() => setDeleting(item)}>Hapus</button></div>
                     </li>
                 ))}
             </ul>
             </div>
+            <ConfirmationDialog isOpen={Boolean(deleting)} title="Hapus barang dari katalog?"
+                description={`${deleting?.name ?? ''} tidak akan tersedia untuk pengajuan baru.`}
+                variant="destructive" appearance="ticket" confirmText="Hapus barang" cancelText="Batal"
+                isLoading={remove.isPending} onCancel={() => setDeleting(null)}
+                onConfirm={() => { if (deleting) remove.mutate(deleting.id); }} />
             {editing && (
                 <CatalogEditDialog
                     open onClose={() => setEditing(null)} initial={editing.item ? toDraft(editing.item) : blank} editingId={editing.item?.id}

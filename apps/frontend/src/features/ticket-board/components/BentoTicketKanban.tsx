@@ -1,3 +1,4 @@
+import { requestKindFromParam, requestKindToParam, type RequestKindFilter } from './request-flow/requestKind';
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSocket } from '@/lib/socket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -383,12 +384,20 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     queue: propQueue,
 }) => {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const { user } = useAuth();
 
     const effectiveQueue: KanbanQueue = propQueue || (searchParams.get('queue') as KanbanQueue) || 'it-support';
     const config = QUEUE_CONFIG[effectiveQueue] || QUEUE_CONFIG['it-support'];
+    const requestKind = effectiveQueue === 'it-support' ? requestKindFromParam(searchParams.get('type')) : '';
+    const kanbanKey = ['tickets', 'kanban', effectiveQueue, requestKind] as const;
+    const setKind = (value: string) => setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        const type = requestKindToParam(value === 'ALL' ? '' : value as RequestKindFilter);
+        if (type) next.set('type', type); else next.delete('type');
+        return next;
+    });
 
     const [collapsedColumns, setCollapsedColumns] = useState<string[]>([]);
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -407,10 +416,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
     // The parent page's ticket socket invalidates ['tickets']; poll only while it is down.
     const { isConnected } = useSocket();
     const { data: tickets = [], isLoading } = useQuery<Ticket[]>({
-        queryKey: ['tickets', 'kanban', effectiveQueue],
+        queryKey: kanbanKey,
         queryFn: async () => {
             const res = await api.get('/tickets', {
-                params: { queue: effectiveQueue },
+                params: { queue: effectiveQueue, ...(requestKind ? { requestKind } : {}) },
             });
             return res.data;
         },
@@ -440,10 +449,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             await api.patch(`/tickets/${id}/status`, { status, ...takeover }, { skipToast: true });
         },
         onMutate: async ({ id, status }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
+            await queryClient.cancelQueries({ queryKey: kanbanKey });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(kanbanKey);
 
-            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
+            queryClient.setQueryData<Ticket[]>(kanbanKey, (old) =>
                 old?.map(t => t.id === id ? { ...t, status: status as Ticket['status'] } : t) ?? []
             );
 
@@ -454,7 +463,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             return { previousTickets };
         },
         onError: (err, variables, context) => {
-            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
+            queryClient.setQueryData(kanbanKey, context?.previousTickets);
             if (!isHandledByTakeoverDialog(err, variables.takeover)) toast.error(getApiErrorMessage(err, 'Gagal memperbarui status'));
         },
         onSettled: () => {
@@ -478,10 +487,10 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             await api.patch(`/tickets/${id}/priority`, { priority });
         },
         onMutate: async ({ id, priority }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
+            await queryClient.cancelQueries({ queryKey: kanbanKey });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(kanbanKey);
 
-            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
+            queryClient.setQueryData<Ticket[]>(kanbanKey, (old) =>
                 old?.map(t => t.id === id ? { ...t, priority: priority as Ticket['priority'] } : t) ?? []
             );
 
@@ -492,7 +501,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
+            queryClient.setQueryData(kanbanKey, context?.previousTickets);
             toast.error('Gagal memperbarui prioritas');
         },
         onSettled: () => {
@@ -511,11 +520,11 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             await api.patch(`/tickets/${id}/assign`, { assigneeId: assigneeId || undefined, reason });
         },
         onMutate: async ({ id, assigneeId }) => {
-            await queryClient.cancelQueries({ queryKey: ['tickets', 'kanban', effectiveQueue] });
-            const previousTickets = queryClient.getQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue]);
+            await queryClient.cancelQueries({ queryKey: kanbanKey });
+            const previousTickets = queryClient.getQueryData<Ticket[]>(kanbanKey);
             const assignee = assigneeId ? agents.find(a => a.id === assigneeId) || null : null;
 
-            queryClient.setQueryData<Ticket[]>(['tickets', 'kanban', effectiveQueue], (old) =>
+            queryClient.setQueryData<Ticket[]>(kanbanKey, (old) =>
                 old?.map(t => t.id === id ? { ...t, assignedTo: assignee || undefined } : t) ?? []
             );
 
@@ -526,7 +535,7 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
             return { previousTickets };
         },
         onError: (_, __, context) => {
-            queryClient.setQueryData(['tickets', 'kanban', effectiveQueue], context?.previousTickets);
+            queryClient.setQueryData(kanbanKey, context?.previousTickets);
             toast.error('Gagal menugaskan agent');
         },
         onSettled: () => {
@@ -653,6 +662,8 @@ export const BentoTicketKanban: React.FC<BentoTicketKanbanProps> = ({
 
             {/* Toolbar (mockup kanban.html = list.html .filters): search + filter pops */}
             <QueueFilterBar id="kanban-ticket-search" search={searchQuery} onSearch={setSearchQuery}>
+                {effectiveQueue === 'it-support' && <CustomDropdown value={requestKind} onChange={setKind} placeholder="Semua" filterKey="Tipe"
+                    options={[{ value: 'ALL', label: 'Semua' }, { value: 'IT', label: 'IT Support' }, { value: 'HARDWARE', label: 'Hardware Request' }, { value: 'EFORM', label: 'E-Form Request' }]} />}
                 <CustomDropdown value={priorityFilter} onChange={setPriorityFilter}
                     placeholder="Semua" filterKey="Prioritas" options={PRIORITY_FILTER_OPTIONS} />
                 <CustomDropdown value={attention}

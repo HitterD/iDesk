@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { RequestTypeTag } from '@/features/ticket-board/components/request-flow/RequestTypeTag';
 
 export interface TicketTypeCardProps {
     title: string;
+    requestKind?: 'HARDWARE' | 'EFORM';
     description: string;
     mascotImg: string;
     mascotAlt: string;
@@ -15,10 +17,10 @@ export interface TicketTypeCardProps {
  * even when pointerdown and pointerup land on different children; the action button stays
  * the keyboard/screen-reader entry and its click bubbles to the card (one call).
  */
-export function TicketTypeCard({ title, description, mascotImg, mascotAlt, ctaLabel, onSelect }: TicketTypeCardProps) {
+export function TicketTypeCard({ title, description, mascotImg, mascotAlt, ctaLabel, onSelect, requestKind }: TicketTypeCardProps) {
     return (
         <article className="ct-card" onClick={onSelect}>
-            <h3>{title}</h3>
+            <h3>{title}{requestKind && <> <RequestTypeTag kind={requestKind} /></>}</h3>
             <img src={mascotImg} alt={mascotAlt} loading="lazy" draggable={false} />
             <p>{description}</p>
             <button type="button" className="ct-link" aria-label={`Pilih ${title}`}>

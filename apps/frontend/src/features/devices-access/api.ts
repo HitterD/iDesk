@@ -35,7 +35,8 @@ export const useAccessView = (group: AccessGroup, enabled = true) => useQuery<Ac
     staleTime: STALE_MS,
 });
 
-export const useScheduleWeek = (weekStart: string) => useQuery<ScheduleWeek>({
+export const useScheduleWeek = (weekStart: string, enabled = true) => useQuery<ScheduleWeek>({
+    enabled,
     queryKey: ['devices-access', 'schedule', weekStart],
     queryFn: async () => (await api.get('/request-flow/center/schedule', { params: { weekStart } })).data,
     staleTime: STALE_MS,
