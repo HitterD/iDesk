@@ -19,6 +19,8 @@ export interface BackfillResult { created: number; linked: number; skipped: numb
 
 const DIVISION_FALLBACK = 'GEN';
 const FIRST_REVISION = { version: 1, kind: 'GEN', label: 'Dibuat dari data lama' } as const;
+/** The old hardware flow had IT review and approve; nobody signed as manager, so IT picks the route on the ticket. */
+const HARDWARE_ROUTE_PENDING: ReadonlyArray<string> = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW];
 const NOT_STARTED: ReadonlyArray<string> = [RequestStatus.DRAFT, RequestStatus.CANCELLED];
 
 /** Justification prefixes the old hardware form wrote for its request type. */
@@ -57,6 +59,8 @@ export const BACKFILL_SQL = {
     selectEform: `SELECT r."id", r."formType"::text AS "formType", r."documentNumber", r."requesterId", r."siteId",
         COALESCE(r."formData"->>'alasan', r."networkPurpose") AS "reason", r."requiresGm", r."status"::text AS "status",
         r."sourceTicketId", r."createdAt", COALESCE(r."resolvedAt", r."updatedAt") AS "doneAt",
+        (SELECT a."approverId"::text FROM "eform_approvals" a WHERE a."eformRequestId" = r."id" AND a."role" = 'MANAGER' ORDER BY a."sequence" ASC LIMIT 1) AS "managerId",
+        r."gmApproverId"::text AS "gmId",
         d."code" AS "deptCode", d."name" AS "deptName", u."siteId" AS "userSiteId", t."id" IS NOT NULL AS "sourceTicketExists"
         FROM "eform_requests" r${REQUESTER_JOINS}
         ORDER BY r."createdAt" ASC`,
@@ -73,8 +77,17 @@ export const BACKFILL_SQL = {
         RETURNING t."id"`,
     linkHardware: `UPDATE "hardware_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
     linkEform: `UPDATE "eform_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
-    insertFlow: `INSERT INTO "request_flows" ("ticketId", "kind", "hardwareRequestId", "eformRequestId", "route", "hardwareSource")
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING "id"`,
+    insertFlow: `INSERT INTO "request_flows" ("ticketId", "kind", "hardwareRequestId", "eformRequestId", "route", "hardwareSource", "managerId", "gmId")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`,
+    /**
+     * The old pages proposed ONE time (status PROPOSED, start and end set, no slot list) and the requester confirmed it.
+     * The ticket page offers slots to pick from, so such a schedule becomes a one-slot proposal awaiting the requester.
+     */
+    convertLegacySchedules: `UPDATE "installation_schedules" s
+        SET "status" = 'PROPOSED_AWAITING_USER',
+            "proposedSlots" = jsonb_build_array(jsonb_build_object('start', to_jsonb(s."scheduledStart"), 'end', to_jsonb(s."scheduledEnd")))
+        WHERE s."status"::text = 'PROPOSED' AND s."proposedSlots" IS NULL AND s."scheduledStart" IS NOT NULL AND s."scheduledEnd" IS NOT NULL
+        AND s."requestId" IN (SELECT f."hardwareRequestId" FROM "request_flows" f WHERE f."hardwareRequestId" IS NOT NULL)`,
     insertRevision: `INSERT INTO "request_document_revisions" ("flowId", "version", "kind", "label") VALUES ($1, $2, $3, $4)`,
 } as const;
 
@@ -92,7 +105,11 @@ interface RequesterRow {
     userSiteId: string | null;
 }
 interface HardwareRow extends RequesterRow { requestNumber: string; justification: string | null }
-interface EformRow extends RequesterRow { formType: EFormType; documentNumber: string | null; reason: string | null; requiresGm: boolean }
+interface EformRow extends RequesterRow {
+    formType: EFormType; documentNumber: string | null; reason: string | null; requiresGm: boolean;
+    /** Who was asked to sign (from the old approval rows and the chosen GM): without them nobody could sign on the ticket. */
+    managerId: string | null; gmId: string | null;
+}
 
 /** What a legacy request becomes: its ticket fields and its flow. */
 interface Plan {
@@ -101,8 +118,11 @@ interface Plan {
     title: string;
     description: string;
     status: TicketStatus;
-    route: ApprovalRoute;
+    /** Null while IT still has to choose it (hardware not yet approved). */
+    route: ApprovalRoute | null;
     hardwareSource: HardwareSource | null;
+    managerId: string | null;
+    gmId: string | null;
 }
 
 export function hardwareSourceOf(justification: string | null): HardwareSource | null {
@@ -115,13 +135,16 @@ function hardwarePlan(row: HardwareRow): Plan {
     return {
         kind: 'HARDWARE', row, title, description: row.justification || title,
         status: HARDWARE_TICKET_STATUS[row.status as RequestStatus] ?? TicketStatus.IN_PROGRESS,
-        route: 'MANAGER', hardwareSource: hardwareSourceOf(row.justification),
+        route: HARDWARE_ROUTE_PENDING.includes(row.status) ? null : 'MANAGER', hardwareSource: hardwareSourceOf(row.justification),
+        managerId: null, gmId: null,
     };
 }
 
 function eformRoute(row: EformRow): ApprovalRoute {
     if (row.requiresGm) return 'MANAGER_GM';
-    return row.formType === EFormType.SYNOLOGY_NAS ? 'NONE' : 'MANAGER';
+    // Filed straight to IT (no manager was ever asked): nobody has to approve.
+    if (row.formType === EFormType.SYNOLOGY_NAS || !row.managerId) return 'NONE';
+    return 'MANAGER';
 }
 
 function eformPlan(row: EformRow): Plan {
@@ -130,7 +153,7 @@ function eformPlan(row: EformRow): Plan {
     return {
         kind: 'EFORM', row, title, description: row.reason || title,
         status: EFORM_TICKET_STATUS[row.status as EFormStatus] ?? TicketStatus.IN_PROGRESS,
-        route: eformRoute(row), hardwareSource: null,
+        route: eformRoute(row), hardwareSource: null, managerId: row.managerId ?? null, gmId: row.gmId ?? null,
     };
 }
 
@@ -138,6 +161,7 @@ async function insertFlow(manager: EntityManager, ticketId: string, plan: Plan):
     const isHardware = plan.kind === 'HARDWARE';
     const [flow]: { id: string }[] = await manager.query(BACKFILL_SQL.insertFlow, [
         ticketId, plan.kind, isHardware ? plan.row.id : null, isHardware ? null : plan.row.id, plan.route, plan.hardwareSource,
+        plan.managerId, plan.gmId,
     ]);
     await manager.query(BACKFILL_SQL.insertRevision, [flow.id, FIRST_REVISION.version, FIRST_REVISION.kind, FIRST_REVISION.label]);
 }
@@ -195,6 +219,7 @@ export async function backfillRequestFlows(manager: EntityManager, now: Date = n
             result.skipped += 1;
         }
     }
+    await manager.query(BACKFILL_SQL.convertLegacySchedules);
     await manager.query(BACKFILL_SQL.repairAwaitingConfirmation);
     return result;
 }

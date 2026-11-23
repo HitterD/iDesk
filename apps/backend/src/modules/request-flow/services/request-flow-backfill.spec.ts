@@ -11,6 +11,7 @@ function fakeDb() {
         tickets: [] as any[],
         flows: [] as any[],
         revisions: [] as any[],
+        scheduleConversions: 0,
     };
     let seq = 0;
     const query = jest.fn(async (sql: string, params: any[] = []) => {
@@ -45,11 +46,12 @@ function fakeDb() {
                 db.eform.find((r) => r.id === params[1]).sourceTicketId = params[0];
                 return [];
             case BACKFILL_SQL.insertFlow: {
-                const [ticketId, kind, hardwareRequestId, eformRequestId, route, hardwareSource] = params;
-                const row = { id: `flow-${++seq}`, ticketId, kind, hardwareRequestId, eformRequestId, route, hardwareSource };
+                const [ticketId, kind, hardwareRequestId, eformRequestId, route, hardwareSource, managerId, gmId] = params;
+                const row = { id: `flow-${++seq}`, ticketId, kind, hardwareRequestId, eformRequestId, route, hardwareSource, managerId, gmId };
                 db.flows.push(row);
                 return [{ id: row.id }];
             }
+            case BACKFILL_SQL.convertLegacySchedules: { db.scheduleConversions += 1; return []; }
             case BACKFILL_SQL.insertRevision: {
                 const [flowId, version, kind, label] = params;
                 db.revisions.push({ flowId, version, kind, label });
@@ -72,7 +74,7 @@ const eform = (over: Partial<any> = {}) => ({
     id: 'ef-1', formType: EFormType.VPN, documentNumber: 'F/ICT/04/0007', requesterId: 'user-2', siteId: 'site-2',
     reason: 'Kerja dari rumah', requiresGm: false, status: EFormStatus.PENDING_MANAGER, sourceTicketId: null,
     createdAt: new Date(2026, 9, 7, 9), doneAt: new Date(2026, 9, 8, 9), sourceTicketExists: true,
-    deptCode: 'ACC', deptName: 'Accounting', userSiteId: 'site-2', ...over,
+    deptCode: 'ACC', deptName: 'Accounting', userSiteId: 'site-2', managerId: 'mgr-1', gmId: null, ...over,
 });
 
 describe('backfillRequestFlows', () => {
@@ -111,7 +113,7 @@ describe('backfillRequestFlows', () => {
         expect(db.hardware[0].sourceTicketId).toBe(db.tickets[0].id);
         expect(db.flows[0]).toEqual(expect.objectContaining({
             ticketId: db.tickets[0].id, kind: 'HARDWARE', hardwareRequestId: 'hr-1', eformRequestId: null,
-            route: 'MANAGER', hardwareSource: 'NON_BUDGET',
+            route: null, hardwareSource: 'NON_BUDGET',
         }));
         expect(db.revisions).toEqual([{ flowId: db.flows[0].id, version: 1, kind: 'GEN', label: 'Dibuat dari data lama' }]);
     });
@@ -256,4 +258,45 @@ describe('backfillRequestFlows', () => {
         expect(BACKFILL_SQL.selectHardware).toContain('d."id"::text = u."departmentId"::text');
         expect(BACKFILL_SQL.selectEform).toContain('d."id"::text = u."departmentId"::text');
     });
+
+describe('backfillRequestFlows: requests that are mid-way when the migration runs', () => {
+    const flowOf = async (kind: 'hardware' | 'eform', row: any) => {
+        const { db, manager } = fakeDb();
+        db[kind].push(row);
+        await backfillRequestFlows(manager);
+        return db.flows[0];
+    };
+
+    it('an e-form waiting for its manager keeps that manager, so somebody can still sign it', async () => {
+        const flow = await flowOf('eform', eform({ status: EFormStatus.PENDING_MANAGER, managerId: 'mgr-7' }));
+        expect(flow).toEqual(expect.objectContaining({ route: 'MANAGER', managerId: 'mgr-7', gmId: null }));
+    });
+
+    it('an e-form waiting for its GM keeps both signers', async () => {
+        const flow = await flowOf('eform', eform({ status: EFormStatus.PENDING_GM, requiresGm: true, managerId: 'mgr-7', gmId: 'gm-3' }));
+        expect(flow).toEqual(expect.objectContaining({ route: 'MANAGER_GM', managerId: 'mgr-7', gmId: 'gm-3' }));
+    });
+
+    it('an e-form nobody had to approve (filed straight to IT) has no approval route', async () => {
+        const flow = await flowOf('eform', eform({ status: EFormStatus.PENDING_ICT, managerId: null }));
+        expect(flow.route).toBe('NONE');
+    });
+
+    it.each([RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW])('hardware that is %s has no route yet: IT picks it, instead of waiting for a manager nobody named', async (status) => {
+        const flow = await flowOf('hardware', hardware({ status }));
+        expect(flow.route).toBeNull();
+    });
+
+    it.each([RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION, RequestStatus.COMPLETED])('hardware that is already %s keeps the plain route', async (status) => {
+        const flow = await flowOf('hardware', hardware({ status }));
+        expect(flow.route).toBe('MANAGER');
+    });
+
+    it('converts the schedules the old pages left half-agreed, once, after the flows exist', async () => {
+        const { db, manager } = fakeDb();
+        db.hardware.push(hardware({ status: RequestStatus.INSTALLATION }));
+        await backfillRequestFlows(manager);
+        expect(db.scheduleConversions).toBe(1);
+    });
+});
 });
