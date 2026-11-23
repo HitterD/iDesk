@@ -102,6 +102,11 @@ export class RequestFulfillFlowService {
 
         const row = await this.dataSource.manager.findOne(EFormCredential, { where: { eformRequestId: eform.id } });
         if (!row) throw new NotFoundException(MESSAGES.notReady);
+        // The read is written to the audit trail first: if that fails, nothing is decrypted or disclosed.
+        await this.audit.log({
+            userId: actor.userId, action: AuditAction.CREDENTIALS_VIEWED, entityType: 'EFormRequest', entityId: eform.id,
+            description: 'Viewed E-Form credentials',
+        });
         const view: CredentialsView = {
             username: this.credentialCrypto.decrypt(row.encryptedUsername, row.iv, row.authTag),
             password: this.credentialCrypto.decrypt(row.encryptedPassword, row.passwordIv, row.passwordAuthTag),
@@ -109,10 +114,6 @@ export class RequestFulfillFlowService {
             note: row.notes ?? '',
             provisionedAt: row.provisionedAt,
         };
-        this.audit.logAsync({
-            userId: actor.userId, action: AuditAction.CREDENTIALS_VIEWED, entityType: 'EFormRequest', entityId: eform.id,
-            description: 'Viewed E-Form credentials',
-        });
         return view;
     }
 

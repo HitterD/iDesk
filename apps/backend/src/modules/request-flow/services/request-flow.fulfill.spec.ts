@@ -43,7 +43,7 @@ function setup(ctx: FlowContext, credentialRow: Record<string, unknown> | null =
     const documents = { bump: jest.fn(async () => 4) };
     const stepper = { tell: jest.fn(async () => undefined), tellWithin: jest.fn(async () => async () => undefined) };
     const notifier = { tellRequester: jest.fn(async () => undefined) };
-    const audit = { logAsync: jest.fn() };
+    const audit = { logAsync: jest.fn(), log: jest.fn(async (_row: unknown) => undefined) };
     const service = new RequestFulfillFlowService(dataSource as never, reader as never, credentials as never, documents as never, stepper as never, notifier as never, audit as never);
     return { service, manager, credentials, documents, stepper, notifier, audit };
 }
@@ -161,7 +161,7 @@ describe('RequestFulfillFlowService.credentials', () => {
         const { service, credentials, audit } = setup(context(), ROW);
         await expect(service.credentials({ ...IT, userId: 'mgr-1', role: UserRole.MANAGER }, TID)).rejects.toBeInstanceOf(ForbiddenException);
         expect(credentials.decrypt).not.toHaveBeenCalled();
-        expect(audit.logAsync).not.toHaveBeenCalled();
+        expect(audit.log).not.toHaveBeenCalled();
     });
 
     it('an AGENT, another requester and ICT of another site are refused before any decryption', async () => {
@@ -176,11 +176,17 @@ describe('RequestFulfillFlowService.credentials', () => {
         }
     });
 
+    it('a credential read is audited before it is disclosed: no audit, no secrets', async () => {
+        const { service, audit } = setup(context(), ROW);
+        audit.log.mockRejectedValueOnce(new Error('audit down'));
+        await expect(service.credentials(REQUESTER, TID)).rejects.toThrow('audit down');
+    });
+
     it('credential reads are logged, without the secrets', async () => {
         const { service, audit } = setup(context(), ROW);
         await service.credentials(REQUESTER, TID);
-        expect(audit.logAsync).toHaveBeenCalledTimes(1);
-        const row = audit.logAsync.mock.calls[0][0];
+        expect(audit.log).toHaveBeenCalledTimes(1);
+        const row = audit.log.mock.calls[0][0];
         expect(row).toMatchObject({ userId: 'req-1', action: AuditAction.CREDENTIALS_VIEWED, entityType: 'EFormRequest', entityId: 'ef-1' });
         expect(JSON.stringify(row)).not.toMatch(/S3cret|leony\.r|enc\(/);
     });
