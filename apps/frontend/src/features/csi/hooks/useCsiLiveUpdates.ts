@@ -7,6 +7,8 @@ import type { CsiScopeParam } from '../types';
 
 /** Fallback polling interval when WebSocket live push is disconnected. */
 export const CSI_LIVE_FALLBACK_POLL_MS = 15_000;
+/** Wait before reconnecting after the server dropped the socket (e.g. expired cookie before refresh). */
+export const CSI_SERVER_DISCONNECT_RETRY_MS = 3000;
 
 interface CsiUpdatedPayload {
     scope?: string;
@@ -15,12 +17,27 @@ interface CsiUpdatedPayload {
 
 const CsiLiveContext = createContext<boolean | undefined>(undefined);
 
+/** Strip REST base suffixes (`/api`, `/v1`) so Socket.IO connects to the `/csi` namespace at server origin. */
+export function resolveCsiSocketOrigin(rawUrl: string = SOCKET_URL): string {
+    return rawUrl
+        .replace(/\/v1\/?$/, '')
+        .replace(/\/api\/?$/, '')
+        .replace(/\/+$/, '');
+}
+
 let csiSocket: Socket | null = null;
+let hadSocketDrop = false;
+
 function getCsiSocket(): Socket {
     if (!csiSocket) {
-        csiSocket = io(`${SOCKET_URL}/csi`, {
+        csiSocket = io(`${resolveCsiSocketOrigin()}/csi`, {
             withCredentials: true,
-            transports: ['websocket'],
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 10000,
         });
     }
     return csiSocket;
@@ -29,6 +46,7 @@ function getCsiSocket(): Socket {
 export function resetCsiLiveSocketForTests() {
     csiSocket?.disconnect();
     csiSocket = null;
+    hadSocketDrop = false;
 }
 
 /**
@@ -43,7 +61,7 @@ export function useCsiLiveUpdates(scope: CsiScopeParam): boolean {
     useEffect(() => {
         if (!qc) return;
         const socket = getCsiSocket();
-        let hadDisconnect = false;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
         const invalidateScopeQueries = (periodId?: string | null) => {
             qc.invalidateQueries({ queryKey: queryKeys.csi.dashboard(scope) });
@@ -68,16 +86,29 @@ export function useCsiLiveUpdates(scope: CsiScopeParam): boolean {
         };
 
         const onConnect = () => {
+            clearTimeout(retryTimer);
             setConnected(true);
             subscribe();
-            if (hadDisconnect) {
-                hadDisconnect = false;
+            if (hadSocketDrop) {
+                hadSocketDrop = false;
                 invalidateScopeQueries();
             }
         };
 
-        const onDisconnect = () => {
-            hadDisconnect = true;
+        const onDisconnect = (reason?: string) => {
+            hadSocketDrop = true;
+            setConnected(false);
+            // socket.io never reconnects on its own after a server-side disconnect (e.g. expired cookie).
+            if (reason === 'io server disconnect') {
+                clearTimeout(retryTimer);
+                retryTimer = setTimeout(() => {
+                    socket.connect?.();
+                }, CSI_SERVER_DISCONNECT_RETRY_MS);
+            }
+        };
+
+        const onConnectError = () => {
+            hadSocketDrop = true;
             setConnected(false);
         };
 
@@ -88,15 +119,24 @@ export function useCsiLiveUpdates(scope: CsiScopeParam): boolean {
 
         socket.on('connect', onConnect);
         socket.on('disconnect', onDisconnect);
+        socket.on('connect_error', onConnectError);
         socket.on('csi:updated', onUpdated);
         if (socket.connected) {
+            setConnected(true);
             subscribe();
+        } else {
+            setConnected(false);
+            if (typeof socket.connect === 'function' && (socket as { active?: boolean }).active === false) {
+                socket.connect();
+            }
         }
 
         return () => {
+            clearTimeout(retryTimer);
             socket.emit('csi:unsubscribe', { scope });
             socket.off('connect', onConnect);
             socket.off('disconnect', onDisconnect);
+            socket.off('connect_error', onConnectError);
             socket.off('csi:updated', onUpdated);
         };
     }, [qc, scope]);

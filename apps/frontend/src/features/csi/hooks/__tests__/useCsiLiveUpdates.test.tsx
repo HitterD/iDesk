@@ -3,8 +3,10 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     CSI_LIVE_FALLBACK_POLL_MS,
+    CSI_SERVER_DISCONNECT_RETRY_MS,
     CsiLiveProvider,
     resetCsiLiveSocketForTests,
+    resolveCsiSocketOrigin,
     useCsiLiveStatus,
     useCsiPollingFallback,
 } from '../useCsiLiveUpdates';
@@ -15,6 +17,8 @@ const socketMock = vi.hoisted(() => {
     const listeners = new Map<string, Set<Listener>>();
     const instance = {
         connected: false,
+        active: true,
+        connect: vi.fn(),
         emit: vi.fn(),
         on: vi.fn((event: string, fn: Listener) => {
             if (!listeners.has(event)) listeners.set(event, new Set());
@@ -36,6 +40,7 @@ const socketMock = vi.hoisted(() => {
         reset() {
             listeners.clear();
             instance.connected = false;
+            instance.active = true;
             vi.clearAllMocks();
         },
     };
@@ -124,5 +129,56 @@ describe('useCsiLiveUpdates', () => {
         );
         expect(screen.getByTestId('live')).toHaveTextContent('OFFLINE');
         expect(screen.getByTestId('poll')).toHaveTextContent('false');
+    });
+
+    it('strips /api and /v1 suffixes when resolving the /csi socket origin', () => {
+        expect(resolveCsiSocketOrigin('https://idesk.santos.co.id/api/v1')).toBe('https://idesk.santos.co.id');
+        expect(resolveCsiSocketOrigin('https://idesk.santos.co.id/api/')).toBe('https://idesk.santos.co.id');
+        expect(resolveCsiSocketOrigin('/api')).toBe('');
+        expect(resolveCsiSocketOrigin('http://localhost:5050/')).toBe('http://localhost:5050');
+    });
+
+    it('reconnects after io server disconnect and invalidates stale scope queries on recovery', () => {
+        vi.useFakeTimers();
+        try {
+            const qc = new QueryClient();
+            const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+
+            render(
+                <QueryClientProvider client={qc}>
+                    <CsiLiveProvider scope="hc">
+                        <Probe />
+                    </CsiLiveProvider>
+                </QueryClientProvider>,
+            );
+
+            act(() => {
+                socketMock.instance.connected = true;
+                socketMock.trigger('connect');
+            });
+            invalidateSpy.mockClear();
+
+            act(() => {
+                socketMock.instance.connected = false;
+                socketMock.trigger('disconnect', 'io server disconnect');
+            });
+            expect(screen.getByTestId('live')).toHaveTextContent('OFFLINE');
+            expect(socketMock.instance.connect).not.toHaveBeenCalled();
+
+            act(() => {
+                vi.advanceTimersByTime(CSI_SERVER_DISCONNECT_RETRY_MS);
+            });
+            expect(socketMock.instance.connect).toHaveBeenCalledTimes(1);
+
+            act(() => {
+                socketMock.instance.connected = true;
+                socketMock.trigger('connect');
+            });
+            expect(screen.getByTestId('live')).toHaveTextContent('LIVE');
+            expect(invalidateSpy.mock.calls.map(([arg]) => JSON.stringify(arg?.queryKey)))
+                .toContain(JSON.stringify(['csi', 'hc', 'dashboard']));
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
