@@ -30,6 +30,7 @@ describe('MutualSchedulingService', () => {
 
     mockDataSource = {
       transaction: jest.fn(async (cb) => cb({
+        query: jest.fn(async () => []),
         getRepository: (e: any) => {
           if (e === HardwareRequestItem) return itemRepoMock;
           if (e === HardwareRequest) return reqRepoMock;

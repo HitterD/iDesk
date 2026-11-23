@@ -1,9 +1,10 @@
+import { createHash } from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
-import { NotificationType } from '../../notifications/entities/notification.entity';
+import { Notification, NotificationType } from '../../notifications/entities/notification.entity';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { User } from '../../users/entities/user.entity';
 import { STEP_LABEL, type ApprovalStep } from '../domain/approval-phase';
@@ -17,6 +18,12 @@ const ASK_TYPE: Record<RequestKind, NotificationType> = {
     HARDWARE: NotificationType.HARDWARE_REQUEST_SUBMITTED,
     EFORM: NotificationType.EFORM_SUBMITTED,
 };
+
+/** The same notice (recipient, kind, text, document version) always maps to the same id, so a retry cannot store or mail it twice. */
+export function noticeId(ctx: FlowContext, userId: string, type: NotificationType, title: string): string {
+    const h = createHash('sha256').update([ctx.flow.id, ctx.flow.documentVersion, userId, type, title].join('|')).digest('hex');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
 
 /** In-app and email notices of the request flow. Failures are logged and never fail the step that caused them. */
 @Injectable()
@@ -48,13 +55,17 @@ export class RequestFlowNotifier {
 
     private async send(userId: string, type: NotificationType, title: string, message: string, ctx: FlowContext): Promise<void> {
         const link = `/tickets/${ctx.ticket.id}`;
+        const id = noticeId(ctx, userId, type, title);
+        let repeat = false;
         try {
-            await this.notifications.send({
-                userId, type, title, message, ticketId: ctx.ticket.id, referenceId: `${ctx.flow.id}_${ctx.flow.documentVersion}_${type}`, link,
+            repeat = await this.users.manager.exists(Notification, { where: { id } });
+            if (!repeat) await this.notifications.send({
+                id, userId, type, title, message, ticketId: ctx.ticket.id, referenceId: `${ctx.flow.id}_${ctx.flow.documentVersion}_${type}`, link,
             });
         } catch (err: any) {
             this.logger.error(`In-app notice for ticket ${ctx.ticket.id} failed: ${err?.message ?? err}`);
         }
+        if (repeat) return;
         try {
             const user = await this.users.findOne({ where: { id: userId }, select: ['id', 'email'] });
             if (!user?.email) return;
