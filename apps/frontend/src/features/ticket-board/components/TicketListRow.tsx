@@ -32,6 +32,8 @@ import { VendorVisitDialog } from './ticket-detail/VendorVisitDialog';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { TicketRowActions } from './TicketRowActions';
+import { FlowPhaseLine } from './request-flow/FlowPhaseLine';
+import { RequestTypeTag } from './request-flow/RequestTypeTag';
 
 /** Created date in WIB like the rest of the app (SLA, timestamps), not the viewer's device zone. */
 const CREATED_SHORT = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short' });
@@ -59,6 +61,12 @@ export interface TicketRowData {
     scheduledDate?: string;
     scheduledTime?: string;
     isHardwareInstallation?: boolean;
+    /** Set on Hardware / E-Form request tickets (GET /tickets/paginated). */
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhase?: string | null;
+    flowPhaseLabel?: string | null;
+    flowPaused?: boolean;
+    needsMyAction?: boolean;
     device?: string;
     software?: string;
     ictBudgetRequestId?: string | null;
@@ -298,6 +306,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             </label>
                         )}
                         <span>#{displayNumber}</span>
+                        {ticket.requestKind && <RequestTypeTag kind={ticket.requestKind} />}
                         <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                         {ticket.site && <TicketPill tone="neutral" className="queue-src font-mono">{ticket.site.code}</TicketPill>}
                         {hardwareLink}
@@ -318,6 +327,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <StopPropagationWrapper>
                             <StatusDropdown value={ticket.status} onChange={handleStatusChange} disabled={!canEditStatus} />
                         </StopPropagationWrapper>
+                        <FlowPhaseLine ticket={ticket} />
                         {/* Mockup cards hide priority below 860px; kept on wider cards (tablet). */}
                         <StopPropagationWrapper className="queue-mcard-pri">
                             <PriorityDropdown value={ticket.priority} showCriticalIndicator={showCriticalIndicator}
@@ -398,6 +408,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     <div className="queue-tk">
                         <div className="queue-tk-id">
                             <span>#{displayNumber}</span>
+                            {ticket.requestKind && <RequestTypeTag kind={ticket.requestKind} />}
                             <ExternalSourceBadge source={ticket.source} externalSource={ticket.externalSource} />
                             {hardwareLink}
                             {ticket.isParticipant && (
@@ -435,13 +446,16 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                     </div>
                 )}
 
-                <StopPropagationWrapper>
-                    <StatusDropdown
-                        value={ticket.status}
-                        onChange={handleStatusChange}
-                        disabled={!canEditStatus}
-                    />
-                </StopPropagationWrapper>
+                <div className="queue-status-cell">
+                    <StopPropagationWrapper>
+                        <StatusDropdown
+                            value={ticket.status}
+                            onChange={handleStatusChange}
+                            disabled={!canEditStatus}
+                        />
+                    </StopPropagationWrapper>
+                    <FlowPhaseLine ticket={ticket} />
+                </div>
 
                 {/* Pemohon (mockup .person) */}
                 <div className="queue-person">

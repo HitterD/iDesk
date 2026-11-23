@@ -14,6 +14,27 @@ function useListWithLocation(resetOn?: unknown) {
     return { ...state, search: useLocation().search };
 }
 
+describe('useTicketListUrlState type filter', () => {
+    it('restores ?type= and writes it back, leaving other params alone', () => {
+        const { result } = renderHook(() => useListWithLocation(), { wrapper: wrapperAt('/tickets/list?type=eform&filter=assigned_to_me') });
+        expect(result.current.requestKind).toBe('EFORM');
+
+        act(() => result.current.setRequestKind('HARDWARE'));
+        let params = new URLSearchParams(result.current.search);
+        expect(params.get('type')).toBe('hardware');
+        expect(params.get('filter')).toBe('assigned_to_me');
+
+        act(() => result.current.setRequestKind(''));
+        params = new URLSearchParams(result.current.search);
+        expect(params.has('type')).toBe(false);
+    });
+
+    it('ignores an unknown ?type= value', () => {
+        const { result } = renderHook(() => useListWithLocation(), { wrapper: wrapperAt('/tickets/list?type=junk') });
+        expect(result.current.requestKind).toBe('');
+    });
+});
+
 describe('useTicketListUrlState', () => {
     it('restores filters and page from the URL, so Back lands on the same filtered view', () => {
         const { result } = renderHook(() => useListWithLocation(), {

@@ -2025,3 +2025,26 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
   /* Scroll-driven edge fade is not motion; a time duration would break its scroll mapping. */
   .portal-seg { animation-duration: auto !important; }
 }
+
+/* Request tickets: Hardware (orange) and E-Form (green) tags, same hues as the approved mockup. */
+:root {
+  --req-hw: 24 95% 53%; --req-hw-ink: 22 90% 36%; --req-hw-bg: 30 100% 95%; --req-hw-line: 28 90% 82%;
+  --req-ef: 158 70% 38%; --req-ef-ink: 160 80% 24%; --req-ef-bg: 152 60% 94%; --req-ef-line: 155 50% 76%;
+}
+.dark {
+  --req-hw-ink: 28 95% 72%; --req-hw-bg: 24 60% 16%; --req-hw-line: 24 50% 30%;
+  --req-ef-ink: 156 60% 70%; --req-ef-bg: 158 45% 14%; --req-ef-line: 158 40% 28%;
+}
+.req-tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 6px; border-radius: 7px; border: 1px solid; font-size: 11.5px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+.req-tag svg { width: 13px; height: 13px; stroke-width: 2.3; }
+.req-tag--hw { background: hsl(var(--req-hw-bg)); color: hsl(var(--req-hw-ink)); border-color: hsl(var(--req-hw-line)); }
+.req-tag--ef { background: hsl(var(--req-ef-bg)); color: hsl(var(--req-ef-ink)); border-color: hsl(var(--req-ef-line)); }
+.req-tag--lg { height: 30px; font-size: 13px; padding: 0 11px 0 8px; border-radius: 9px; }
+.req-tag--lg svg { width: 15px; height: 15px; }
+.queue-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.req-phase { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; line-height: 1.3; color: hsl(var(--muted-foreground)); }
+.req-phase__label { font-weight: 600; }
+.req-phase__pause { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; height: 18px; border-radius: 999px; background: hsl(38 95% 92%); color: hsl(30 90% 30%); font-weight: 700; }
+.req-phase__pause svg { width: 10px; height: 10px; }
+.req-phase__turn { padding: 0 7px; height: 18px; display: inline-flex; align-items: center; border-radius: 999px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-weight: 700; }
+.dark .req-phase__pause { background: hsl(38 60% 18%); color: hsl(38 95% 75%); }

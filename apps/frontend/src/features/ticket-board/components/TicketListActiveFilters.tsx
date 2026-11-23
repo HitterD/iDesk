@@ -2,6 +2,7 @@ import React from 'react';
 import { statusFilterLabel } from '../constants/statusFilters';
 import { X, UserCheck } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { REQUEST_KIND_META, type RequestKindFilter } from './request-flow/requestKind';
 
 interface TicketListActiveFiltersProps {
     overdueFilter?: boolean;
@@ -16,6 +17,9 @@ interface TicketListActiveFiltersProps {
     setSearchParams: ReturnType<typeof useSearchParams>[1];
     selectedSites: string[];
     setSelectedSites: (v: string[]) => void;
+    /** The "Tipe" filter (Hardware / E-Form / IT): shown as a chip when set. */
+    requestKind?: RequestKindFilter;
+    setRequestKind?: (v: RequestKindFilter) => void;
     clearFilters: () => void;
 }
 
@@ -32,15 +36,29 @@ export const TicketListActiveFilters: React.FC<TicketListActiveFiltersProps> = (
     setSearchParams,
     selectedSites,
     setSelectedSites,
+    requestKind,
+    setRequestKind,
     clearFilters
 }) => {
-    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || selectedSites.length > 0);
+    const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || overdueFilter || showAssignedToMe || selectedSites.length > 0 || requestKind);
 
     if (!hasActiveFilters) return null;
 
     return (
         <div className="flex flex-wrap items-center gap-2 animate-fade-in">
             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Active filters:</span>
+            {requestKind && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-xs font-medium group">
+                    Tipe: {requestKind === 'IT' ? 'IT Support' : REQUEST_KIND_META[requestKind].longLabel}
+                    <button
+                        onClick={() => setRequestKind?.('')}
+                        className="w-4 h-4 rounded-full bg-orange-200 dark:bg-orange-800 hover:bg-orange-300 dark:hover:bg-orange-700 flex items-center justify-center transition-colors"
+                        aria-label="Hapus filter Tipe"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </span>
+            )}
             {statusFilter && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium group">
                     Status: {statusFilterLabel(statusFilter)}
