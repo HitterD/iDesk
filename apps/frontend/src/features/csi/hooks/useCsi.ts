@@ -100,13 +100,15 @@ export function useRemoveCsiRater(scope: CsiScopeParam) {
 export function useCsiUserSearch(scope: CsiScopeParam, search: string) {
     return useQuery({ queryKey: keys.userSearch(scope, search), queryFn: () => CsiApi.userSearch(scope, search) });
 }
+const LIVE_QUERY_OPTIONS = { staleTime: 0, refetchOnMount: 'always' as const };
+
 export function useCsiPeriods(scope: CsiScopeParam, siteId?: string) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: keys.periods(scope, siteId), queryFn: () => CsiApi.periods(scope, siteId), refetchInterval });
+    return useQuery({ queryKey: keys.periods(scope, siteId), queryFn: () => CsiApi.periods(scope, siteId), refetchInterval, ...LIVE_QUERY_OPTIONS });
 }
 export function useCsiPeriod(scope: CsiScopeParam, id: string) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: keys.period(scope, id), queryFn: () => CsiApi.period(scope, id), enabled: !!id, refetchInterval });
+    return useQuery({ queryKey: keys.period(scope, id), queryFn: () => CsiApi.period(scope, id), enabled: !!id, refetchInterval, ...LIVE_QUERY_OPTIONS });
 }
 export function useCreateCsiPeriod(scope: CsiScopeParam) {
     return useCsiMutation((payload: CreateCsiPeriod) => CsiApi.createPeriod(scope, payload),
@@ -173,7 +175,7 @@ export function useUpdateCsiPeriodRatee(scope: CsiScopeParam, id: string) {
 }
 export function useCsiReport(scope: CsiScopeParam, id: string, siteId?: string) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id, refetchInterval });
+    return useQuery({ queryKey: keys.report(scope, id, siteId), queryFn: () => CsiApi.report(scope, id, siteId), enabled: !!id, refetchInterval, ...LIVE_QUERY_OPTIONS });
 }
 export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
     return useCsiMutation((payload: SendCsiReminders = {}) => CsiApi.sendReminders(scope, periodId, payload),
@@ -181,7 +183,7 @@ export function useSendCsiReminders(scope: CsiScopeParam, periodId: string) {
 }
 export function useCsiDashboard(scope: CsiScopeParam) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: keys.dashboard(scope), queryFn: () => CsiApi.dashboard(scope), refetchInterval });
+    return useQuery({ queryKey: keys.dashboard(scope), queryFn: () => CsiApi.dashboard(scope), refetchInterval, ...LIVE_QUERY_OPTIONS });
 }
 /** Dashboard reminders span several active periods, so the period comes with each call. */
 export function useSendCsiDashboardReminders(scope: CsiScopeParam) {
@@ -289,7 +291,7 @@ export function useApplyCsiAssignmentTemplate(scope: CsiScopeParam, periodId: st
 }
 export function useCsiRespondents(scope: CsiScopeParam, id: string) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: keys.respondents(scope, id), queryFn: () => CsiApi.respondents(scope, id), enabled: !!id, refetchInterval });
+    return useQuery({ queryKey: keys.respondents(scope, id), queryFn: () => CsiApi.respondents(scope, id), enabled: !!id, refetchInterval, ...LIVE_QUERY_OPTIONS });
 }
 export function useResetCsiResponse(scope: CsiScopeParam, id: string) {
     return useCsiMutation(({ responseId, reason }: ResetCsiResponse & { responseId: string }) =>
