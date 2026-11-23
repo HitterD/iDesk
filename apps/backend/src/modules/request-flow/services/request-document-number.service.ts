@@ -11,6 +11,7 @@ import { ActivityAction } from '../../hardware-request/domain/enums/activity-act
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
+import { RequestDocumentService } from './request-document.service';
 import { RequestFlowReader } from './request-flow-reader';
 import type { FlowActor } from './request-flow-review.service';
 
@@ -35,6 +36,7 @@ export class RequestDocumentNumberService {
         private readonly dataSource: DataSource,
         private readonly reader: RequestFlowReader,
         private readonly audit: AuditService,
+        private readonly documents: RequestDocumentService,
     ) {}
 
     async update(actor: FlowActor, ticketId: string, raw: string): Promise<{ documentNumber: string }> {
@@ -66,6 +68,8 @@ export class RequestDocumentNumberService {
                 throw err;
             }
 
+            // The number is printed on the document: a new number is a new version, so an old paper never matches it.
+            await this.documents.bump(ctx.flow.id, 'DIG', `Nomor dokumen diubah — ${value}`, actor.userId, manager);
             if (ctx.hardware) {
                 await manager.save(HardwareRequestActivity, manager.create(HardwareRequestActivity, {
                     requestId: id, actorId: actor.userId, action: ActivityAction.UPDATED,

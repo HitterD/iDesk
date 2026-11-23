@@ -35,11 +35,22 @@ function setup(ctx: FlowContext, taken = false) {
     const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)) };
     const reader = { load: jest.fn(async () => ctx) };
     const audit = { logAsync: jest.fn() };
-    const service = new RequestDocumentNumberService(dataSource as never, reader as never, audit as never);
-    return { service, manager, audit };
+    const documents = { bump: jest.fn(async () => 4) };
+    const service = new RequestDocumentNumberService(dataSource as never, reader as never, audit as never, documents as never);
+    return { service, manager, audit, documents };
 }
 
 describe('RequestDocumentNumberService.update', () => {
+    it('a new number advances the document version, in the same transaction; the same number does not', async () => {
+        const { service, manager, documents } = setup(context('EFORM'));
+        await service.update(IT, TID, 'F/ICT/04/0999');
+        expect(documents.bump).toHaveBeenCalledWith('flow-1', 'DIG', 'Nomor dokumen diubah — F/ICT/04/0999', 'it-1', manager);
+
+        documents.bump.mockClear();
+        await service.update(IT, TID, 'F/ICT/04/0120');
+        expect(documents.bump).not.toHaveBeenCalled();
+    });
+
     it('changes an e-form number and audits it', async () => {
         const { service, manager, audit } = setup(context('EFORM'));
         await expect(service.update(IT, TID, 'F/ICT/04/0999')).resolves.toEqual({ documentNumber: 'F/ICT/04/0999' });

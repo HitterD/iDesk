@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { RequestDocumentRevision } from '../entities/request-document-revision.entity';
 import { RequestFlow } from '../entities/request-flow.entity';
@@ -68,12 +68,18 @@ describe('RequestDocumentService.renderPdf', () => {
         await expect(service.renderPdf({ ...viewer, userId: 'x' }, 't-1')).rejects.toThrow(ForbiddenException);
     });
 
+    it('refuses a historical version: no snapshot is kept, so it would show current data under an old QR', async () => {
+        const { service } = setup();
+        await expect(service.renderPdf(viewer, 't-1', 2)).rejects.toThrow(ConflictException);
+        await expect(service.renderPdf(viewer, 't-1', 3)).resolves.toBeDefined();
+    });
+
     it('passes the QR text and version to the e-form PDF', async () => {
         const { service, ctx, eformPdf } = setup();
         Object.assign(ctx, { hardware: null, eform: { id: 'ef-1' } });
         (service as never as { eformRepo: unknown }).eformRepo = { findOne: jest.fn(async () => ({ id: 'ef-1' })) };
-        await service.renderPdf(viewer, 't-1', 2);
-        expect(eformPdf.generatePdf).toHaveBeenCalledWith({ id: 'ef-1' }, undefined, { qrText: '221126-QC-0035/v2', version: 2 });
+        await service.renderPdf(viewer, 't-1', 3);
+        expect(eformPdf.generatePdf).toHaveBeenCalledWith({ id: 'ef-1' }, undefined, { qrText: '221126-QC-0035/v3', version: 3 });
     });
 });
 

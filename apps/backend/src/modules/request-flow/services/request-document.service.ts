@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { EFormPdfService } from '../../eform-request/eform-pdf.service';
@@ -55,6 +55,8 @@ export class RequestDocumentService {
         if (version !== undefined && (!Number.isInteger(version) || version < 1 || version > latest)) {
             throw new BadRequestException(`Versi dokumen tidak ada (terbaru v${latest})`);
         }
+        // Only the latest version can be rendered faithfully: older ones have no stored snapshot of their data.
+        if (version !== undefined && version < latest) throw new ConflictException(`Versi v${version} sudah digantikan; unduh versi terbaru (v${latest})`);
         const n = version ?? latest;
         const buffer = ctx.hardware ? await this.hardwarePdf(ctx, n) : await this.eformDocument(ctx, n);
         return { buffer, fileName: `${ctx.ticket.ticketNumber}_v${n}.pdf` };
