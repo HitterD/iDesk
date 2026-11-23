@@ -32,7 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
-import { SignaturePad } from '../components/eform/SignaturePad';
+import { SignaturePad } from '@/components/ui/SignaturePad';
 import { ManagerSelector } from '../components/eform/ManagerSelector';
 import { DepartmentSelector } from '../components/eform/DepartmentSelector';
 import { TermsAndConditions } from '../components/eform/TermsAndConditions';

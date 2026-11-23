@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, XCircle, ShieldAlert, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { SignaturePad } from '../components/eform/SignaturePad';
+import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useEformDetail, useApproveByManager } from '../api/eform-request.api';
 import { EFormStatus } from '../components/eform/EformStatusPipeline';
 import { EformStatusBadge, EformTypeBadge, getTypeConfig } from '../components/eform/eform-vocabulary';
