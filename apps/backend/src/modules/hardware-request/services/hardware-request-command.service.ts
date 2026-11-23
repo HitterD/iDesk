@@ -308,7 +308,9 @@ export class HardwareRequestCommandService {
     }
 
     /** The cancellation inside the caller's transaction; the caller runs `announce` once it has committed. */
-    async cancelWith(mgr: EntityManager, actor: { id: string, role: string }, requestId: string): Promise<{ saved: HardwareRequest; announce: () => void }> {
+    async cancelWith(
+        mgr: EntityManager, actor: { id: string, role: string }, requestId: string, options: { allowed?: readonly RequestStatus[] } = {},
+    ): Promise<{ saved: HardwareRequest; announce: () => void }> {
         {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
@@ -326,7 +328,8 @@ export class HardwareRequestCommandService {
             const CANCELLABLE_USER = [RequestStatus.DRAFT, RequestStatus.SUBMITTED];
             const CANCELLABLE_ICT = [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION];
 
-            const allowedStatuses = isIct ? CANCELLABLE_ICT : CANCELLABLE_USER;
+            // A request flow names its own states (the flow knows its phases); the old pages keep the short lists.
+            const allowedStatuses = options.allowed ?? (isIct ? CANCELLABLE_ICT : CANCELLABLE_USER);
 
             if (!allowedStatuses.includes(existing.status)) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.CANCELLED);
@@ -335,6 +338,11 @@ export class HardwareRequestCommandService {
             const fromStatus = existing.status;
             existing.status = RequestStatus.CANCELLED;
             const saved = await requestRepo.save(existing);
+            // A schedule still open would keep showing on the install calendar and could still be picked from.
+            await mgr.query(
+                `UPDATE "installation_schedules" SET "status" = 'CANCELLED' WHERE "requestId" = $1 AND "status"::text IN ('PROPOSED', 'PROPOSED_AWAITING_USER', 'CONFIRMED', 'RESCHEDULE_REQUESTED')`,
+                [saved.id],
+            );
 
             await activityRepo.save(activityRepo.create({
                 requestId: saved.id,
@@ -531,8 +539,10 @@ export class HardwareRequestCommandService {
     ): Promise<HardwareRequest> {
         {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
-            if (existing.status !== RequestStatus.UNDER_REVIEW) {
-                throw new InvalidStateTransitionError(existing.status, RequestStatus.REJECTED);
+            // IT may refuse a request it has not started reviewing, as well as one that is under review.
+            const from = existing.status;
+            if (from !== RequestStatus.UNDER_REVIEW && from !== RequestStatus.SUBMITTED) {
+                throw new InvalidStateTransitionError(from, RequestStatus.REJECTED);
             }
             existing.status = RequestStatus.REJECTED;
             existing.rejectReason = dto.reason;
@@ -540,7 +550,7 @@ export class HardwareRequestCommandService {
             await this.logActivity(mgr, {
                 requestId: saved.id, actorId: userId,
                 action: ActivityAction.REJECTED,
-                fromStatus: RequestStatus.UNDER_REVIEW, toStatus: RequestStatus.REJECTED,
+                fromStatus: from, toStatus: RequestStatus.REJECTED,
                 metadata: { reason: dto.reason },
             });
             return saved;

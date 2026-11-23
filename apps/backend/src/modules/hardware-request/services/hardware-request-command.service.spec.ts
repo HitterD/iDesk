@@ -341,6 +341,39 @@ describe('HardwareRequestCommandService', () => {
         });
     });
 
+    describe('cancelWith for a request flow (the flow decides who may cancel when)', () => {
+        const mgr = () => ({ query: jest.fn(async () => undefined), getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) });
+        const FLOW_REQUESTER_STATES = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW];
+        const FLOW_IT_STATES = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW, RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION];
+
+        it.each(FLOW_REQUESTER_STATES)('the requester can withdraw a flow request that is %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status, items: [{}] } as any);
+            const { saved } = await service.cancelWith(mgr() as any, { id: 'user-1', role: 'USER' }, 'req-1', { allowed: FLOW_REQUESTER_STATES });
+            expect(saved.status).toBe(RequestStatus.CANCELLED);
+        });
+
+        it.each(FLOW_IT_STATES)('IT can cancel a flow request that is %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status, items: [{}] } as any);
+            const { saved } = await service.cancelWith(mgr() as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES });
+            expect(saved.status).toBe(RequestStatus.CANCELLED);
+        });
+
+        it('still refuses a state the flow did not allow', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.COMPLETED, items: [{}] } as any);
+            await expect(service.cancelWith(mgr() as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES })).rejects.toThrow();
+        });
+
+        it('cancelling closes the open installation schedules of the request, so nobody can still pick a slot', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.INSTALLATION, items: [{}] } as any);
+            const query = jest.fn(async () => undefined);
+            await service.cancelWith({ ...mgr(), query } as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES });
+            const [sql, params] = query.mock.calls[0] as unknown as [string, unknown[]];
+            expect(sql).toContain('installation_schedules');
+            expect(sql).toContain("'CANCELLED'");
+            expect(params).toEqual(['req-1']);
+        });
+    });
+
     it('cancel rejects non-requester', async () => {
         reqRepo.findOne.mockResolvedValue({
             id: 'req-1', requesterId: 'user-1', status: RequestStatus.SUBMITTED, items: [{}],
@@ -387,6 +420,20 @@ describe('HardwareRequestCommandService', () => {
                 action: ActivityAction.REJECTED,
                 metadata: expect.objectContaining({ reason: 'Duplicate' }),
             }));
+        });
+
+        it('reject also works on a request IT has not started reviewing (SUBMITTED): IT may refuse it straight away', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', status: RequestStatus.SUBMITTED, items: [{}] } as any);
+            const res = await service.reject('lead-1', 'req-1', { reason: 'Tidak sesuai kebijakan' });
+            expect(res.status).toBe(RequestStatus.REJECTED);
+            expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+                action: ActivityAction.REJECTED, fromStatus: RequestStatus.SUBMITTED, toStatus: RequestStatus.REJECTED,
+            }));
+        });
+
+        it.each([RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.INSTALLATION, RequestStatus.COMPLETED])('reject is still refused from %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', status, items: [{}] } as any);
+            await expect(service.reject('lead-1', 'req-1', { reason: 'x' })).rejects.toThrow();
         });
 
         it('review rejects from non-SUBMITTED', async () => {

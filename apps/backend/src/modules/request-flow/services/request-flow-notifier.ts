@@ -19,9 +19,11 @@ const ASK_TYPE: Record<RequestKind, NotificationType> = {
     EFORM: NotificationType.EFORM_SUBMITTED,
 };
 
+const REMINDER_WINDOW_MS = 60 * 60 * 1000;
+
 /** The same notice (recipient, kind, text, document version) always maps to the same id, so a retry cannot store or mail it twice. */
-export function noticeId(ctx: FlowContext, userId: string, type: NotificationType, title: string): string {
-    const h = createHash('sha256').update([ctx.flow.id, ctx.flow.documentVersion, userId, type, title].join('|')).digest('hex');
+export function noticeId(ctx: FlowContext, userId: string, type: NotificationType, title: string, window = ''): string {
+    const h = createHash('sha256').update([ctx.flow.id, ctx.flow.documentVersion, userId, type, title, window].join('|')).digest('hex');
     return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
@@ -29,6 +31,8 @@ export function noticeId(ctx: FlowContext, userId: string, type: NotificationTyp
 @Injectable()
 export class RequestFlowNotifier {
     private readonly logger = new Logger(RequestFlowNotifier.name);
+    /** Clock for reminders; a test replaces it. */
+    now: () => number = () => Date.now();
 
     constructor(
         private readonly notifications: NotificationCenterService,
@@ -40,7 +44,9 @@ export class RequestFlowNotifier {
     async askApprover(ctx: FlowContext, step: ApprovalStep, userId: string, reminder = false): Promise<void> {
         const title = `${reminder ? 'Pengingat: ' : ''}Persetujuan ${step === 'GM' ? 'GM ' : ''}Diperlukan`;
         const message = `${ctx.requesterName} mengajukan ${KIND_LABEL[ctx.kind]} (${ctx.ticket.ticketNumber}) yang menunggu tanda tangan ${STEP_LABEL[step]}.`;
-        await this.send(userId, ASK_TYPE[ctx.kind], title, message, ctx);
+        // A reminder is meant to be repeated: it counts as a new notice once per hour, while a retry inside the hour is still one.
+        const window = reminder ? String(Math.floor(this.now() / REMINDER_WINDOW_MS)) : '';
+        await this.send(userId, ASK_TYPE[ctx.kind], title, message, ctx, window);
     }
 
     /** The requester hears of a step that concerns them (returned to IT, approved). */
@@ -53,14 +59,14 @@ export class RequestFlowNotifier {
         await this.send(userId, NotificationType.TICKET_UPDATED, title, message, ctx);
     }
 
-    private async send(userId: string, type: NotificationType, title: string, message: string, ctx: FlowContext): Promise<void> {
+    private async send(userId: string, type: NotificationType, title: string, message: string, ctx: FlowContext, window = ''): Promise<void> {
         const link = `/tickets/${ctx.ticket.id}`;
-        const id = noticeId(ctx, userId, type, title);
+        const id = noticeId(ctx, userId, type, title, window);
         let repeat = false;
         try {
             repeat = await this.users.manager.exists(Notification, { where: { id } });
             if (!repeat) await this.notifications.send({
-                id, userId, type, title, message, ticketId: ctx.ticket.id, referenceId: `${ctx.flow.id}_${ctx.flow.documentVersion}_${type}`, link,
+                id, userId, type, title, message, ticketId: ctx.ticket.id, referenceId: `${ctx.flow.id}_${ctx.flow.documentVersion}_${type}${window ? `_${window}` : ''}`, link,
             });
         } catch (err: any) {
             this.logger.error(`In-app notice for ticket ${ctx.ticket.id} failed: ${err?.message ?? err}`);

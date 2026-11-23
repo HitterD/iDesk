@@ -45,3 +45,39 @@ describe('RequestFlowNotifier dedupe', () => {
         expect(mail.send).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('RequestFlowNotifier reminders', () => {
+    const ids = (notifications: { send: jest.Mock }) => notifications.send.mock.calls.map((c: any[]) => c[0].id);
+
+    it('a second reminder on the same document version is a new notice, not swallowed as a repeat', async () => {
+        const { notifier, notifications } = setup();
+        let clock = Date.parse('2026-11-23T08:00:00Z');
+        notifier.now = () => clock;
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1', true);
+        clock += 60 * 60 * 1000;
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1', true);
+        const sent = ids(notifications);
+        expect(sent).toHaveLength(2);
+        expect(sent[0]).not.toBe(sent[1]);
+    });
+
+    it('a retry of the same reminder moments later is still one notice', async () => {
+        const { notifier, notifications } = setup();
+        const clock = Date.parse('2026-11-23T08:00:00Z');
+        notifier.now = () => clock;
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1', true);
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1', true);
+        const sent = ids(notifications);
+        expect(sent[0]).toBe(sent[1]);
+    });
+
+    it('the first (non-reminder) request for a signature is unaffected by time', async () => {
+        const { notifier, notifications } = setup();
+        notifier.now = () => 1;
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1');
+        notifier.now = () => 9_999_999_999;
+        await notifier.askApprover(ctx(), 'MANAGER', 'mgr-1');
+        const sent = ids(notifications);
+        expect(sent[0]).toBe(sent[1]);
+    });
+});

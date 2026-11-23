@@ -1,3 +1,4 @@
+import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -389,7 +390,7 @@ describe('RequestFlowReviewService.cancel', () => {
         for (const phase of ['review', 'approval'] as const) {
             const { service, hardware, documents, linked } = setup(context({ phase }, 'HARDWARE'));
             await service.cancel(REQ, TID);
-            expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'req-1', role: 'USER' }, 'hr-1');
+            expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'req-1', role: 'USER' }, 'hr-1', { allowed: [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW] });
             expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', expect.stringContaining('Dibatalkan'), 'req-1', expect.anything());
             expect(linked.recordWithin).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ target: 'CANCELLED' }));
         }
@@ -405,7 +406,15 @@ describe('RequestFlowReviewService.cancel', () => {
         await expect(setup(context({ phase: 'other' }, 'HARDWARE')).service.cancel(REQ, TID)).rejects.toBeInstanceOf(ConflictException);
         const { service, hardware } = setup(context({ phase: 'other' }, 'HARDWARE'));
         await service.cancel(IT, TID);
-        expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'it-1', role: 'ICT_STAFF' }, 'hr-1');
+        expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'it-1', role: 'ICT_STAFF' }, 'hr-1', { allowed: expect.arrayContaining([RequestStatus.PROCUREMENT, RequestStatus.INSTALLATION]) });
+    });
+
+    it.each([EFormStatus.CONFIRMED, EFormStatus.REJECTED, EFormStatus.CANCELLED])('an e-form that is already %s cannot be cancelled again (no overwritten status, no second FIN revision)', async (status) => {
+        const base = context({ phase: 'other' }, 'EFORM');
+        const { service, manager, documents } = setup({ ...base, eform: { ...base.eform!, status } as never });
+        await expect(service.cancel(IT, TID)).rejects.toBeInstanceOf(ConflictException);
+        expect(manager.update).not.toHaveBeenCalled();
+        expect(documents.bump).not.toHaveBeenCalled();
     });
 
     it('someone who is not the requester or IT is refused', async () => {

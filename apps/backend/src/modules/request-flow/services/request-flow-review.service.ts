@@ -26,6 +26,7 @@ import { RequestDocumentService } from './request-document.service';
 import { RequestFlowNotifier } from './request-flow-notifier';
 import { RequestFlowReader, type FlowContext } from './request-flow-reader';
 import { RequestFlowStepper } from './request-flow-stepper';
+import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 
 /** Folder (under `uploads/`) for scanned paper signatures. The /uploads handler refuses it: files leave only through the API. */
 export const REQUEST_SCANS_DIR = 'request-scans';
@@ -58,6 +59,7 @@ const MESSAGES = {
     notApproval: 'Permintaan ini tidak sedang menunggu persetujuan',
     cancelDenied: 'Hanya pemohon atau tim IT yang dapat membatalkan permintaan ini',
     cancelLate: 'Permintaan sudah diproses IT dan tidak bisa dibatalkan pemohon. Hubungi IT.',
+    cancelFinished: 'Permintaan ini sudah selesai atau ditutup, tidak bisa dibatalkan lagi.',
     notYourTurn: 'Bukan giliran Anda untuk menyetujui permintaan ini',
     managerRequired: 'Pilih atasan penyetuju',
     gmRequired: 'Pilih GM penyetuju',
@@ -73,6 +75,12 @@ const MESSAGES = {
     fileInvalid: 'Berkas harus PDF, JPG, atau PNG yang valid (maks. 10 MB)',
 } as const;
 const REASON_MIN = 5;
+const EFORM_FINISHED: readonly EFormStatus[] = [EFormStatus.CONFIRMED, EFormStatus.REJECTED, EFormStatus.CANCELLED];
+/** Hardware states the flow lets each side cancel from: the requester until IT has chosen the route and it is signed, IT any time before it is installed. */
+const REQUESTER_CANCEL_STATES: readonly RequestStatus[] = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW];
+const IT_CANCEL_STATES: readonly RequestStatus[] = [
+    RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW, RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION,
+];
 
 /** QR mismatch: the scan was signed on an older version of the document. */
 export const staleScanMessage = (scanned: string, latest: number): string => {
@@ -182,8 +190,9 @@ export class RequestFlowReviewService {
 
             let announce: () => void = () => undefined;
             if (ctx.hardware) {
-                announce = (await this.hardware.cancelWith(manager, { id: actor.userId, role: isIt ? 'ICT_STAFF' : 'USER' }, ctx.hardware.id)).announce;
+                announce = (await this.hardware.cancelWith(manager, { id: actor.userId, role: isIt ? 'ICT_STAFF' : 'USER' }, ctx.hardware.id, { allowed: isIt ? IT_CANCEL_STATES : REQUESTER_CANCEL_STATES })).announce;
             } else {
+                if (EFORM_FINISHED.includes(ctx.eform!.status)) throw new ConflictException(MESSAGES.cancelFinished);
                 await manager.update(EFormRequest, { id: ctx.eform!.id }, { status: EFormStatus.CANCELLED, currentApproverId: null, resolvedAt: new Date() });
                 await manager.update(EFormApproval, { eformRequestId: ctx.eform!.id, action: 'PENDING' }, { action: 'REJECTED', actionAt: new Date(), notes: 'Dibatalkan' });
             }
