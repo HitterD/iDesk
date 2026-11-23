@@ -30,7 +30,10 @@ const DynamicTicketQueuePage = lazy(() => import('../features/ticket-board/pages
 const BentoTicketDetailPage = lazy(() => import('../features/ticket-board/pages/BentoTicketDetailPage').then(m => ({ default: m.BentoTicketDetailPage })));
 const BentoSettingsPage = lazy(() => import('../features/settings/pages/BentoSettingsPage').then(m => ({ default: m.BentoSettingsPage })));
 const BentoAdminAgentsPage = lazy(() => import('../features/admin/pages/BentoAdminAgentsPage').then(m => ({ default: m.BentoAdminAgentsPage })));
+/** IT staff who run the install schedule, access validity and the catalog (the same people who processed requests before). */
+const DEVICES_ACCESS_ROLES = ['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT'];
 const BentoMyTicketsPage = lazy(() => import('../features/client/pages/BentoMyTicketsPage').then(m => ({ default: m.BentoMyTicketsPage })));
+const DevicesAccessPage = lazy(() => import('../features/devices-access/pages/DevicesAccessPage').then(m => ({ default: m.DevicesAccessPage })));
 const ApprovalsPage = lazy(() => import('../features/client/pages/ApprovalsPage').then(m => ({ default: m.ApprovalsPage })));
 const BentoCreateTicketPage = lazy(() => import('../features/client/pages/BentoCreateTicketPage').then(m => ({ default: m.BentoCreateTicketPage })));
 const ClientTicketDetailPage = lazy(() => import('../features/client/pages/ClientTicketDetailPage').then(m => ({ default: m.ClientTicketDetailPage })));
@@ -248,6 +251,8 @@ export default function AppRoutes() {
                         <Route path="kb/create" element={<LazyRoute component={BentoCreateArticlePage} featureName="Create Article" requiredPageAccess="knowledge_base" />} />
                         <Route path="kb/articles/:id" element={<LazyRoute component={BentoArticleDetailPage} featureName="Article Detail" requiredPageAccess="knowledge_base" />} />
                         <Route path="kb/articles/:id/edit" element={<LazyRoute component={BentoEditArticlePage} featureName="Edit Article" requiredPageAccess="knowledge_base" />} />
+
+                        <Route path="devices-access/:tab?" element={<LazyRoute component={DevicesAccessPage} featureName="Perangkat & Akses" requiredPageAccess="devices_access" allowedRoles={DEVICES_ACCESS_ROLES} />} />
 
                         {/* Request Center */}
                         <Route path="hardware-requests" element={<LazyRoute component={HardwareRequestsLayout} featureName="Hardware Requests" requiredPageAccess="hardware_requests" />}>

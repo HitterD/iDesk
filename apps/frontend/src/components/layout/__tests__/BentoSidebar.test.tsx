@@ -16,6 +16,8 @@ vi.mock('@/lib/api', () => ({
     default: {
         get: vi.fn((url: string) => {
             if (url.startsWith('/notifications/count')) return Promise.resolve({ data: { count: 5 } });
+            if (url.startsWith('/request-flow/center/summary')) return Promise.resolve({ data: { activeHardware: 9, inProcurement: 3, waitingInstall: 3, doneThisMonth: 1, byPhase: [] } });
+            if (url.startsWith('/request-flow/center/access')) return Promise.resolve({ data: { group: 'soon', counts: { soon: 2, expired: 0, active: 4, permanent: 1 }, items: [] } });
             if (url.startsWith('/ticket-modules')) return Promise.resolve({ data: ticketModules.current });
             if (url.startsWith('/csi/me/active')) return Promise.resolve({ data: csiActive.current });
             if (url.startsWith('/csi/me/results')) return Promise.resolve({ data: csiMyResults.current });
@@ -46,6 +48,7 @@ const pageAccess = vi.hoisted(() => ({
         oracle_k2_tickets: true,
         hardware_requests: true,
         eform_access: true,
+        devices_access: true,
         zoom_calendar: true,
         knowledge_base: true,
         notifications: true,
@@ -212,15 +215,18 @@ describe('BentoSidebar', () => {
         expect(screen.getByRole('link', { name: 'Dashboard Tim' })).not.toHaveAttribute('aria-current');
     });
 
-    it('displays notification badges correctly without rendering 0 text', async () => {
+    it('replaces Hardware Requests and E-Form Access with one "Perangkat & Akses" item', async () => {
         renderSidebar('/tickets/list');
+        const item = await screen.findByRole('link', { name: /Perangkat & Akses/ });
+        expect(item).toHaveAttribute('href', '/devices-access');
+        expect(screen.queryByText('Hardware Requests')).not.toBeInTheDocument();
+        expect(screen.queryByText('E-Form Access')).not.toBeInTheDocument();
+    });
 
-        // E-Form Access has 2 pending approvals -> badge '2'
-        const eformItem = await screen.findByText('E-Form Access');
-        expect(eformItem).toBeInTheDocument();
-        expect(screen.getByText('2')).toBeInTheDocument();
-
-        // Check that literal "0" is not rendered as text
+    it('its badge adds what still needs scheduling and the accesses ending soon; a zero is never printed', async () => {
+        renderSidebar('/tickets/list');
+        const item = await screen.findByRole('link', { name: /Perangkat & Akses/ });
+        await waitFor(() => expect(item).toHaveTextContent('5'));
         expect(screen.queryByText('0')).not.toBeInTheDocument();
     });
 

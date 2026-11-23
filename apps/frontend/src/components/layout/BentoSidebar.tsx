@@ -19,8 +19,7 @@ import {
     FolderOpen,
     Briefcase,
     ShieldCheck,
-    MonitorSmartphone,
-    FileText,
+    Package,
     PackageSearch,
     Database,
     Code2,
@@ -37,7 +36,7 @@ import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { useMyPermissions } from '@/hooks/usePermissions';
 import { usePermissions as useIctPermissions } from '@/features/hardware-request/hooks/usePermissions';
-import { usePendingApprovals } from '@/features/request-center/api/eform-request.api';
+import { useDevicesAttention } from '@/features/devices-access/useDevicesAttention';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useCsiActive, useCsiMyResults } from '@/features/csi/hooks/useCsi';
@@ -133,8 +132,6 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     }, [isTicketDetail]);
 
     // Any user can be picked as an E-Form approver, so the badge is not role-gated
-    const { data: pendingApprovals } = usePendingApprovals();
-    const pendingCount = pendingApprovals?.length ?? 0;
 
     // Fetch unread notifications count
     const { data: notificationCountData } = useQuery<{ count: number }>({
@@ -151,6 +148,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     // Fetch user's feature permissions for sidebar filtering (only if user has custom preset)
     const { data: myPermissions, isLoading: permissionsLoading } = useMyPermissions();
     const { isIctRole, isIctLead } = useIctPermissions();
+    // What still needs IT on "Perangkat & Akses": installs not yet scheduled plus accesses ending soon (IT roles only).
+    const devicesAttention = useDevicesAttention(isIctRole);
     // Survey entry exists only while an active survey targets this user (hidden while loading or on error).
     const { data: activeSurveys } = useCsiActive();
     const { data: myResults } = useCsiMyResults();
@@ -166,8 +165,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         if (key === 'csi' && pendingSurveyCount > 0) {
             return { count: pendingSurveyCount, variant: 'destructive' };
         }
-        if (key === 'eform_access' && pendingCount > 0) {
-            return { count: pendingCount, variant: 'destructive' };
+        if (key === 'devices_access' && devicesAttention > 0) {
+            return { count: devicesAttention, variant: 'destructive' };
         }
         if (key === 'notifications' && unreadNotificationsCount > 0) {
             return { count: unreadNotificationsCount, variant: 'destructive' };
@@ -234,8 +233,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                 { key: 'oracle_k2_tickets', icon: Database, tone: 'red', label: 'Oracle K2 Request', path: '/tickets/oracle-k2' },
                 { key: 'web_dev_tickets', icon: Code2, tone: 'teal', label: 'Web Developer Request', path: '/tickets/web-developer' },
                 { key: 'mobile_dev_tickets', icon: Smartphone, tone: 'teal-deep', label: 'Mobile Developer Request', path: '/tickets/mobile-developer' },
-                { key: 'hardware_requests', icon: MonitorSmartphone, tone: 'orange', label: 'Hardware Requests', path: '/hardware-requests' },
-                { key: 'eform_access', icon: FileText, tone: 'mint', label: 'E-Form Access', path: '/eform-access' },
+                // Hardware and E-Form requests are IT Support tickets now; this is IT's page for the install schedule, access validity and the catalog.
+                { key: 'devices_access', icon: Package, tone: 'orange', label: 'Perangkat & Akses', path: '/devices-access' },
             ]
         },
 
@@ -409,7 +408,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
 
                     // Append static Request Center items
                     const otherRequestCenterItems = entry.items.filter((item) =>
-                        ['hardware_requests', 'eform_access'].includes(item.key)
+                        item.key === 'devices_access'
                     );
 
                     const allItems = [...moduleItems, ...otherRequestCenterItems];
