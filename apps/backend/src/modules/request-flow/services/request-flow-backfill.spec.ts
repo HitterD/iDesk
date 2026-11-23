@@ -26,10 +26,17 @@ function fakeDb() {
             case BACKFILL_SQL.selectEform: return db.eform;
             case BACKFILL_SQL.selectFlows: return db.flows;
             case BACKFILL_SQL.insertTicket: {
-                const [ticketNumber, title, description, status, ticketType, handlingTeam, userId, siteId, createdAt, doneAt] = params;
-                const row = { id: `ticket-${++seq}`, ticketNumber, title, description, status, ticketType, handlingTeam, userId, siteId, createdAt, doneAt };
+                const [ticketNumber, title, description, status, ticketType, handlingTeam, userId, siteId, createdAt, doneAt, resolvedAt] = params;
+                const row = { id: `ticket-${++seq}`, ticketNumber, title, description, status, ticketType, handlingTeam, userId, siteId, createdAt, doneAt, resolvedAt };
                 db.tickets.push(row);
                 return [{ id: row.id }];
+            }
+            case BACKFILL_SQL.repairAwaitingConfirmation: {
+                const waiting = new Set(db.hardware.filter((r) => r.status === RequestStatus.AWAITING_USER_CONFIRMATION).map((r) => r.id));
+                const ids = db.flows.filter((f) => waiting.has(f.hardwareRequestId)).map((f) => f.ticketId);
+                const fixed = db.tickets.filter((t) => ids.includes(t.id) && t.status === TicketStatus.IN_PROGRESS);
+                fixed.forEach((t) => { t.status = TicketStatus.RESOLVED; t.resolvedAt = t.resolvedAt ?? new Date(0); });
+                return fixed.map((t) => ({ id: t.id }));
             }
             case BACKFILL_SQL.linkHardware:
                 db.hardware.find((r) => r.id === params[1]).sourceTicketId = params[0];
@@ -69,6 +76,26 @@ const eform = (over: Partial<any> = {}) => ({
 });
 
 describe('backfillRequestFlows', () => {
+    it('a hardware request waiting for the requester becomes a RESOLVED ticket', async () => {
+        const { db, manager } = fakeDb();
+        db.hardware.push(hardware({ status: RequestStatus.AWAITING_USER_CONFIRMATION }));
+
+        await backfillRequestFlows(manager);
+
+        expect(db.tickets[0]).toEqual(expect.objectContaining({ status: TicketStatus.RESOLVED, doneAt: null, resolvedAt: db.hardware[0].doneAt }));
+    });
+
+    it('repairs a ticket made earlier that is still IN_PROGRESS while the hardware waits for the requester', async () => {
+        const { db, manager } = fakeDb();
+        db.hardware.push(hardware({ status: RequestStatus.AWAITING_USER_CONFIRMATION, sourceTicketId: 'ticket-old' }));
+        db.tickets.push({ id: 'ticket-old', ticketNumber: '051026-QC-0001', status: TicketStatus.IN_PROGRESS });
+        db.flows.push({ id: 'flow-old', ticketId: 'ticket-old', kind: 'HARDWARE', hardwareRequestId: 'hr-1', eformRequestId: null });
+
+        await backfillRequestFlows(manager);
+
+        expect(db.tickets.find((t) => t.id === 'ticket-old')!.status).toBe(TicketStatus.RESOLVED);
+    });
+
     it('creates a parent ticket for a standalone submitted hardware request', async () => {
         const { db, manager } = fakeDb();
         db.hardware.push(hardware());

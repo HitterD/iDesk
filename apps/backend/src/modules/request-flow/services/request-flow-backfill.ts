@@ -33,6 +33,8 @@ const HARDWARE_TICKET_STATUS: Partial<Record<RequestStatus, TicketStatus>> = {
     [RequestStatus.CLOSED]: TicketStatus.CLOSED,
     [RequestStatus.REJECTED]: TicketStatus.CANCELLED,
     [RequestStatus.CANCELLED]: TicketStatus.CANCELLED,
+    // Installed, waiting for the requester: the ticket is RESOLVED like any ticket whose work is reported done.
+    [RequestStatus.AWAITING_USER_CONFIRMATION]: TicketStatus.RESOLVED,
 };
 
 const EFORM_TICKET_STATUS: Partial<Record<EFormStatus, TicketStatus>> = {
@@ -60,8 +62,15 @@ export const BACKFILL_SQL = {
         ORDER BY r."createdAt" ASC`,
     selectFlows: `SELECT "hardwareRequestId", "eformRequestId" FROM "request_flows"`,
     insertTicket: `INSERT INTO "tickets"
-        ("ticketNumber", "title", "description", "status", "ticketType", "handlingTeam", "userId", "siteId", "createdAt", "closedAt")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "id"`,
+        ("ticketNumber", "title", "description", "status", "ticketType", "handlingTeam", "userId", "siteId", "createdAt", "closedAt", "resolvedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING "id"`,
+    /** Heals tickets made before this rule (or by an earlier run): hardware waiting for the requester must be RESOLVED with a confirmation deadline. */
+    repairAwaitingConfirmation: `UPDATE "tickets" t SET "status" = 'RESOLVED', "resolvedAt" = COALESCE(t."resolvedAt", now()),
+        "resolutionDeadlineAt" = COALESCE(t."resolutionDeadlineAt", now() + interval '1 day')
+        FROM "request_flows" f JOIN "hardware_requests" h ON h."id" = f."hardwareRequestId"
+        WHERE f."ticketId" = t."id" AND h."status"::text = 'AWAITING_USER_CONFIRMATION'
+        AND (t."status"::text = 'IN_PROGRESS' OR (t."status"::text = 'RESOLVED' AND t."resolutionDeadlineAt" IS NULL))
+        RETURNING t."id"`,
     linkHardware: `UPDATE "hardware_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
     linkEform: `UPDATE "eform_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
     insertFlow: `INSERT INTO "request_flows" ("ticketId", "kind", "hardwareRequestId", "eformRequestId", "route", "hardwareSource")
@@ -141,9 +150,10 @@ async function createParent(manager: EntityManager, plan: Plan, now: Date): Prom
     const division = departmentDivision({ code: row.deptCode, name: row.deptName }, DIVISION_FALLBACK);
     const ticketNumber = await generateNextTicketNumber(manager, division, new Date(row.createdAt));
     const closedAt = plan.status === TicketStatus.CLOSED ? row.doneAt ?? now : null;
+    const resolvedAt = plan.status === TicketStatus.RESOLVED ? row.doneAt ?? now : null;
     const [ticket]: { id: string }[] = await manager.query(BACKFILL_SQL.insertTicket, [
         ticketNumber, plan.title, plan.description, plan.status, ticketTypeOf(plan.kind), HandlingTeam.OPS_SUPPORT,
-        row.requesterId, siteId, row.createdAt, closedAt,
+        row.requesterId, siteId, row.createdAt, closedAt, resolvedAt,
     ]);
     await manager.query(plan.kind === 'HARDWARE' ? BACKFILL_SQL.linkHardware : BACKFILL_SQL.linkEform, [ticket.id, row.id]);
     await insertFlow(manager, ticket.id, plan);
@@ -185,5 +195,6 @@ export async function backfillRequestFlows(manager: EntityManager, now: Date = n
             result.skipped += 1;
         }
     }
+    await manager.query(BACKFILL_SQL.repairAwaitingConfirmation);
     return result;
 }
