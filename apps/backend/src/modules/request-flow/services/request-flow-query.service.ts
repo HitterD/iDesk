@@ -4,6 +4,7 @@ import { EFormCredential } from '../../eform-request/entities/eform-credential.e
 import { HardwareAsset } from '../../hardware-request/domain/entities/hardware-asset.entity';
 import { InstallationSchedule } from '../../hardware-request/domain/entities/installation-schedule.entity';
 import { InstallStatus } from '../../hardware-request/domain/enums/install-status.enum';
+import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { assertSiteAccess, type SiteActor } from '../../../shared/core/utils/site-scope.util';
@@ -94,6 +95,8 @@ const NOT_ALLOWED = 'Tidak berhak membuka permintaan ini';
 const AGREED_SCHEDULE: readonly InstallStatus[] = [InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS, InstallStatus.DONE];
 /** Superseded or withdrawn: never the schedule the request is at. */
 const DEAD_SCHEDULE: readonly InstallStatus[] = [InstallStatus.RESCHEDULED, InstallStatus.CANCELLED];
+/** Once the request is back in INSTALLATION (the requester reported an issue) a schedule that is DONE is the earlier attempt, not the one at hand. */
+const FINISHED_SCHEDULE = InstallStatus.DONE;
 const AWAITING_PICK: readonly InstallStatus[] = [InstallStatus.PROPOSED, InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.RESCHEDULE_REQUESTED];
 
 const isoDay = (value: Date | string | null): string | null => (value ? new Date(value).toISOString().slice(0, 10) : null);
@@ -113,7 +116,7 @@ export class RequestFlowQueryService {
         const ctx = await this.reader.load(ticketId);
         const role = this.roleOf(viewer, ctx);
         const { manager } = this.dataSource;
-        const schedule = ctx.hardware ? await this.currentSchedule(ctx.hardware.id) : null;
+        const schedule = ctx.hardware ? await this.currentSchedule(ctx.hardware.id, ctx.hardware.status === RequestStatus.INSTALLATION) : null;
         const revisions = await manager.find(RequestDocumentRevision, { where: { flowId: ctx.flow.id }, order: { version: 'ASC' } });
         const people = await this.names([...revisions.map((r) => r.actorId), schedule?.technicianId]);
 
@@ -166,9 +169,9 @@ export class RequestFlowQueryService {
     }
 
     /** The newest schedule that still stands; superseded and cancelled ones are history. */
-    private async currentSchedule(requestId: string): Promise<InstallationSchedule | null> {
+    private async currentSchedule(requestId: string, requestInstalling: boolean): Promise<InstallationSchedule | null> {
         const rows = await this.dataSource.manager.find(InstallationSchedule, { where: { requestId }, order: { createdAt: 'DESC' } });
-        return rows.find((row) => !DEAD_SCHEDULE.includes(row.status)) ?? null;
+        return rows.find((row) => !DEAD_SCHEDULE.includes(row.status) && !(row.status === FINISHED_SCHEDULE && requestInstalling)) ?? null;
     }
 
     private scheduleView(row: InstallationSchedule, people: Map<string, string>): ScheduleView {

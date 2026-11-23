@@ -27,8 +27,8 @@ describe('InstallDoneDto', () => {
         expect(await withCode('  AST-0001  ')).toBe(true);
     });
 
-    it('needs at least one asset with a unit id', async () => {
-        expect(await check({ assets: [] })).toBe(false);
+    it('an empty list passes the shape check (the service decides: only a redo may send none), a bad unit id does not', async () => {
+        expect(await check({ assets: [] })).toBe(true);
         expect(await check({ assets: [{ itemId: 'nope', code: 'AST-0001' }] })).toBe(false);
     });
 

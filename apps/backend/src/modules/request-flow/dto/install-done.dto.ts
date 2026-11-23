@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { HARDWARE_TICKET_LIMITS, PNG_DATA_URL } from './create-hardware-ticket.dto';
 
 export const ASSET_CODE_MIN = 4;
@@ -21,7 +21,8 @@ export class InstallAssetDto {
 
 /** The technician's report: one asset code per unit, the technician's signature and, optionally, a photo of the result. */
 export class InstallDoneDto {
-    @IsArray() @ArrayMinSize(1) @ArrayMaxSize(HARDWARE_TICKET_LIMITS.itemsMax * HARDWARE_TICKET_LIMITS.quantityMax)
+    /** Empty only for a redo where every unit already has its asset; the service refuses an empty list on a first report. */
+    @IsArray() @ArrayMaxSize(HARDWARE_TICKET_LIMITS.itemsMax * HARDWARE_TICKET_LIMITS.quantityMax)
     @ValidateNested({ each: true }) @Type(() => InstallAssetDto)
     assets: InstallAssetDto[];
 

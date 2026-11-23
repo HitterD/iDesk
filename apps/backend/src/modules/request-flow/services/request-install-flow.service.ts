@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { DataSource, In } from 'typeorm';
+import { DataSource, EntityManager, In } from 'typeorm';
+import { HardwareAsset } from '../../hardware-request/domain/entities/hardware-asset.entity';
 import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { InstallationSchedule } from '../../hardware-request/domain/entities/installation-schedule.entity';
 import { ActivityAction } from '../../hardware-request/domain/enums/activity-action.enum';
@@ -30,6 +31,7 @@ const MESSAGES = {
     notInstalling: 'Permintaan ini tidak sedang dalam tahap pemasangan',
     codePerUnit: 'Setiap barang yang sudah tiba harus punya satu kode aset',
     notArrived: 'Barang belum tiba atau bukan bagian permintaan ini',
+    alreadyInstalled: 'Barang ini sudah punya aset terpasang',
 } as const;
 
 export interface InstallDoneResult { status: string; assets: number }
@@ -62,8 +64,10 @@ export class RequestInstallFlowService {
             });
             if (phase !== 'install') throw new ConflictException(MESSAGES.notInstalling);
 
-            const assets = this.checkCodes(request.items ?? [], dto);
-            await this.assets.createAssetsWith(manager, request.id, assets, actor.userId);
+            // After an issue the technician comes back: units that already have an asset keep it, only the others need a code.
+            const installed = await this.installedUnits(manager, request.items ?? []);
+            const assets = this.checkCodes(request.items ?? [], dto, installed);
+            if (assets.length > 0) await this.assets.createAssetsWith(manager, request.id, assets, actor.userId);
             await this.schedules.completeWith(manager, request.id, actor.userId);
             const saved = await this.hardware.completeInstallationWith(manager, request.id, actor.userId);
 
@@ -92,9 +96,16 @@ export class RequestInstallFlowService {
         return { status: saved.status, assets: dto.assets.length };
     }
 
+    /** Units of this request that already have an asset registered (an earlier report that came back with an issue). */
+    private async installedUnits(manager: EntityManager, units: { id: string }[]): Promise<Set<string>> {
+        if (units.length === 0) return new Set();
+        const rows = await manager.find(HardwareAsset, { where: { itemId: In(units.map((unit) => unit.id)) }, select: ['itemId'] });
+        return new Set(rows.map((row) => row.itemId));
+    }
+
     /** One code per arrived unit, none twice, none for a unit that has not arrived. */
-    private checkCodes(units: { id: string; deliveryStatus: string; quantity: number }[], dto: InstallDoneDto): { itemId: string; barcode: string }[] {
-        const arrived = units.filter((unit) => unit.deliveryStatus === 'ARRIVED');
+    private checkCodes(units: { id: string; deliveryStatus: string; quantity: number }[], dto: InstallDoneDto, installed: Set<string>): { itemId: string; barcode: string }[] {
+        const arrived = units.filter((unit) => unit.deliveryStatus === 'ARRIVED' && !installed.has(unit.id));
         const known = new Set(arrived.map((unit) => unit.id));
         const seenCodes = new Set<string>();
         const seenUnits = new Set<string>();
@@ -102,6 +113,7 @@ export class RequestInstallFlowService {
             const key = code.toLowerCase();
             if (seenCodes.has(key)) throw new ConflictException(`Kode aset ${code} sudah dipakai`);
             seenCodes.add(key);
+            if (installed.has(itemId)) throw new BadRequestException(MESSAGES.alreadyInstalled);
             if (!known.has(itemId)) throw new BadRequestException(MESSAGES.notArrived);
             if (seenUnits.has(itemId)) throw new BadRequestException(MESSAGES.codePerUnit);
             seenUnits.add(itemId);

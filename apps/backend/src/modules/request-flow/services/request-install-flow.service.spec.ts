@@ -26,8 +26,9 @@ function context(items: HardwareRequestItem[], status: string = RequestStatus.IN
     };
 }
 
-function setup(ctx: FlowContext, openSchedules = 1) {
+function setup(ctx: FlowContext, openSchedules = 1, installedItemIds: string[] = []) {
     const manager = {
+        find: jest.fn(async (..._args: unknown[]) => installedItemIds.map((itemId) => ({ itemId }))),
         save: jest.fn(async (_e: unknown, v: unknown) => v),
         create: jest.fn((_e: unknown, v: unknown) => v),
         count: jest.fn(async () => openSchedules),
@@ -96,6 +97,29 @@ describe('RequestInstallFlowService.installDone', () => {
         await expect(service.installDone(IT, TID, dto([{ itemId: 'a', code: 'AST-0001' }]))).rejects.toThrow('Status tiket berubah');
         expect(hardware.announceInstallCompleted).not.toHaveBeenCalled();
         expect(stepper.tell).not.toHaveBeenCalled();
+    });
+
+    it('a redo after an issue: units that already have an asset need no new code, only the units without one do', async () => {
+        const { service, assets } = setup(context([unit('a'), unit('b')]), 1, ['a']);
+        await service.installDone(IT, TID, dto([{ itemId: 'b', code: 'AST-0002' }]));
+        expect(assets.createAssetsWith).toHaveBeenCalledWith(expect.anything(), 'hr-1', [{ itemId: 'b', barcode: 'AST-0002' }], 'it-1');
+    });
+
+    it('a redo where every unit already has its asset registers nothing and still completes', async () => {
+        const { service, assets, hardware } = setup(context([unit('a')]), 1, ['a']);
+        await service.installDone(IT, TID, dto([]));
+        expect(assets.createAssetsWith).not.toHaveBeenCalled();
+        expect(hardware.completeInstallationWith).toHaveBeenCalled();
+    });
+
+    it('a new code for a unit that already has an asset is refused (it would register the unit twice)', async () => {
+        const { service, assets } = setup(context([unit('a')]), 1, ['a']);
+        await expect(service.installDone(IT, TID, dto([{ itemId: 'a', code: 'AST-0009' }]))).rejects.toThrow('sudah punya aset');
+        expect(assets.createAssetsWith).not.toHaveBeenCalled();
+    });
+
+    it('a first report with no code at all is still refused', async () => {
+        await expect(setup(context([unit('a')])).service.installDone(IT, TID, dto([]))).rejects.toThrow('Setiap barang yang sudah tiba harus punya satu kode aset');
     });
 
     it('never puts the signature into the result', async () => {

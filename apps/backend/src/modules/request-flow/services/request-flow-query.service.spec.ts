@@ -136,6 +136,16 @@ describe('RequestFlowQueryService.view', () => {
         expect(JSON.stringify(view)).not.toContain('SECRET');
     });
 
+    it('after the requester reported an issue (request back in INSTALLATION, old schedule DONE) IT schedules again', async () => {
+        const slots = [{ start: '2026-11-25T02:00:00.000Z', end: '2026-11-25T03:00:00.000Z' }];
+        const ctx = context('HARDWARE', { hardware: { ...context('HARDWARE').hardware!, status: RequestStatus.INSTALLATION } as never });
+        const { service } = setup(ctx, { schedules: [{
+            id: 's-1', status: InstallStatus.DONE, proposedSlots: slots, scheduledStart: new Date(slots[0].start), scheduledEnd: new Date(slots[0].end),
+            technicianId: 'tech-1', rescheduleCount: 0, createdAt: new Date(),
+        }] });
+        expect((await service.view(viewer('it-1', UserRole.AGENT), TID)).phase).toBe('schedule');
+    });
+
     it('labels scheduling that waits for the requester', async () => {
         const ctx = context('HARDWARE', { hardware: { ...context('HARDWARE').hardware!, status: RequestStatus.INSTALLATION } as never });
         const { service } = setup(ctx, { schedules: [{
