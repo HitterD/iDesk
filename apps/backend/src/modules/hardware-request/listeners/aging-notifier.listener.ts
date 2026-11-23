@@ -37,7 +37,7 @@ export class AgingNotifierListener {
             if (await this.flows.has(request.id)) {
                 const [row]: { ticketId: string; assignedToId: string | null }[] = await this.dataSource.query(
                     `SELECT f."ticketId" AS "ticketId", t."assignedToId" AS "assignedToId"
-                       FROM request_flows f JOIN tickets t ON t.id = f."ticketId" WHERE f."hardwareRequestId" = $1 LIMIT 1`,
+                       FROM request_flows f JOIN tickets t ON t.id = f."ticketId" AND t."deletedAt" IS NULL WHERE f."hardwareRequestId" = $1 LIMIT 1`,
                     [request.id],
                 );
                 if (row?.assignedToId) {

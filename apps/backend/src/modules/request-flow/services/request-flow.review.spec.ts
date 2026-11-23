@@ -127,6 +127,17 @@ describe('RequestFlowReviewService.review', () => {
     });
 });
 
+describe('RequestFlowReviewService.review: two different signers', () => {
+    it('the manager and the GM cannot be the same person (one person would sign both steps)', async () => {
+        await expect(setup(context()).service.review(IT, TID, { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'mgr-1' }))
+            .rejects.toThrow('Atasan dan GM harus orang yang berbeda');
+    });
+
+    it('the same person is fine on a route with no GM step', async () => {
+        await expect(setup(context()).service.review(IT, TID, { route: 'MANAGER', managerId: 'mgr-1', gmId: 'mgr-1' })).resolves.toBeDefined();
+    });
+});
+
 describe('RequestFlowReviewService.decide', () => {
     const approving = () => context({
         flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1',

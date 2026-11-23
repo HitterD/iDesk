@@ -66,6 +66,7 @@ const MESSAGES = {
     sourceRequired: 'Pilih sumber barang',
     managerSelf: 'Atasan tidak boleh pemohon sendiri',
     gmSelf: 'GM tidak boleh pemohon sendiri',
+    sameSigner: 'Atasan dan GM harus orang yang berbeda',
     inactive: 'Atasan atau GM yang dipilih tidak ditemukan atau tidak aktif',
     routeLocked: 'Persetujuan yang sudah ditandatangani tidak bisa dihapus atau diturunkan',
     signatureRequired: 'Tanda tangan wajib diisi',
@@ -302,6 +303,7 @@ export class RequestFlowReviewService {
         if (dto.route === 'MANAGER_GM') {
             if (!dto.gmId) throw new BadRequestException(MESSAGES.gmRequired);
             if (dto.gmId === ctx.requesterId) throw new BadRequestException(MESSAGES.gmSelf);
+            if (dto.gmId === dto.managerId) throw new BadRequestException(MESSAGES.sameSigner);
             ids.push(dto.gmId);
         }
         for (const id of ids) {

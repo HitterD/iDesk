@@ -8,9 +8,9 @@ function setup(opts: { flow?: boolean; ticket?: object | null } = {}) {
     const center = { findStaffAtSite: jest.fn(async () => [{ id: 'ops-1' }, { id: 'ops-2' }]) };
     const query = { findById: jest.fn(async () => ({ id: 'hr-1', requestNumber: 'HR-2026-0042', siteId: 'site-1' })) };
     const flows = { has: jest.fn(async () => opts.flow ?? true) };
-    const dataSource = { query: jest.fn(async () => (opts.ticket === null ? [] : [opts.ticket ?? { ticketId: 't-1', assignedToId: 'pic-1' }])) };
+    const dataSource = { query: jest.fn(async (_sql: string, _params?: unknown[]) => (opts.ticket === null ? [] : [opts.ticket ?? { ticketId: 't-1', assignedToId: 'pic-1' }])) };
     const listener = new AgingNotifierListener(notif as never, center as never, query as never, flows as never, dataSource as never);
-    return { listener, notif, center };
+    return { listener, notif, center, dataSource };
 }
 
 describe('AgingNotifierListener', () => {
@@ -54,6 +54,12 @@ describe('AgingNotifierListener', () => {
         expect(center.findStaffAtSite).toHaveBeenCalledWith(expect.arrayContaining(['AGENT_OPERATIONAL_SUPPORT']), 'site-1');
         expect(notif.create.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toEqual(['ops-1', 'ops-2']);
         expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({ link: '/hardware-requests/hr-1' }));
+    });
+
+    it('looks only at a ticket that is not deleted, so a deleted ticket gets no aging notice', async () => {
+        const { listener, dataSource } = setup();
+        await listener.onAgingFlagged(event);
+        expect(String(dataSource.query.mock.calls[0][0])).toContain('t."deletedAt" IS NULL');
     });
 
     it('never throws into the cron', async () => {

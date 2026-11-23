@@ -42,6 +42,8 @@ export class TicketHardwareSyncListener {
 
     @OnEvent(HR_EVT.CANCELLED)
     async onCancelled(e: HrCancelled) {
+        // On a request ticket the flow tells the ticket itself (one message for the cancellation).
+        if (await this.flows.has(e.requestId)) return undefined;
         if (e.fromStatus !== RequestStatus.DRAFT) {
             return this.link.record(e.requestId, 'CANCELLED', { actorId: e.actorId });
         }

@@ -29,6 +29,12 @@ describe('TicketHardwareSyncListener', () => {
         expect(link.record).toHaveBeenCalledWith('req-1', 'SCHEDULED', { at: slot.scheduledStart });
     });
 
+    it('a request that lives on a ticket gets no second "cancelled" card: the flow already wrote its own', async () => {
+        flows.has.mockResolvedValue(true);
+        await listener.onCancelled({ ...base, actorId: 'agent-1', fromStatus: RequestStatus.INSTALLATION });
+        expect(link.record).not.toHaveBeenCalled();
+    });
+
     it('treats cancelling a running request as CANCELLED', async () => {
         await listener.onCancelled({ ...base, actorId: 'agent-1', fromStatus: RequestStatus.INSTALLATION });
         expect(link.record).toHaveBeenCalledWith('req-1', 'CANCELLED', { actorId: 'agent-1' });
