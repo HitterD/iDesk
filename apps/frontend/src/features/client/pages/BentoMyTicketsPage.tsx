@@ -89,7 +89,11 @@ const KIND_FILTER_OPTIONS = [
 const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSearch }) => {
     const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [kindFilter, setKindFilter] = useState<'all' | 'IT' | 'HARDWARE' | 'EFORM'>('all');
+    const [searchParams] = useSearchParams();
+    const [kindFilter, setKindFilter] = useState<'all' | 'IT' | 'HARDWARE' | 'EFORM'>(() => {
+        const wanted = searchParams.get('kind');
+        return wanted === 'IT' || wanted === 'HARDWARE' || wanted === 'EFORM' ? wanted : 'all';
+    });
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const navigate = useNavigate();

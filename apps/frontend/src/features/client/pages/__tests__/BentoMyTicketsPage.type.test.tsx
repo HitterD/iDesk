@@ -76,6 +76,18 @@ describe('BentoMyTicketsPage with request tickets', () => {
         await waitFor(() => expect(listUrls().some((url) => url.includes('requestKind=IT'))).toBe(true));
     });
 
+    it('opens already filtered when the address says ?kind= (old Hardware / E-Form links land here)', async () => {
+        renderPage('/client/my-tickets?kind=HARDWARE');
+        await waitFor(() => expect(listUrls().some((url) => url.includes('requestKind=HARDWARE'))).toBe(true));
+        expect(listUrls().every((url) => url.includes('requestKind=HARDWARE'))).toBe(true);
+    });
+
+    it('ignores an unknown ?kind= value', async () => {
+        renderPage('/client/my-tickets?kind=junk');
+        await waitFor(() => expect(listUrls().length).toBeGreaterThan(0));
+        expect(listUrls().every((url) => !url.includes('requestKind'))).toBe(true);
+    });
+
     it('shows the active access cards with days left above the list', async () => {
         renderPage();
         expect(await screen.findByText('Sisa 5 hari')).toBeInTheDocument();

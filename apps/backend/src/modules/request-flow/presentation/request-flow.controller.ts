@@ -25,6 +25,7 @@ import { ProcureDto } from '../dto/procure.dto';
 import { RejectDto } from '../dto/reject.dto';
 import { ReviewDto } from '../dto/review.dto';
 import { ACCESS_GROUPS, type AccessGroup } from '../domain/access-groups';
+import { RequestFlowLegacyService, type LegacyKind } from '../services/request-flow-legacy.service';
 import { DevicesAccessService } from '../services/devices-access.service';
 import { RequestFlowQueryService, type RequestFlowView } from '../services/request-flow-query.service';
 import { RequestDocumentService } from '../services/request-document.service';
@@ -67,6 +68,7 @@ export class RequestFlowController {
         private readonly confirmations: RequestConfirmFlowService,
         private readonly numbers: RequestDocumentNumberService,
         private readonly center: DevicesAccessService,
+        private readonly legacy: RequestFlowLegacyService,
     ) {}
 
     @Post('hardware')
@@ -91,6 +93,14 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'Request tickets waiting for my signature' })
     approvals(@Request() req: { user: AuthenticatedUser }) {
         return this.center.approvals(actorOf(req));
+    }
+
+    // Old page links (emails, notifications) carry the old request id: find the ticket that replaced it.
+    @Get('by-legacy/:kind/:id')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'The ticket behind an old hardware request / e-form id (kind = hardware | eform)' })
+    byLegacy(@Request() req: { user: AuthenticatedUser }, @Param('kind') kind: LegacyKind, @Param('id') id: string) {
+        return this.legacy.ticketOf({ userId: req.user.userId, role: req.user.role, siteId: req.user.siteId ?? null }, kind, id);
     }
 
     // Every signed-in role: the service only ever returns the caller's own accesses.

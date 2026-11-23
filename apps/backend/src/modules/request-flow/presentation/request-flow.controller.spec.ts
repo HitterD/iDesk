@@ -30,6 +30,10 @@ describe('RequestFlowController roles', () => {
         expect(rolesOf('cancel')).toEqual(Object.values(UserRole));
     });
 
+    it('by-legacy is open to every signed-in role; the service checks who may open the ticket', () => {
+        expect(rolesOf('byLegacy')).toEqual(Object.values(UserRole));
+    });
+
     it('my-access is open to every signed-in role', () => {
         expect(rolesOf('myAccess')).toEqual(Object.values(UserRole));
     });
@@ -42,7 +46,7 @@ describe('RequestFlowController roles', () => {
         const names = Object.getOwnPropertyNames(RequestFlowController.prototype);
         const path = (m: string) => Reflect.getMetadata('path', RequestFlowController.prototype[m as keyof RequestFlowController]) as string;
         const firstParam = names.findIndex((n) => String(path(n)).startsWith(':ticketId'));
-        for (const m of ['approvals', 'myAccess', 'centerSchedule', 'centerAccess', 'centerSummary']) {
+        for (const m of ['approvals', 'byLegacy', 'myAccess', 'centerSchedule', 'centerAccess', 'centerSummary']) {
             expect(names.indexOf(m)).toBeLessThan(firstParam);
         }
     });

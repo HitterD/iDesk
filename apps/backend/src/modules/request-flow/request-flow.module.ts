@@ -22,6 +22,7 @@ import { RequestDocumentNumberService } from './services/request-document-number
 import { RequestFlowFinalizer } from './services/request-flow-finalizer';
 import { RequestFulfillFlowService } from './services/request-fulfill-flow.service';
 import { DevicesAccessService } from './services/devices-access.service';
+import { RequestFlowLegacyService } from './services/request-flow-legacy.service';
 import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
@@ -36,7 +37,7 @@ import { NotificationModule } from '../notifications/notification.module';
     providers: [
         RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowQueryService, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
         RequestItemsService, RequestProcurementFlowService, RequestInstallFlowService,
-        RequestFulfillFlowService, RequestConfirmFlowService, RequestDocumentNumberService, RequestFlowFinalizer, DevicesAccessService,
+        RequestFulfillFlowService, RequestConfirmFlowService, RequestDocumentNumberService, RequestFlowFinalizer, DevicesAccessService, RequestFlowLegacyService,
     ],
 })
 export class RequestFlowModule {}
