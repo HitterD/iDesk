@@ -40,7 +40,12 @@ const PHASE_STATUS: Partial<Record<HardwareTicketPhase, TicketStatus>> = {
     REJECTED: TicketStatus.IN_PROGRESS,
     CANCELLED: TicketStatus.IN_PROGRESS,
     COMPLETED: TicketStatus.CLOSED,
+    // The requester found a problem after the installation: a resolved ticket goes back to the agent (see `REOPENING`).
+    ISSUE_REPORTED: TicketStatus.IN_PROGRESS,
 };
+
+/** The only phase that may take a RESOLVED ticket back; every other step leaves a resolved ticket alone. */
+const REOPENING: readonly HardwareTicketPhase[] = ['ISSUE_REPORTED'];
 
 export interface RecordOptions {
     actorId?: string | null;
@@ -90,6 +95,7 @@ export class TicketHardwareLinkService {
             ticketId: request.sourceTicketId,
             actorId: options.actorId,
             target: PHASE_STATUS[phase],
+            ...(REOPENING.includes(phase) ? { reopenResolved: true as const } : {}),
             text: PHASE_TEXT[phase](request.requestNumber, at?.toLocaleString('id-ID', WHEN_FORMAT)),
             event: {
                 ...(options.reason ? { reason: options.reason } : {}),

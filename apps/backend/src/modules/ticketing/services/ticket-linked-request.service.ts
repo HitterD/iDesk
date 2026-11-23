@@ -12,9 +12,10 @@ import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activity.util';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { SurveysService } from '../surveys.service';
-import { computeResolutionDeadline } from '../utils/resolution-deadline.util';
+import { computeResolutionDeadline, reopenAsDispute } from '../utils/resolution-deadline.util';
 
 const MINUTE_MS = 60_000;
+
 
 /**
  * Where requests raised from a ticket live, and which statuses mean they no longer hold it. A DRAFT is a proposal the
@@ -39,6 +40,11 @@ export interface LinkedPhase {
     event: LinkedRequestEvent;
     /** Post the message only when the ticket's status really changes (a retry must not repeat the card). */
     silentUnlessMoved?: boolean;
+    /**
+     * Only with target IN_PROGRESS: take a RESOLVED ticket back to the agent (the requester reported an issue). Every
+     * other step leaves a resolved ticket alone, so a late rejection or a retried resume cannot reopen it.
+     */
+    reopenResolved?: true;
 }
 
 /**
@@ -68,7 +74,7 @@ export class TicketLinkedRequestService {
                 if (!ticket) return null;
                 const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
                 const target = await this.settleTarget(manager, ticket.id, phase);
-                const changes = await this.moveTicket(manager, ticket, target);
+                const changes = await this.moveTicket(manager, ticket, target, phase.reopenResolved === true);
                 if (changes.length > 0) await manager.save(Ticket, ticket);
                 if (phase.silentUnlessMoved && changes.length === 0) return null;
                 const systemEvent: TicketSystemEvent = {
@@ -118,17 +124,27 @@ export class TicketLinkedRequestService {
             proposals += Number(row?.proposals ?? 0);
         }
         if (running > 0) return undefined;
-        if (target === TicketStatus.CLOSED && proposals > 0) return TicketStatus.IN_PROGRESS;
+        if (target === TicketStatus.CLOSED && proposals > 0) {
+            // A confirmed request must never reopen a ticket that already waits for the requester as a dispute.
+            return await this.isResolved(manager, ticketId) ? undefined : TicketStatus.IN_PROGRESS;
+        }
         return target;
     }
 
+    private async isResolved(manager: EntityManager, ticketId: string): Promise<boolean> {
+        const ticket = await manager.findOne(Ticket, { where: { id: ticketId }, select: ['id', 'status'] });
+        return ticket?.status === TicketStatus.RESOLVED;
+    }
+
     /** Same clock rules as a manual WAITING_VENDOR wait, without a vendor appointment. */
-    private async moveTicket(manager: EntityManager, ticket: Ticket, target: TicketStatus | undefined): Promise<TicketActivityChange[]> {
+    private async moveTicket(manager: EntityManager, ticket: Ticket, target: TicketStatus | undefined, reopenResolved = false): Promise<TicketActivityChange[]> {
         if (!target || ticket.status === target) return [];
+        // An issue report only reopens a resolved ticket; it never resumes another wait.
+        if (reopenResolved && ticket.status !== TicketStatus.RESOLVED) return [];
         // CLOSED and CANCELLED are final. A RESOLVED ticket waits for the requester: it may still be closed (confirmed)
-        // or taken back (an issue was reported); nothing else moves it.
+        // or, only when asked to (`reopenResolved`), taken back because an issue was reported; nothing else moves it.
         if (ticket.status === TicketStatus.RESOLVED) {
-            if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS) return [];
+            if (target !== TicketStatus.CLOSED && !(target === TicketStatus.IN_PROGRESS && reopenResolved)) return [];
         } else if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) return [];
         // Only a ticket that is waiting on the request resumes (or a resolved one taken back); one an agent already moved on is left alone.
         if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR && ticket.status !== TicketStatus.RESOLVED) return [];
@@ -147,11 +163,7 @@ export class TicketLinkedRequestService {
             ticket.waitingVendorAt = now;
             await this.slaClock.hold(ticket, now);
         } else if (target === TicketStatus.IN_PROGRESS && from === TicketStatus.RESOLVED) {
-            // Same as the requester's dispute: the clock never stopped for good, so the original target stands.
-            ticket.disputedAt = now;
-            ticket.resolvedAt = null;
-            ticket.resolutionDeadlineAt = null;
-            this.slaClock.resumeOnOriginalTarget(ticket, now);
+            reopenAsDispute(ticket, this.slaClock, now);
         } else if (target === TicketStatus.IN_PROGRESS) {
             await this.slaClock.release(ticket, now);
         } else if (target === TicketStatus.RESOLVED) {

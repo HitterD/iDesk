@@ -3,13 +3,13 @@ import { TicketLinkedRequestService } from './ticket-linked-request.service';
 
 const DEADLINE = new Date('2026-11-24T10:00:00Z');
 
-function setup(ticket: Partial<Ticket>, running = '0') {
+function setup(ticket: Partial<Ticket>, running = '0', proposals = '0') {
     const row: any = { id: 't-1', siteId: 'site-1', assignedToId: 'agent-1', ...ticket };
     const manager = {
         findOne: jest.fn(async (entity: unknown) => (entity === Ticket ? row : null)),
         save: jest.fn(async (_e: unknown, v: any) => ({ id: 'msg-1', ...v })),
         create: jest.fn((_e: unknown, v: unknown) => v),
-        query: jest.fn(async () => [{ running, proposals: '0' }]),
+        query: jest.fn(async () => [{ running, proposals }]),
     };
     const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)) };
     const slaClock: Record<string, jest.Mock> = { hold: jest.fn(async () => undefined), release: jest.fn(async () => false) };
@@ -22,8 +22,8 @@ function setup(ticket: Partial<Ticket>, running = '0') {
         dataSource as never, slaClock as never, vendorVisit as never, gateway as never, { recalculateAgentWorkload: jest.fn() } as never, businessHours as never,
         surveys as never,
     );
-    const phase = (target: TicketStatus) => ({
-        ticketId: 't-1', actorId: null, target, text: 'x', event: { hardwareRequest: { id: 'hr-1', number: 'HR-1', phase: 'INSTALLED' as const } },
+    const phase = (target: TicketStatus, extra: { reopenResolved?: true; silentUnlessMoved?: boolean } = {}) => ({
+        ...extra, ticketId: 't-1', actorId: null, target, text: 'x', event: { hardwareRequest: { id: 'hr-1', number: 'HR-1', phase: 'INSTALLED' as const } },
     });
     return { service, row, slaClock, phase, businessHours, surveys };
 }
@@ -65,10 +65,10 @@ describe('TicketLinkedRequestService RESOLVED target', () => {
         expect(row.resolutionDeadlineAt).toBeNull();
     });
 
-    it('RESOLVED + IN_PROGRESS reopens the ticket like a dispute', async () => {
+    it('RESOLVED + IN_PROGRESS with reopenResolved reopens the ticket like a dispute', async () => {
         const { service, row, slaClock, phase } = setup({ status: TicketStatus.RESOLVED, resolutionDeadlineAt: DEADLINE, resolvedAt: new Date() });
 
-        await expect(service.record(phase(TicketStatus.IN_PROGRESS))).resolves.toBe(true);
+        await expect(service.record(phase(TicketStatus.IN_PROGRESS, { reopenResolved: true }))).resolves.toBe(true);
 
         expect(row.status).toBe(TicketStatus.IN_PROGRESS);
         expect(row.resolutionDeadlineAt).toBeNull();
@@ -123,5 +123,33 @@ describe('TicketLinkedRequestService RESOLVED target', () => {
         const { service, surveys, phase } = setup({ status: TicketStatus.IN_PROGRESS });
         surveys.createSurvey.mockRejectedValueOnce(new Error('mail down'));
         await expect(service.record(phase(TicketStatus.RESOLVED))).resolves.toBe(true);
+    });
+
+    it('IN_PROGRESS without reopenResolved (rejected, cancelled, returned, a retried resume) leaves a RESOLVED ticket alone', async () => {
+        const { service, row, phase } = setup({ status: TicketStatus.RESOLVED, resolutionDeadlineAt: DEADLINE });
+
+        await expect(service.record(phase(TicketStatus.IN_PROGRESS))).resolves.toBe(false);
+        await expect(service.record(phase(TicketStatus.IN_PROGRESS, { silentUnlessMoved: true }))).resolves.toBe(false);
+
+        expect(row.status).toBe(TicketStatus.RESOLVED);
+        expect(row.resolutionDeadlineAt).toBe(DEADLINE);
+        expect(row.disputedAt).toBeUndefined();
+    });
+
+    it('closing a RESOLVED ticket never reopens it because of an unanswered proposal', async () => {
+        const { service, row, phase } = setup({ status: TicketStatus.RESOLVED, resolutionDeadlineAt: DEADLINE }, '0', '1');
+
+        await expect(service.record(phase(TicketStatus.CLOSED))).resolves.toBe(false);
+
+        expect(row.status).toBe(TicketStatus.RESOLVED);
+        expect(row.disputedAt).toBeUndefined();
+    });
+
+    it('an unanswered proposal still sends a running ticket back to the agent instead of closing', async () => {
+        const { service, row, phase } = setup({ status: TicketStatus.WAITING_VENDOR, lastPausedAt: new Date() }, '0', '1');
+
+        await expect(service.record(phase(TicketStatus.CLOSED))).resolves.toBe(true);
+
+        expect(row.status).toBe(TicketStatus.IN_PROGRESS);
     });
 });

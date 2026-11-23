@@ -22,7 +22,7 @@ describe('TicketHardwareLinkService', () => {
             // The other requests raised from the ticket: [hardware_requests, eform_requests] counts of running and unanswered.
             query: jest.fn(async () => [{ running: '0', proposals: '0' }]),
         };
-        slaClock = { hold: jest.fn(), release: jest.fn() };
+        slaClock = { hold: jest.fn(), release: jest.fn(), resumeOnOriginalTarget: jest.fn() };
         vendorVisit = { clear: jest.fn() };
         gateway = { notifyNewMessage: jest.fn(), notifyTicketUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
@@ -95,6 +95,62 @@ describe('TicketHardwareLinkService', () => {
         expect(ticket.status).toBe(TicketStatus.CLOSED);
         expect(ticket.closedAt).toBeInstanceOf(Date);
         expect(ticket.resolutionDeadlineAt).toBeNull();
+    });
+
+    describe.each(['REJECTED', 'CANCELLED'] as const)('%s on a RESOLVED flow ticket', (phase) => {
+        it('leaves it waiting for the requester', async () => {
+            ticket.status = TicketStatus.RESOLVED;
+            ticket.resolutionDeadlineAt = new Date();
+
+            await service.record('req-1', phase, { actorId: 'user-1' });
+
+            expect(ticket.status).toBe(TicketStatus.RESOLVED);
+            expect(ticket.resolutionDeadlineAt).toBeInstanceOf(Date);
+            expect(ticket.disputedAt).toBeUndefined();
+        });
+    });
+
+    it('a retried resumeForInstallation after install-done leaves a RESOLVED ticket untouched', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+
+        await expect(service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true })).resolves.toBe(false);
+        await expect(service.resumeForInstallation('req-1', 'agent-1')).resolves.toBe(false);
+
+        expect(ticket.status).toBe(TicketStatus.RESOLVED);
+        expect(ticket.disputedAt).toBeUndefined();
+    });
+
+    it('ISSUE_REPORTED reopens a RESOLVED ticket as a dispute (deadline cleared, disputedAt set)', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+        ticket.resolvedAt = new Date();
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1', reason: 'Monitor mati' });
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(ticket.resolutionDeadlineAt).toBeNull();
+        expect(ticket.resolvedAt).toBeNull();
+        expect(ticket.disputedAt).toBeInstanceOf(Date);
+    });
+
+    it('ISSUE_REPORTED never resumes a ticket that still waits on a vendor', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        ticket.lastPausedAt = new Date();
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+    });
+
+    it('ISSUE_REPORTED on a ticket that is not resolved changes nothing', async () => {
+        ticket.status = TicketStatus.IN_PROGRESS;
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(message().systemEvent.changes).toEqual([]);
     });
 
     describe('resumeForInstallation (goods arrived, request enters INSTALLATION)', () => {
