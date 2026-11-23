@@ -34,6 +34,8 @@ vi.mock('@/features/csi/hooks/useCsiHc', () => ({
     useCsiOwnerReportAccess: () => csiOwnerReport.current,
 }));
 
+vi.mock('@/features/client/pages/ApprovalsPage', () => ({ useApprovals: () => ({ data: [] }) }));
+
 // Real implementations are untouched by this task; stub them to isolate the shell.
 vi.mock('../../notifications/NotificationPopover', () => ({
     NotificationPopover: () => <button type="button">Notifikasi</button>,
@@ -60,7 +62,7 @@ const renderPortal = (path = '/client/my-tickets') =>
             <Routes>
                 <Route path="/client" element={<ClientLayout />}>
                     <Route path="my-tickets" element={<p>My tickets page</p>} />
-                    <Route path="eform-access" element={<p>E-form page</p>} />
+                    <Route path="kb" element={<p>Help center page</p>} />
                     <Route path="tickets/:id" element={<p>Detail page</p>} />
                 </Route>
                 <Route path="/login" element={<p>Login page</p>} />
@@ -84,7 +86,7 @@ describe('ClientLayout requester shell', () => {
         renderPortal();
         // Short labels in the segment; profile lives in the account menu, not the segment.
         const labels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan']);
+        expect(labels).toEqual(['Tiket Saya', 'Bantuan']);
         expect(within(portalNav()).queryByRole('link', { name: /Profile|Akun/ })).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Hardware Requests')).not.toBeInTheDocument();
         expect(within(portalNav()).queryByText('Zoom Calendar')).not.toBeInTheDocument();
@@ -103,7 +105,7 @@ describe('ClientLayout requester shell', () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
         renderPortal();
         const labels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(labels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei CSI1']);
+        expect(labels).toEqual(['Tiket Saya', 'Bantuan', 'Survei CSI1']);
         expect(within(portalNav()).getByRole('link', { name: /Survei CSI/ })).toHaveAttribute('href', '/client/csi');
         expect(within(portalNav()).getByRole('link', { name: /Survei CSI/ })).toHaveAttribute('data-tone', 'teal');
     });
@@ -134,12 +136,13 @@ describe('ClientLayout requester shell', () => {
     it('shows every item while the preset is still loading', () => {
         permissions.current = undefined;
         renderPortal();
-        expect(within(portalNav()).getAllByRole('link')).toHaveLength(5);
+        // Tiket Saya, Zoom and Bantuan (Akun sits in its own segment): Hardware and E-Form are tickets now, not menu items.
+        expect(within(portalNav()).getAllByRole('link')).toHaveLength(3);
     });
 
     it('marks the selected route with aria-current', () => {
-        renderPortal('/client/eform-access');
-        expect(within(portalNav()).getByRole('link', { name: 'E-Form' })).toHaveAttribute('aria-current', 'page');
+        renderPortal('/client/kb');
+        expect(within(portalNav()).getByRole('link', { name: 'Bantuan' })).toHaveAttribute('aria-current', 'page');
         expect(within(portalNav()).getByRole('link', { name: 'Tiket Saya' })).not.toHaveAttribute('aria-current');
     });
 
@@ -217,16 +220,16 @@ describe('ClientLayout requester shell', () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: false }];
         renderPortal();
         const bottomLabels = within(bottomNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(bottomLabels).toEqual(['Survei CSI', 'Tiket Saya', 'Tiket Baru', 'E-Form', 'Akun']);
+        expect(bottomLabels).toEqual(['Survei CSI', 'Tiket Saya', 'Tiket Baru', 'Bantuan', 'Akun']);
         const topLabels = within(portalNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(topLabels).toEqual(['Tiket Saya', 'E-Form', 'Bantuan', 'Survei CSI1']);
+        expect(topLabels).toEqual(['Tiket Saya', 'Bantuan', 'Survei CSI1']);
     });
 
     it('keeps the survey after the sections in the bottom nav once every survey is submitted', () => {
         csiActive.current = [{ id: 'p1', scope: 'ICT', title: 'Survei ICT', submitted: true }];
         renderPortal();
         const bottomLabels = within(bottomNav()).getAllByRole('link').map((link) => link.textContent?.trim());
-        expect(bottomLabels).toEqual(['Tiket Saya', 'E-Form', 'Tiket Baru', 'Bantuan', 'Akun']);
+        expect(bottomLabels).toEqual(['Tiket Saya', 'Bantuan', 'Tiket Baru', 'Survei CSI', 'Akun']);
     });
 
     it('hides the bottom nav and keeps the full-height layout on ticket detail', () => {

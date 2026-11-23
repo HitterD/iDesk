@@ -31,6 +31,7 @@ const BentoTicketDetailPage = lazy(() => import('../features/ticket-board/pages/
 const BentoSettingsPage = lazy(() => import('../features/settings/pages/BentoSettingsPage').then(m => ({ default: m.BentoSettingsPage })));
 const BentoAdminAgentsPage = lazy(() => import('../features/admin/pages/BentoAdminAgentsPage').then(m => ({ default: m.BentoAdminAgentsPage })));
 const BentoMyTicketsPage = lazy(() => import('../features/client/pages/BentoMyTicketsPage').then(m => ({ default: m.BentoMyTicketsPage })));
+const ApprovalsPage = lazy(() => import('../features/client/pages/ApprovalsPage').then(m => ({ default: m.ApprovalsPage })));
 const BentoCreateTicketPage = lazy(() => import('../features/client/pages/BentoCreateTicketPage').then(m => ({ default: m.BentoCreateTicketPage })));
 const ClientTicketDetailPage = lazy(() => import('../features/client/pages/ClientTicketDetailPage').then(m => ({ default: m.ClientTicketDetailPage })));
 const ClientKnowledgeBasePage = lazy(() => import('../features/client/pages/ClientKnowledgeBasePage').then(m => ({ default: m.ClientKnowledgeBasePage })));
@@ -295,6 +296,7 @@ export default function AppRoutes() {
                         <Route index element={<Navigate to="/manager/dashboard" replace />} />
                         <Route path="dashboard" element={<LazyRoute component={BentoDashboardPage} featureName="Dashboard" />} />
                         <Route path="workloads" element={<LazyRoute component={AdminWorkloadDashboard} featureName="Admin Workload Dashboard" />} />
+                        <Route path="approvals" element={<LazyRoute component={ApprovalsPage} featureName="Approvals" />} />
                         <Route path="tickets" element={<LazyRoute component={BentoTicketListPage} featureName="Ticket Overview" />} />
                         <Route path="reports" element={<LazyRoute component={BentoReportsPage} featureName="Reports" requiredPageAccess="reports" />} />
                         <Route path="kb" element={<LazyRoute component={BentoKnowledgeBasePage} featureName="Knowledge Base" requiredPageAccess="knowledge_base" />} />
@@ -336,6 +338,7 @@ export default function AppRoutes() {
                         }
                     >
                         <Route path="my-tickets" element={<LazyRoute component={BentoMyTicketsPage} featureName="My Tickets" />} />
+                        <Route path="approvals" element={<LazyRoute component={ApprovalsPage} featureName="Approvals" />} />
                         <Route path="create" element={<LazyRoute component={BentoCreateTicketPage} featureName="Create Ticket" />} />
                         <Route path="tickets/:id" element={<LazyRoute component={ClientTicketDetailPage} featureName="Ticket Detail" />} />
                         <Route path="notifications" element={<LazyRoute component={ClientNotificationCenter} featureName="Notifications" requiredPageAccess="notifications" />} />

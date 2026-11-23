@@ -13,20 +13,22 @@ import {
     Bell,
     CalendarClock,
     Activity,
-    FileText,
-    Monitor,
+    PenLine,
 } from 'lucide-react';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { cn } from '@/lib/utils';
 import { UserAvatar } from '@/components/ui/UserAvatar';
 import { Logo } from '@/components/ui/Logo';
 import { useMyPermissions } from '@/hooks/usePermissions';
+import { useApprovals } from '@/features/client/pages/ApprovalsPage';
 
 export const ManagerSidebar = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const [isCollapsed, setIsCollapsed] = useState(false);
     const { data: myPermissions } = useMyPermissions();
+    const { data: approvals } = useApprovals();
+    const waitingApprovals = approvals?.length ?? 0;
 
     const handleLogout = async () => {
         await performLogout();
@@ -41,15 +43,16 @@ export const ManagerSidebar = () => {
         { key: 'zoom_calendar', icon: Video, label: 'Zoom Calendar', path: '/manager/zoom-calendar' },
         { key: 'reports', icon: BarChart3, label: 'Reports', path: '/manager/reports' },
         { key: 'knowledge_base', icon: BookOpen, label: 'Knowledge Base', path: '/manager/kb' },
-        { key: 'hardware_requests', icon: Monitor, label: 'Hardware Request', path: '/manager/hardware-requests' },
-        { key: 'eform_access', icon: FileText, label: 'E-Form Access', path: '/manager/eform-access' },
         // Hidden by default (not in MANAGER preset) — shown only if custom preset grants access
         { key: 'notifications', icon: Bell, label: 'Notifications', path: '/manager/notifications' },
         { key: 'renewal', icon: CalendarClock, label: 'Renewal Hub', path: '/manager/renewal' },
     ];
 
     // Filter nav items based on pageAccess from applied preset
-    const navItems = ALL_NAV_ITEMS.filter(item => {
+    // Hardware / E-Form requests are tickets now; the manager only needs a way to the ones waiting for a signature.
+    const approvalsItem = { key: 'approvals', icon: PenLine, label: 'Persetujuan', path: '/manager/approvals' };
+    const navItems = [...ALL_NAV_ITEMS.slice(0, 3), ...(waitingApprovals > 0 ? [approvalsItem] : []), ...ALL_NAV_ITEMS.slice(3)].filter(item => {
+        if (item.key === 'approvals') return true;
         // While loading, show all items to avoid layout shift
         // Dashboard and workloads are core Manager features
         if (item.key === 'dashboard' || item.key === 'workloads') return true;
@@ -120,6 +123,9 @@ export const ManagerSidebar = () => {
                             <span className="font-medium animate-in fade-in duration-300 whitespace-nowrap">
                                 {item.label}
                             </span>
+                        )}
+                        {item.key === 'approvals' && waitingApprovals > 0 && (
+                            <span className="ml-auto rounded-full bg-primary px-2 text-xs font-bold text-primary-foreground">{waitingApprovals}</span>
                         )}
                     </NavLink>
                 ))}
