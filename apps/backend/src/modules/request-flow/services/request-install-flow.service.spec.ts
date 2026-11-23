@@ -38,7 +38,7 @@ function setup(ctx: FlowContext, openSchedules = 1) {
     const schedules = { completeWith: jest.fn(async () => undefined) };
     const hardware = { completeInstallationWith: jest.fn(async () => ({ id: 'hr-1', status: RequestStatus.AWAITING_USER_CONFIRMATION })), announceInstallCompleted: jest.fn() };
     const documents = { bump: jest.fn(async () => 5) };
-    const stepper = { tell: jest.fn(async () => undefined) };
+    const stepper = { tell: jest.fn(async () => undefined), tellWithin: jest.fn(async (..._args: unknown[]) => async () => undefined) };
     const service = new RequestInstallFlowService(dataSource as never, reader as never, assets as never, schedules as never, hardware as never, documents as never, stepper as never);
     return { service, manager, assets, schedules, hardware, documents, stepper };
 }
@@ -84,10 +84,18 @@ describe('RequestInstallFlowService.installDone', () => {
         expect(activities.find((a) => a.metadata.change === 'ASSETS_REGISTERED')).toMatchObject({ metadata: { count: 2, photoUrl: '/uploads/x.jpg' } });
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'DIG', 'TTD teknisi — 2 aset tercatat', 'it-1', manager);
         expect(hardware.announceInstallCompleted).toHaveBeenCalledWith(expect.objectContaining({ id: 'hr-1' }), 'it-1');
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(manager, expect.anything(), expect.objectContaining({
             actorId: 'it-1', phase: 'INSTALLED', target: TicketStatus.RESOLVED, text: 'Pemasangan selesai — menunggu Leony mengecek',
         }));
         expect(result).toEqual({ status: RequestStatus.AWAITING_USER_CONFIRMATION, assets: 2 });
+    });
+
+    it('a ticket that cannot take the step rolls the whole report back: no assets, no half-finished request', async () => {
+        const { service, stepper, hardware } = setup(context([unit('a')]));
+        stepper.tellWithin.mockRejectedValueOnce(new Error('Status tiket berubah'));
+        await expect(service.installDone(IT, TID, dto([{ itemId: 'a', code: 'AST-0001' }]))).rejects.toThrow('Status tiket berubah');
+        expect(hardware.announceInstallCompleted).not.toHaveBeenCalled();
+        expect(stepper.tell).not.toHaveBeenCalled();
     });
 
     it('never puts the signature into the result', async () => {

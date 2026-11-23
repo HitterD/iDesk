@@ -138,6 +138,34 @@ describe('RequestFlowReviewService.review: two different signers', () => {
     });
 });
 
+describe('RequestFlowReviewService: the ticket moves in the same transaction as the request', () => {
+    const inTransaction = (linked: { recordWithin: jest.Mock; record: jest.Mock }) => ({ within: linked.recordWithin.mock.calls.length, after: linked.record.mock.calls.length });
+
+    it('the review by IT records the ticket step inside the transaction, so a failure rolls the review back', async () => {
+        const { service, linked } = setup(context());
+        await service.review(IT, TID, { route: 'MANAGER', managerId: 'mgr-1' });
+        expect(inTransaction(linked)).toEqual({ within: 1, after: 0 });
+    });
+
+    it('a failing ticket step fails the review instead of leaving a half-done request', async () => {
+        const { service, linked } = setup(context());
+        linked.recordWithin.mockRejectedValueOnce(new Error('Status tiket berubah'));
+        await expect(service.review(IT, TID, { route: 'MANAGER', managerId: 'mgr-1' })).rejects.toThrow('Status tiket berubah');
+    });
+
+    it('the signature of an approver records the ticket step inside the transaction', async () => {
+        const { service, linked } = setup(context({ flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
+        await service.decide({ ...IT, userId: 'mgr-1', role: UserRole.MANAGER }, TID, { decision: 'APPROVE', signatureData: 'data:image/png;base64,AAAA' } as never);
+        expect(inTransaction(linked)).toEqual({ within: 1, after: 0 });
+    });
+
+    it('sending a request back to IT records the ticket step inside the transaction', async () => {
+        const { service, linked } = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
+        await service.decide({ ...IT, userId: 'mgr-1', role: UserRole.MANAGER }, TID, { decision: 'RETURN', note: 'Ganti barang' } as never);
+        expect(inTransaction(linked)).toEqual({ within: 1, after: 0 });
+    });
+});
+
 describe('RequestFlowReviewService.decide', () => {
     const approving = () => context({
         flow: { route: 'MANAGER_GM', managerId: 'mgr-1', gmId: 'gm-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1',
@@ -326,7 +354,7 @@ describe('scan storage', () => {
 });
 
 describe('ticket SLA hold follows the flow phase', () => {
-    const lastTarget = (linked: { record: jest.Mock }) => (linked.record.mock.calls.at(-1)![0] as { target?: TicketStatus }).target;
+    const lastTarget = (linked: { recordWithin: jest.Mock }) => (linked.recordWithin.mock.calls.at(-1)![1] as { target?: TicketStatus }).target;
 
     it('review with an approval route holds the SLA (WAITING_VENDOR)', async () => {
         const { service, linked } = setup(context());

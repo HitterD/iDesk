@@ -51,7 +51,7 @@ export class RequestInstallFlowService {
         if (!REQUEST_PROCESSOR_ROLES.includes(actor.role)) throw new ForbiddenException(MESSAGES.notIct);
         if (!isUUID(ticketId)) throw new BadRequestException(MESSAGES.badTicketId);
 
-        const { ctx, saved } = await this.dataSource.transaction(async (manager) => {
+        const { ctx, saved, publish } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             assertSiteAccess(actor, ctx.ticket.siteId);
             const request = ctx.hardware;
@@ -78,14 +78,17 @@ export class RequestInstallFlowService {
                 metadata: { change: 'ASSETS_REGISTERED', count: assets.length, ...(dto.photoUrl ? { photoUrl: dto.photoUrl } : {}) },
             }));
             await this.documents.bump(ctx.flow.id, 'DIG', `TTD teknisi — ${assets.length} aset tercatat`, actor.userId, manager);
-            return { ctx, saved };
+            // The ticket goes to RESOLVED in the same commit: a ticket that changed meanwhile rolls the report back instead of
+            // leaving an installed request whose ticket keeps running the SLA and never opens the survey.
+            const publish = await this.stepper.tellWithin(manager, ctx, {
+                actorId: actor.userId, phase: 'INSTALLED', target: TicketStatus.RESOLVED, text: `Pemasangan selesai — menunggu ${ctx.requesterName} mengecek`,
+            });
+            return { ctx, saved, publish };
         });
 
-        // After the commit: the listeners tell the requester; the ticket goes to RESOLVED and waits for them.
+        // After the commit: the listeners tell the requester and the ticket's message and survey go out.
         this.hardware.announceInstallCompleted(saved, actor.userId);
-        await this.stepper.tell(ctx, {
-            actorId: actor.userId, phase: 'INSTALLED', target: TicketStatus.RESOLVED, text: `Pemasangan selesai — menunggu ${ctx.requesterName} mengecek`,
-        });
+        await publish();
         return { status: saved.status, assets: dto.assets.length };
     }
 

@@ -109,7 +109,7 @@ export class RequestFlowReviewService {
     async review(actor: FlowActor, ticketId: string, dto: ReviewDto): Promise<{ version: number }> {
         this.assertIct(actor);
         this.assertTicketId(ticketId);
-        const { ctx, version, next } = await this.dataSource.transaction(async (manager) => {
+        const { ctx, version, next, publish } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             assertSiteAccess(actor, ctx.ticket.siteId);
             if (ctx.phase !== 'review') throw new ConflictException(MESSAGES.wrongPhase);
@@ -131,17 +131,18 @@ export class RequestFlowReviewService {
             const source = ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : '';
             const version = await this.documents.bump(ctx.flow.id, 'GEN', `Ditinjau IT: ${ROUTE_LABEL[dto.route]}${source}`, actor.userId, manager);
             const next = await this.stepper.advance(manager, ctx, ctx.signed, actor.userId);
-            return { ctx, version, next };
+            // The ticket moves in the same commit as the request: a ticket that changed meanwhile rolls the review back.
+            const publish = await this.stepper.tellWithin(manager, ctx, {
+                actorId: actor.userId,
+                phase: 'REVIEWED',
+                text: `${actor.fullName} meninjau permintaan. Persetujuan: ${ROUTE_LABEL[dto.route]}${ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : ''}.`,
+                // Waiting on an approver (or on goods to be bought) holds the ticket's SLA; otherwise IT carries on.
+                target: this.stepper.holdTarget(ctx, next),
+            });
+            return { ctx, version, next, publish };
         });
-
+        await publish();
         const approverId = next === 'MANAGER' ? ctx.flow.managerId : next === 'GM' ? ctx.flow.gmId : null;
-        await this.stepper.tell(ctx, {
-            actorId: actor.userId,
-            phase: 'REVIEWED',
-            text: `${actor.fullName} meninjau permintaan. Persetujuan: ${ROUTE_LABEL[dto.route]}${ctx.flow.hardwareSource ? ` · ${SOURCE_LABEL[ctx.flow.hardwareSource]}` : ''}.`,
-            // Waiting on an approver (or on goods to be bought) holds the ticket's SLA; otherwise IT carries on.
-            target: this.stepper.holdTarget(ctx, next),
-        });
         if (next && approverId) await this.notifier.askApprover(ctx, next, approverId);
         return { version };
     }
@@ -255,9 +256,12 @@ export class RequestFlowReviewService {
                     signer: { id: ctx.approverId, name: signer?.fullName ?? STEP_LABEL[ctx.step] },
                     actorId: actor.userId, how: 'paper', scanPath: stored,
                 });
-                return { ctx, signerName: signer?.fullName ?? STEP_LABEL[ctx.step], ...result };
+                const signerName = signer?.fullName ?? STEP_LABEL[ctx.step];
+                const publish = await this.tellSigned(manager, ctx, actor, result.next, `${signerName} menyetujui (dokumen kertas diimpor oleh ${actor.fullName})`);
+                return { ctx, signerName, ...result, publish };
             });
-            await this.afterSign(actor, outcome, `${outcome.signerName} menyetujui (dokumen kertas diimpor oleh ${actor.fullName})`);
+            await outcome.publish();
+            await this.notifyAfterSign(outcome.ctx, outcome.next);
             return { version: outcome.version };
         } catch (err) {
             // Nothing points at a refused upload; drop it instead of leaving an orphan on disk.
@@ -320,7 +324,9 @@ export class RequestFlowReviewService {
         const result = await this.stepper.sign(manager, ctx, {
             signer: { id: actor.userId, name: actor.fullName }, actorId: actor.userId, how: 'digital', signature: dto.signatureData,
         });
-        return { kind: 'APPROVE' as const, ...result, signerName: actor.fullName };
+        const text = `${actor.fullName} menyetujui & menandatangani${dto.note ? `: ${dto.note}` : ''}`;
+        const publish = await this.tellSigned(manager, ctx, actor, result.next, text);
+        return { kind: 'APPROVE' as const, ...result, signerName: actor.fullName, publish };
     }
 
     /** Back to IT with the signatures kept; hardware stays UNDER_REVIEW (marked by `returnedReason`), an e-form goes back to PENDING_REVIEW. */
@@ -331,7 +337,11 @@ export class RequestFlowReviewService {
             await manager.delete(EFormApproval, { eformRequestId: ctx.eform.id, action: 'PENDING' });
             await manager.update(EFormRequest, { id: ctx.eform.id }, { status: EFormStatus.PENDING_REVIEW, currentApproverId: null });
         }
-        return { kind: 'RETURN' as const, reason, version: undefined, signerName: actor.fullName };
+        const publish = await this.stepper.tellWithin(manager, ctx, {
+            actorId: actor.userId, phase: 'RETURNED', reason,
+            text: `${actor.fullName} mengembalikan ke IT untuk diubah`, target: TicketStatus.IN_PROGRESS,
+        });
+        return { kind: 'RETURN' as const, reason, version: undefined, signerName: actor.fullName, publish };
     }
 
     private async refuse(manager: EntityManager, ctx: FlowContext, actor: FlowActor, reason: string) {
@@ -348,18 +358,15 @@ export class RequestFlowReviewService {
         return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName };
     }
 
-    private async afterDecision(actor: FlowActor, dto: ApproveDto, outcome: { ctx: FlowContext; kind: string; reason?: string; next?: 'MANAGER' | 'GM' | null; step?: 'MANAGER' | 'GM'; signerName: string; version?: number }): Promise<void> {
+    private async afterDecision(actor: FlowActor, dto: ApproveDto, outcome: { ctx: FlowContext; kind: string; reason?: string; next?: 'MANAGER' | 'GM' | null; step?: 'MANAGER' | 'GM'; signerName: string; version?: number; publish?: () => Promise<void> }): Promise<void> {
         const { ctx } = outcome;
         if (outcome.kind === 'APPROVE') {
-            const text = `${actor.fullName} menyetujui & menandatangani${dto.note ? `: ${dto.note}` : ''}`;
-            await this.afterSign(actor, outcome as never, text);
+            await outcome.publish!();
+            await this.notifyAfterSign(ctx, outcome.next ?? null);
             return;
         }
         if (outcome.kind === 'RETURN') {
-            await this.stepper.tell(ctx, {
-                actorId: actor.userId, phase: 'RETURNED', reason: outcome.reason,
-                text: `${actor.fullName} mengembalikan ke IT untuk diubah`, target: TicketStatus.IN_PROGRESS,
-            });
+            await outcome.publish!();
             await this.notifyIct(ctx, outcome.reason!);
             return;
         }
@@ -372,17 +379,13 @@ export class RequestFlowReviewService {
         }
     }
 
-    private async afterSign(
-        actor: FlowActor,
-        outcome: { ctx: FlowContext; next: 'MANAGER' | 'GM' | null; version: number },
-        text: string,
-    ): Promise<void> {
-        const { ctx, next } = outcome;
-        await this.stepper.tell(ctx, {
-            actorId: actor.userId, phase: 'SIGNED', text,
-            // A step still to go, or goods still to buy, keeps the SLA held; otherwise it is released.
-            target: this.stepper.holdTarget(ctx, next),
-        });
+    /** The ticket's "signed" step, inside the caller's transaction (a step still to go, or goods to buy, keeps the SLA held; otherwise it is released). */
+    private tellSigned(manager: EntityManager, ctx: FlowContext, actor: FlowActor, next: 'MANAGER' | 'GM' | null, text: string): Promise<() => Promise<void>> {
+        return this.stepper.tellWithin(manager, ctx, { actorId: actor.userId, phase: 'SIGNED', text, target: this.stepper.holdTarget(ctx, next) });
+    }
+
+    /** After the commit: ask the next signer, or tell the requester it is approved. */
+    private async notifyAfterSign(ctx: FlowContext, next: 'MANAGER' | 'GM' | null): Promise<void> {
         const nextApprover = next === 'GM' ? ctx.flow.gmId : next === 'MANAGER' ? ctx.flow.managerId : null;
         if (next && nextApprover) await this.notifier.askApprover(ctx, next, nextApprover);
         if (!next) await this.notifier.tellRequester(ctx, 'Permintaan disetujui', `Permintaan Anda (${ctx.ticket.ticketNumber}) sudah disetujui dan diproses IT.`);
