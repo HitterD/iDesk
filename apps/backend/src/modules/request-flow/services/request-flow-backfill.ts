@@ -88,6 +88,11 @@ export const BACKFILL_SQL = {
             "proposedSlots" = jsonb_build_array(jsonb_build_object('start', to_jsonb(s."scheduledStart"), 'end', to_jsonb(s."scheduledEnd")))
         WHERE s."status"::text = 'PROPOSED' AND s."proposedSlots" IS NULL AND s."scheduledStart" IS NOT NULL AND s."scheduledEnd" IS NOT NULL
         AND s."requestId" IN (SELECT f."hardwareRequestId" FROM "request_flows" f WHERE f."hardwareRequestId" IS NOT NULL)`,
+    /** A legacy schedule with no time and no slots has nothing for the requester to pick: retire it so IT proposes a new one. */
+    retireTimelessSchedules: `UPDATE "installation_schedules" s
+        SET "status" = 'CANCELLED'
+        WHERE s."status"::text IN ('PROPOSED', 'RESCHEDULE_REQUESTED') AND s."proposedSlots" IS NULL AND s."scheduledStart" IS NULL
+        AND s."requestId" IN (SELECT f."hardwareRequestId" FROM "request_flows" f WHERE f."hardwareRequestId" IS NOT NULL)`,
     insertRevision: `INSERT INTO "request_document_revisions" ("flowId", "version", "kind", "label") VALUES ($1, $2, $3, $4)`,
 } as const;
 
@@ -233,6 +238,7 @@ export async function backfillRequestFlows(manager: EntityManager, now: Date = n
         }
     }
     await manager.query(BACKFILL_SQL.convertLegacySchedules);
+    await manager.query(BACKFILL_SQL.retireTimelessSchedules);
     await manager.query(BACKFILL_SQL.repairAwaitingConfirmation);
     return result;
 }

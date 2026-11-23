@@ -52,6 +52,7 @@ function fakeDb() {
                 return [{ id: row.id }];
             }
             case BACKFILL_SQL.convertLegacySchedules: { db.scheduleConversions += 1; return []; }
+            case BACKFILL_SQL.retireTimelessSchedules: return [];
             case BACKFILL_SQL.insertRevision: {
                 const [flowId, version, kind, label] = params;
                 db.revisions.push({ flowId, version, kind, label });
@@ -295,6 +296,13 @@ describe('backfillRequestFlows', () => {
     });
 
 describe('backfillRequestFlows: requests that are mid-way when the migration runs', () => {
+    it('retires a legacy schedule that has no time at all (nothing to pick), so IT proposes a new one', () => {
+        expect(BACKFILL_SQL.retireTimelessSchedules).toContain(`SET "status" = 'CANCELLED'`);
+        expect(BACKFILL_SQL.retireTimelessSchedules).toContain(`"scheduledStart" IS NULL`);
+        expect(BACKFILL_SQL.retireTimelessSchedules).toContain(`"proposedSlots" IS NULL`);
+        expect(BACKFILL_SQL.retireTimelessSchedules).toContain(`s."status"::text IN ('PROPOSED', 'RESCHEDULE_REQUESTED')`);
+    });
+
     const flowOf = async (kind: 'hardware' | 'eform', row: any) => {
         const { db, manager } = fakeDb();
         db[kind].push(row);
