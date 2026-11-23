@@ -43,7 +43,7 @@ export class RequestConfirmFlowService {
         const issue = dto.result === 'ISSUE';
         if (issue && (dto.note?.trim().length ?? 0) < 5) throw new BadRequestException('Jelaskan kendalanya (minimal 5 karakter)');
 
-        const { ctx, status, onBehalf, announce } = await this.dataSource.transaction(async (manager) => {
+        const { ctx, status, onBehalf, announce, publish } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             const onBehalf = actor.userId !== ctx.requesterId;
             if (onBehalf) {
@@ -64,7 +64,9 @@ export class RequestConfirmFlowService {
                 await manager.update(EFormRequest, { id: ctx.eform!.id }, issue ? { status: EFormStatus.PENDING_ICT } : { status: EFormStatus.CONFIRMED, resolvedAt: new Date() });
             }
             if (!issue) await this.documents.bump(ctx.flow.id, 'FIN', finalRevisionLabel(ctx.number), actor.userId, manager);
-            return { ctx, status, onBehalf, announce };
+            // The ticket moves in the same transaction: a ticket that cannot move rolls the whole answer back.
+            const publish = await this.stepper.tellWithin(manager, ctx, this.message(ctx, actor, dto, onBehalf));
+            return { ctx, status, onBehalf, announce, publish };
         });
 
         announce();
@@ -75,7 +77,7 @@ export class RequestConfirmFlowService {
                 description: `Answered ${dto.result} on behalf of the requester`, newValue: { result: dto.result },
             });
         }
-        await this.stepper.tell(ctx, this.message(ctx, actor, dto, onBehalf));
+        await publish();
         return { status, result: dto.result };
     }
 

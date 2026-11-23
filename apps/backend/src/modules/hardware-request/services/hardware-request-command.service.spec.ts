@@ -51,7 +51,9 @@ describe('HardwareRequestCommandService', () => {
         };
         numberer = { generate: jest.fn().mockResolvedValue('HR-2026-0001') };
         dataSource = {
+            flowQuery: jest.fn().mockResolvedValue([]),
             transaction: jest.fn(async (cb: any) => cb({
+                query: dataSource.flowQuery,
                 getRepository: (e: any) => (e === HardwareRequest ? reqRepo :
                                            e === HardwareRequestItem ? reqRepo :
                                            e === HardwareRequestActivity ? activityRepo :
@@ -78,6 +80,24 @@ describe('HardwareRequestCommandService', () => {
             ],
         }).compile();
         service = moduleRef.get(HardwareRequestCommandService);
+    });
+
+    it.each(['ACCEPT_AS_IS', 'REPORT_ISSUE'] as const)('rejects legacy %s for a unified request before any writes', async (kind) => {
+        dataSource.flowQuery.mockResolvedValue([{ id: 'flow-1' }]);
+        reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.AWAITING_USER_CONFIRMATION });
+
+        await expect(service.confirmInstallation('req-1', 'user-1', { kind, comments: 'Perangkat belum berfungsi' }))
+            .rejects.toMatchObject({ status: 409 });
+        expect(reqRepo.save).not.toHaveBeenCalled();
+        expect(activityRepo.save).not.toHaveBeenCalled();
+        expect(emitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('allows a legacy request without a flow to complete', async () => {
+        reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.AWAITING_USER_CONFIRMATION });
+
+        await expect(service.confirmInstallation('req-1', 'user-1', { kind: 'ACCEPT_AS_IS' }))
+            .resolves.toMatchObject({ status: RequestStatus.COMPLETED });
     });
 
     it('createDraft creates DRAFT request with items and activity', async () => {

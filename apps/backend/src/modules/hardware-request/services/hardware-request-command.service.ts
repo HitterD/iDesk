@@ -634,7 +634,14 @@ export class HardwareRequestCommandService {
     }
 
     async autoConfirmInstallation(requestId: string, systemActorId: string | null = null): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        const { saved, announce } = await this.dataSource.transaction((mgr) => this.autoConfirmInstallationWith(mgr, requestId, systemActorId));
+        announce();
+        return saved;
+    }
+
+    /** The auto-confirmation inside the caller's transaction; the caller runs `announce` after the commit. */
+    async autoConfirmInstallationWith(mgr: EntityManager, requestId: string, systemActorId: string | null = null): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
@@ -646,7 +653,7 @@ export class HardwareRequestCommandService {
 
             if (req.status === RequestStatus.COMPLETED) {
                 // Already completed by another concurrent worker / confirmation
-                return req;
+                return { saved: req, announce: () => undefined };
             }
 
             if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
@@ -669,7 +676,7 @@ export class HardwareRequestCommandService {
                 toStatus: RequestStatus.COMPLETED,
             }));
 
-            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+            const announce = () => this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                 requestId: req.id,
                 actorId: systemActorId ?? null,
                 occurredAt: new Date(),
@@ -678,12 +685,16 @@ export class HardwareRequestCommandService {
                 status: RequestStatus.COMPLETED,
             });
 
-            return saved;
-        });
+            return { saved, announce };
+        }
     }
 
     async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {
-        const { saved, announce } = await this.dataSource.transaction((mgr) => this.confirmInstallationWith(mgr, requestId, userId, payload, false));
+        const { saved, announce } = await this.dataSource.transaction(async (mgr) => {
+            const flows: unknown[] = await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
+            if (flows.length > 0) throw new ConflictException('Konfirmasi pemasangan melalui detail tiket.');
+            return this.confirmInstallationWith(mgr, requestId, userId, payload, false);
+        });
         announce();
         return saved;
     }

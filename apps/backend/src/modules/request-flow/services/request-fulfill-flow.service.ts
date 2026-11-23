@@ -52,7 +52,7 @@ export class RequestFulfillFlowService {
         if (!isUUID(ticketId)) throw new BadRequestException(MESSAGES.badTicketId);
         this.checkInput(dto);
 
-        const ctx = await this.dataSource.transaction(async (manager) => {
+        const { ctx, publish } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
             assertSiteAccess(actor, ctx.ticket.siteId);
             const eform = ctx.eform;
@@ -72,7 +72,10 @@ export class RequestFulfillFlowService {
                 formData: this.fulfilledFormData(eform.formData, dto) as never,
             });
             await this.documents.bump(ctx.flow.id, 'DIG', 'TTD IT — akses diberikan', actor.userId, manager);
-            return ctx;
+            const publish = await this.stepper.tellWithin(manager, ctx, {
+                actorId: actor.userId, phase: 'FULFILLED', target: TicketStatus.RESOLVED, text: `Akses diberikan — ${ctx.requesterName} diminta mencoba`,
+            });
+            return { ctx, publish };
         });
 
         // After the commit: one chat message, one notice to the requester; neither can fail the step.
@@ -80,9 +83,7 @@ export class RequestFulfillFlowService {
             userId: actor.userId, action: AuditAction.EFORM_FULFILL, entityType: 'EFormRequest', entityId: ctx.eform!.id,
             description: `Gave E-Form access ${dto.mode === 'CREDENTIALS' ? 'with' : 'without'} credentials`,
         });
-        await this.stepper.tell(ctx, {
-            actorId: actor.userId, phase: 'FULFILLED', target: TicketStatus.RESOLVED, text: `Akses diberikan — ${ctx.requesterName} diminta mencoba`,
-        });
+        await publish();
         await this.notifier.tellRequester(ctx, 'Akses siap dicoba', `Akses untuk permintaan Anda (${ctx.ticket.ticketNumber}) sudah diberikan. Silakan coba dan konfirmasi.`);
         return { status: EFormStatus.AWAITING_CONFIRMATION, mode: dto.mode };
     }

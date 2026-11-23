@@ -49,13 +49,15 @@ export class RequestFlowFinalizer {
         const auto = event.closedReason === 'auto_unconfirmed';
         const actorId = auto ? null : event.userId;
         let announce: () => void = () => undefined;
-        if (ctx.hardware?.status === RequestStatus.AWAITING_USER_CONFIRMATION) {
-            if (auto) await this.hardware.autoConfirmInstallation(ctx.hardware.id);
-            else announce = (await this.dataSource.transaction((manager) => this.hardware.confirmInstallationWith(manager, ctx.hardware!.id, event.userId, { kind: 'ACCEPT_AS_IS' }, false))).announce;
-        }
+        // One transaction: the request, its document and the flow lock move together, or not at all (a retry is safe).
         await this.dataSource.transaction(async (manager) => {
             const locked = await this.reader.load(ctx.ticket.id, manager, true);
-            if (locked.eform?.status === EFormStatus.AWAITING_CONFIRMATION) {
+            if (locked.hardware?.status === RequestStatus.AWAITING_USER_CONFIRMATION) {
+                const done = auto
+                    ? await this.hardware.autoConfirmInstallationWith(manager, locked.hardware.id)
+                    : await this.hardware.confirmInstallationWith(manager, locked.hardware.id, event.userId, { kind: 'ACCEPT_AS_IS' }, false);
+                announce = done.announce;
+            } else if (locked.eform?.status === EFormStatus.AWAITING_CONFIRMATION) {
                 await manager.update(EFormRequest, { id: locked.eform.id }, { status: EFormStatus.CONFIRMED, resolvedAt: new Date() });
             } else if (!this.isFinished(locked)) {
                 return;

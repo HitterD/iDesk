@@ -41,7 +41,7 @@ function setup(ctx: FlowContext, credentialRow: Record<string, unknown> | null =
         decrypt: jest.fn((c: string) => c.replace(/^enc\(|\)$/g, '')),
     };
     const documents = { bump: jest.fn(async () => 4) };
-    const stepper = { tell: jest.fn(async () => undefined) };
+    const stepper = { tell: jest.fn(async () => undefined), tellWithin: jest.fn(async () => async () => undefined) };
     const notifier = { tellRequester: jest.fn(async () => undefined) };
     const audit = { logAsync: jest.fn() };
     const service = new RequestFulfillFlowService(dataSource as never, reader as never, credentials as never, documents as never, stepper as never, notifier as never, audit as never);
@@ -71,10 +71,18 @@ describe('RequestFulfillFlowService.fulfill', () => {
             formData: expect.objectContaining({ alasan: 'WFH', fulfilledWithoutCredentials: false }),
         }));
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'DIG', 'TTD IT — akses diberikan', 'it-1', manager);
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(manager, expect.anything(), expect.objectContaining({
             actorId: 'it-1', phase: 'FULFILLED', target: TicketStatus.RESOLVED, text: 'Akses diberikan — Leony diminta mencoba',
         }));
         expect(notifier.tellRequester).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects fulfillment and sends no notice when the ticket state cannot be saved', async () => {
+        const { service, stepper, notifier } = setup(context());
+        stepper.tellWithin.mockRejectedValueOnce(new Error('ticket save failed'));
+
+        await expect(service.fulfill(IT, TID, dto())).rejects.toThrow('ticket save failed');
+        expect(notifier.tellRequester).not.toHaveBeenCalled();
     });
 
     it('replaces the credentials and the IT signature of an earlier attempt', async () => {
@@ -95,7 +103,7 @@ describe('RequestFulfillFlowService.fulfill', () => {
         await expect(service.fulfill(IT, TID, dto({ username: '  ' }))).rejects.toThrow(new BadRequestException('Username dan password wajib diisi'));
         await expect(service.fulfill(IT, TID, dto({ password: undefined }))).rejects.toThrow(new BadRequestException('Username dan password wajib diisi'));
         expect(manager.save).not.toHaveBeenCalled();
-        expect(stepper.tell).not.toHaveBeenCalled();
+        expect(stepper.tellWithin).not.toHaveBeenCalled();
     });
 
     it('fulfil without credentials needs a note', async () => {
@@ -104,7 +112,7 @@ describe('RequestFulfillFlowService.fulfill', () => {
             .rejects.toThrow(new BadRequestException('Catatan wajib diisi (minimal 3 karakter)'));
         await expect(service.fulfill(IT, TID, { mode: 'NO_CREDENTIALS', note: 'ok', signatureData: SIGNATURE } as FulfillDto))
             .rejects.toBeInstanceOf(BadRequestException);
-        expect(stepper.tell).not.toHaveBeenCalled();
+        expect(stepper.tellWithin).not.toHaveBeenCalled();
 
         await service.fulfill(IT, TID, { mode: 'NO_CREDENTIALS', note: 'Folder Finance/Shared ditambahkan', accountName: 'leony.r', signatureData: SIGNATURE } as FulfillDto);
 

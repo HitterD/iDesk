@@ -9,7 +9,7 @@ import { ActivityAction } from '../../hardware-request/domain/enums/activity-act
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { HardwareRequestCommandService } from '../../hardware-request/services/hardware-request-command.service';
 import { TicketStatus } from '../../ticketing/entities/ticket.entity';
-import { TicketLinkedRequestService } from '../../ticketing/services/ticket-linked-request.service';
+import { TicketLinkedRequestService, type LinkedPhase } from '../../ticketing/services/ticket-linked-request.service';
 import { EFormTicketPhase, HardwareTicketPhase, TicketSystemEvent } from '../../ticketing/utils/ticket-activity.util';
 import { activeStep, STEP_LABEL, type ApprovalStep, type SignatureHow } from '../domain/approval-phase';
 import { stepSignatureMetadata } from '../domain/hardware-signatures';
@@ -102,8 +102,16 @@ export class RequestFlowStepper {
 
     /** One system message on the ticket, with the structured event the chat renders as a card. */
     async tell(ctx: FlowContext, input: TellInput): Promise<void> {
+        await this.linked.record(this.linkedPhase(ctx, input));
+    }
+
+    tellWithin(manager: EntityManager, ctx: FlowContext, input: TellInput): Promise<() => Promise<void>> {
+        return this.linked.recordWithin(manager, this.linkedPhase(ctx, input));
+    }
+
+    private linkedPhase(ctx: FlowContext, input: TellInput): LinkedPhase {
         const eventBase = input.reason ? { reason: input.reason } : {};
-        await this.linked.record({
+        return {
             ticketId: ctx.ticket.id,
             actorId: input.actorId,
             target: input.target,
@@ -112,7 +120,7 @@ export class RequestFlowStepper {
             event: ctx.hardware
                 ? { ...eventBase, hardwareRequest: { id: ctx.hardware.id, number: ctx.hardware.requestNumber, phase: input.phase as HardwareTicketPhase } }
                 : { ...eventBase, eformRequest: { id: ctx.eform!.id, code: eformCode(ctx.eform!.id), formType: ctx.eform!.formType, phase: input.phase as EFormTicketPhase } },
-        });
+        };
     }
 
     private async saveSignature(manager: EntityManager, ctx: FlowContext, step: ApprovalStep, input: SignInput): Promise<void> {

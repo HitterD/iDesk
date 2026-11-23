@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
@@ -13,6 +13,8 @@ import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activit
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { SurveysService } from '../surveys.service';
 import { computeResolutionDeadline, reopenAsDispute } from '../utils/resolution-deadline.util';
+
+interface RecordedPhase { ticket: Ticket; message: TicketMessage; moved: boolean }
 
 const MINUTE_MS = 60_000;
 
@@ -69,37 +71,62 @@ export class TicketLinkedRequestService {
     /** Resolves to whether the ticket's status changed; false as well when nothing could be recorded (never throws). */
     async record(phase: LinkedPhase): Promise<boolean> {
         try {
-            const result = await this.dataSource.transaction(async (manager) => {
-                const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
-                if (!ticket) return null;
-                const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
-                const target = await this.settleTarget(manager, ticket.id, phase);
-                const changes = await this.moveTicket(manager, ticket, target, phase.reopenResolved === true);
-                if (changes.length > 0) await manager.save(Ticket, ticket);
-                if (phase.silentUnlessMoved && changes.length === 0) return null;
-                const systemEvent: TicketSystemEvent = {
-                    v: 1,
-                    actor: actor ? { id: actor.id, name: actor.fullName } : null,
-                    changes,
-                    ...phase.event,
-                };
-                const message = await manager.save(TicketMessage, manager.create(TicketMessage, {
-                    ticketId: ticket.id,
-                    content: `System: ${phase.text}`,
-                    senderId: actor?.id ?? (null as unknown as string),
-                    isSystemMessage: true,
-                    systemEvent,
-                }));
-                return { ticket, message, moved: changes.length > 0 };
-            });
+            const result = await this.dataSource.transaction((manager) => this.persist(manager, phase));
             if (!result) return false;
-            await this.publish(result.ticket, result.message, result.moved);
-            if (result.moved && result.ticket.status === TicketStatus.RESOLVED) await this.openSurvey(result.ticket);
+            await this.publishRecorded(result);
             return result.moved;
         } catch (err: any) {
             this.logger.error(`Failed to record a linked request step on ticket ${phase.ticketId}: ${err?.message ?? err}`);
             return false;
         }
+    }
+
+    /** The caller owns the transaction and runs the returned effects only after commit. */
+    async recordWithin(manager: EntityManager, phase: LinkedPhase): Promise<() => Promise<void>> {
+        const result = await this.persist(manager, phase, true);
+        return async () => {
+            if (!result) return;
+            try {
+                await this.publishRecorded(result);
+            } catch (error) {
+                this.logger.error(`Failed to publish linked request step on ticket ${phase.ticketId}`, error);
+            }
+        };
+    }
+
+    private async persist(manager: EntityManager, phase: LinkedPhase, strict = false): Promise<RecordedPhase | null> {
+        const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
+        if (!ticket) {
+            if (strict) throw new NotFoundException('Tiket tidak ditemukan');
+            return null;
+        }
+        const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
+        const target = await this.settleTarget(manager, ticket.id, phase);
+        const changes = await this.moveTicket(manager, ticket, target, phase.reopenResolved === true);
+        if (strict && phase.target && (ticket.status !== phase.target || !changes.length)) {
+            throw new ConflictException('Status tiket berubah. Muat ulang detail tiket.');
+        }
+        if (changes.length > 0) await manager.save(Ticket, ticket);
+        if (phase.silentUnlessMoved && changes.length === 0) return null;
+        const systemEvent: TicketSystemEvent = {
+            v: 1,
+            actor: actor ? { id: actor.id, name: actor.fullName } : null,
+            changes,
+            ...phase.event,
+        };
+        const message = await manager.save(TicketMessage, manager.create(TicketMessage, {
+            ticketId: ticket.id,
+            content: `System: ${phase.text}`,
+            senderId: actor?.id ?? (null as unknown as string),
+            isSystemMessage: true,
+            systemEvent,
+        }));
+        return { ticket, message, moved: changes.length > 0 };
+    }
+
+    private async publishRecorded(result: RecordedPhase): Promise<void> {
+        await this.publish(result.ticket, result.message, result.moved);
+        if (result.moved && result.ticket.status === TicketStatus.RESOLVED) await this.openSurvey(result.ticket);
     }
 
     /**

@@ -36,9 +36,9 @@ function setup(ctx: FlowContext) {
     const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)), manager };
     const reader = { load: jest.fn(async () => ctx) };
     const announce = jest.fn();
-    const hardware = { confirmInstallationWith: jest.fn(async () => ({ saved: { id: 'hr-1' }, announce })), autoConfirmInstallation: jest.fn(async () => ({})) };
+    const hardware = { confirmInstallationWith: jest.fn(async () => ({ saved: { id: 'hr-1' }, announce })), autoConfirmInstallationWith: jest.fn(async () => ({ saved: {}, announce: jest.fn() })) };
     const documents = { bump: jest.fn(async () => 6) };
-    const stepper = { tell: jest.fn(async () => undefined) };
+    const stepper = { tellWithin: jest.fn(async () => async () => undefined) };
     const audit = { logAsync: jest.fn() };
     const service = new RequestConfirmFlowService(dataSource as never, reader as never, hardware as never, documents as never, stepper as never, audit as never);
     return { service, manager, dataSource, reader, hardware, documents, stepper, audit, announce };
@@ -55,7 +55,7 @@ describe('RequestConfirmFlowService.confirm (e-form)', () => {
 
         expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.CONFIRMED, resolvedAt: expect.any(Date) }));
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', 'Final · terkunci · F/ICT/04/0120', 'req-1', manager);
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
             actorId: 'req-1', phase: 'CONFIRMED', target: TicketStatus.CLOSED, text: 'Leony mengonfirmasi — tiket ditutup',
         }));
     });
@@ -65,7 +65,7 @@ describe('RequestConfirmFlowService.confirm (e-form)', () => {
 
         await service.confirm(IT, TID, ok());
 
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
             actorId: 'it-1', target: TicketStatus.CLOSED, text: 'RM Bagastyo (atas nama pemohon) mengonfirmasi — tiket ditutup',
         }));
         expect(audit.logAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: 'it-1', action: AuditAction.REQUEST_CONFIRMED_ON_BEHALF, entityId: 'ef-1' }));
@@ -78,7 +78,7 @@ describe('RequestConfirmFlowService.confirm (e-form)', () => {
 
         expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.PENDING_ICT }));
         expect(documents.bump).not.toHaveBeenCalled();
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
             phase: 'ISSUE_REPORTED', target: TicketStatus.IN_PROGRESS, reopenResolved: true,
             text: 'Pemohon melaporkan kendala — kembali ke IT', reason: 'VPN tidak bisa connect',
         }));
@@ -92,11 +92,19 @@ describe('RequestConfirmFlowService.confirm (e-form)', () => {
         await expect(setup(context('EFORM')).service.confirm(REQUESTER, 'nope', ok())).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it('rejects the answer and announces nothing when the ticket cannot move', async () => {
+        const { service, stepper, audit } = setup(context('EFORM'));
+        stepper.tellWithin.mockRejectedValueOnce(new Error('ticket save failed'));
+
+        await expect(service.confirm({ ...REQUESTER, userId: 'it-1', role: UserRole.AGENT_OPERATIONAL_SUPPORT }, TID, ok())).rejects.toThrow('ticket save failed');
+        expect(audit.logAsync).not.toHaveBeenCalled();
+    });
+
     it('an issue needs a note of at least 5 characters', async () => {
         const { service, stepper } = setup(context('EFORM'));
         await expect(service.confirm(REQUESTER, TID, { result: 'ISSUE', note: 'ab' })).rejects.toBeInstanceOf(BadRequestException);
         await expect(service.confirm(REQUESTER, TID, { result: 'ISSUE' })).rejects.toBeInstanceOf(BadRequestException);
-        expect(stepper.tell).not.toHaveBeenCalled();
+        expect(stepper.tellWithin).not.toHaveBeenCalled();
     });
 });
 
@@ -109,7 +117,7 @@ describe('RequestConfirmFlowService.confirm (hardware)', () => {
         expect(hardware.confirmInstallationWith).toHaveBeenCalledWith(manager, 'hr-1', 'req-1', { kind: 'ACCEPT_AS_IS', comments: undefined }, false);
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', 'Final · terkunci · HR-2026-0042', 'req-1', manager);
         expect(announce).toHaveBeenCalledTimes(1);
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
             phase: 'COMPLETED', target: TicketStatus.CLOSED, text: 'Leony mengonfirmasi — tiket ditutup',
         }));
     });
@@ -121,7 +129,7 @@ describe('RequestConfirmFlowService.confirm (hardware)', () => {
 
         expect(hardware.confirmInstallationWith).toHaveBeenCalledWith(manager, 'hr-1', 'req-1', { kind: 'REPORT_ISSUE', comments: 'Monitor tidak menyala' }, false);
         expect(documents.bump).not.toHaveBeenCalled();
-        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        expect(stepper.tellWithin).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({
             phase: 'ISSUE_REPORTED', target: TicketStatus.IN_PROGRESS, reopenResolved: true, reason: 'Monitor tidak menyala',
         }));
     });
@@ -137,7 +145,7 @@ describe('RequestConfirmFlowService.confirm (hardware)', () => {
         hardware.confirmInstallationWith.mockRejectedValueOnce(new ConflictException('x'));
         await expect(service.confirm(REQUESTER, TID, ok())).rejects.toBeInstanceOf(ConflictException);
         expect(announce).not.toHaveBeenCalled();
-        expect(stepper.tell).not.toHaveBeenCalled();
+        expect(stepper.tellWithin).not.toHaveBeenCalled();
     });
 });
 
@@ -148,15 +156,12 @@ describe('RequestFlowFinalizer (ticket closed or disputed outside the request ca
             update: jest.fn(async () => undefined),
         };
         const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)), manager };
-        let loads = 0;
+        let hardwareDone = false;
         const reader = {
-            load: jest.fn(async () => {
-                loads += 1;
-                const done = loads > 1 && ctx.hardware && ctx.hardware.status === RequestStatus.AWAITING_USER_CONFIRMATION;
-                return done ? { ...ctx, hardware: { ...ctx.hardware, status: RequestStatus.COMPLETED } as never } : ctx;
-            }),
+            load: jest.fn(async () => (hardwareDone && ctx.hardware ? { ...ctx, hardware: { ...ctx.hardware, status: RequestStatus.COMPLETED } as never } : ctx)),
         };
-        const hardware = { autoConfirmInstallation: jest.fn(async () => ({})), confirmInstallationWith: jest.fn(async () => ({ saved: {}, announce: jest.fn() })) };
+        const finish = jest.fn(async () => { hardwareDone = true; return { saved: {}, announce: jest.fn() }; });
+        const hardware = { autoConfirmInstallationWith: finish, confirmInstallationWith: finish };
         const documents = { bump: jest.fn(async () => 7) };
         const finalizer = new RequestFlowFinalizer(dataSource as never, reader as never, hardware as never, documents as never);
         return { finalizer, manager, hardware, documents };
@@ -167,7 +172,7 @@ describe('RequestFlowFinalizer (ticket closed or disputed outside the request ca
     it('auto-close of a request ticket completes the hardware request and adds the FIN revision', async () => {
         const { finalizer, hardware, documents, manager } = finalizerSetup(context('HARDWARE'));
         await finalizer.onTicketUpdated(event({ closedReason: 'auto_unconfirmed' }));
-        expect(hardware.autoConfirmInstallation).toHaveBeenCalledWith('hr-1');
+        expect(hardware.autoConfirmInstallationWith).toHaveBeenCalledWith(expect.anything(), 'hr-1');
         expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', 'Final · terkunci · HR-2026-0042', null, manager);
     });
 
@@ -216,7 +221,7 @@ describe('RequestFlowFinalizer (ticket closed or disputed outside the request ca
 
     it('never throws into the emitter', async () => {
         const { finalizer, hardware } = finalizerSetup(context('HARDWARE'));
-        hardware.autoConfirmInstallation.mockRejectedValueOnce(new Error('db down'));
+        hardware.autoConfirmInstallationWith.mockRejectedValueOnce(new Error('db down'));
         await expect(finalizer.onTicketUpdated(event({ closedReason: 'auto_unconfirmed' }))).resolves.toBeUndefined();
     });
 });
