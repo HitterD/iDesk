@@ -2149,3 +2149,24 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .req-dialog__cred { display: grid; grid-template-columns: 90px 1fr auto auto; align-items: center; gap: 8px; }
 .req-dialog__cred span { font-size: 12px; color: hsl(var(--muted-foreground)); }
 .req-dialog__cred b { font-family: ui-monospace, monospace; word-break: break-all; }
+.req-basket { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+@media (max-width: 720px) { .req-basket { grid-template-columns: 1fr; } }
+.req-basket__catalog ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.req-basket__catalog li button { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; text-align: left; padding: 8px 10px; border: 1px solid hsl(var(--border)); border-radius: 10px; }
+.req-basket__catalog li button:hover { border-color: hsl(var(--req-hw)); background: hsl(var(--req-hw-bg)); }
+.req-basket__catalog li button span { grid-column: 1; font-size: 11.5px; color: hsl(var(--muted-foreground)); }
+.req-basket__catalog li button svg { grid-row: 1 / span 2; grid-column: 2; width: 16px; height: 16px; align-self: center; }
+.req-basket__search { display: flex; align-items: center; gap: 8px; }
+.req-basket__search svg { width: 16px; height: 16px; flex: none; }
+.req-basket__search input { flex: 1; }
+.req-basket__manual { display: flex; gap: 6px; }
+.req-basket__manual input { flex: 1; }
+.req-basket__line { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; padding: 10px; border: 1px solid hsl(var(--border)); border-radius: 12px; margin-bottom: 8px; }
+.req-basket__name small { display: block; color: hsl(var(--req-hw-ink)); font-size: 11.5px; }
+.req-basket__qty { display: inline-flex; align-items: center; gap: 4px; }
+.req-basket__qty input { width: 52px; text-align: center; }
+.req-basket__qty button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid hsl(var(--border)); display: grid; place-items: center; }
+.req-basket__qty svg { width: 14px; height: 14px; }
+.req-basket__wide { grid-column: 1 / -1; }
+.req-basket__empty { color: hsl(var(--muted-foreground)); font-size: 13px; }
+.req-link { text-decoration: underline; color: hsl(var(--req-navy)); }
