@@ -128,6 +128,18 @@ describe('DevicesAccessService.approvals', () => {
     });
 });
 
+describe('DevicesAccessService.approvals: the row limit', () => {
+    it('leaves finished requests out in SQL, so old history cannot push a waiting request past the limit', async () => {
+        const { service, query } = setup();
+        await service.approvals({ userId: 'mgr-1', role: UserRole.MANAGER, siteId: 'site-1', fullName: 'M' });
+        const sql = String(query.mock.calls[0][0]);
+        expect(sql).toMatch(/NOT IN \([^)]*'CONFIRMED'[^)]*\)/);
+        expect(sql).toContain("'COMPLETED'");
+        expect(sql).toContain("'REJECTED'");
+        expect(sql).toContain("'CANCELLED'");
+    });
+});
+
 describe('DevicesAccessService.summary', () => {
     it('counts hardware requests by position, inside the site', async () => {
         const rows = [

@@ -33,6 +33,12 @@ describe('RequestFlowLegacyService.ticketOf', () => {
         await expect(setup(row).service.ticketOf(viewer('req-1'), 'laptop' as never, LEGACY)).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])('the kind "%s" is inherited from Object, not a kind: bad request, no SQL', async (kind) => {
+        const { service, query } = setup(row);
+        await expect(service.ticketOf(viewer('req-1'), kind as never, LEGACY)).rejects.toBeInstanceOf(BadRequestException);
+        expect(query).not.toHaveBeenCalled();
+    });
+
     it('opens for the requester, a named approver, and IT of the same site; refuses everyone else', async () => {
         const { service } = setup(row);
         await expect(service.ticketOf(viewer('mgr-1'), 'hardware', LEGACY)).resolves.toBeDefined();

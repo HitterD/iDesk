@@ -181,7 +181,8 @@ export class DevicesAccessService {
             LEFT JOIN hardware_requests h ON h."id" = f."hardwareRequestId"
             LEFT JOIN eform_requests e ON e."id" = f."eformRequestId"
             LEFT JOIN users ru ON ru."id"::text = h."requesterId"::text
-            WHERE f."managerId" = $1 OR f."gmId" = $1
+            WHERE (f."managerId" = $1 OR f."gmId" = $1)
+              AND COALESCE(h."status"::text, e."status"::text) NOT IN ('REJECTED', 'CANCELLED', 'COMPLETED', 'CLOSED', 'CONFIRMED')
             ORDER BY t."createdAt" DESC LIMIT 200`, [actor.userId]);
         return rows
             .map((row) => ({ row, fields: listFieldsOf({ ...row, signed: { manager: row.managerSigned, gm: row.gmSigned } }, actor) }))

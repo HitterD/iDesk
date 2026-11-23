@@ -17,7 +17,7 @@ export class RequestFlowLegacyService {
     constructor(private readonly dataSource: DataSource) {}
 
     async ticketOf(viewer: LegacyViewer, kind: LegacyKind, legacyId: string): Promise<{ ticketId: string }> {
-        const table = TABLE[kind];
+        const table = Object.prototype.hasOwnProperty.call(TABLE, kind) ? TABLE[kind] : undefined;
         if (!table) throw new BadRequestException('Jenis permintaan tidak dikenal');
         if (!isUUID(legacyId)) throw new NotFoundException('Permintaan tidak ditemukan');
         const rows: LegacyRow[] = await this.dataSource.query(
