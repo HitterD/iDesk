@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useAuth } from '@/stores/useAuth';
@@ -61,6 +62,7 @@ const DIALOG_ACTS: Record<string, Dialog> = {
 export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requesterName = 'Pemohon' }: RequestFlowPanelProps) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
     const { data: view, isLoading, isError } = useRequestFlow(ticketId, true);
     const action = useRequestFlowAction(ticketId);
     const [dialog, setDialog] = useState<Dialog>(null);
@@ -93,6 +95,7 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
     };
 
     const onAct = (act: string) => {
+        if (act === 'renew') { navigate(`/client/create?type=eform&renewFrom=${ticketId}`); return; }
         if (act === 'tabDoc') { document.getElementById('request-document')?.scrollIntoView({ behavior: 'smooth' }); return; }
         if (act === 'showCred') {
             void api.get(`/request-flow/${ticketId}/credentials`).then((res) => { setCredentials(res.data as Credentials); setDialog('credentials'); })

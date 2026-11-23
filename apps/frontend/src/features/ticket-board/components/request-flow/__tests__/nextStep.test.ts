@@ -132,3 +132,29 @@ describe('nextStep: the ends', () => {
         expect(n.primary).toBeUndefined();
     });
 });
+
+describe('nextStep: cancel the request', () => {
+    const cancelAct = (v: RequestFlowView, role: ViewerRoleInFlow) => as(v, role).more.map((m) => m.act).includes('cancelReq');
+
+    it.each(['review', 'appr_mgr', 'appr_gm'] as const)('the requester can withdraw while %s', (phase) => {
+        expect(cancelAct(view({ phase }), 'REQUESTER')).toBe(true);
+    });
+
+    it.each(['procure', 'delivery', 'schedule', 'install', 'confirm', 'done', 'rejected'] as const)('the requester cannot withdraw at %s', (phase) => {
+        expect(cancelAct(view({ phase }), 'REQUESTER')).toBe(false);
+    });
+
+    it.each(['review', 'appr_mgr', 'procure', 'delivery', 'schedule', 'fulfill'] as const)('IT can cancel while %s', (phase) => {
+        expect(cancelAct(view({ phase }), 'ICT')).toBe(true);
+    });
+
+    it.each(['install', 'done', 'rejected'] as const)('IT cannot cancel at %s', (phase) => {
+        expect(cancelAct(view({ phase }), 'ICT')).toBe(false);
+    });
+
+    it('cancel is marked dangerous and is never the primary button', () => {
+        const n = as(view({ phase: 'review' }), 'REQUESTER');
+        expect(n.more.find((m) => m.act === 'cancelReq')?.danger).toBe(true);
+        expect(n.primary?.act).not.toBe('cancelReq');
+    });
+});

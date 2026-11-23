@@ -31,6 +31,21 @@ const slotLabel = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', w
  * most, so nobody has to guess which one to press; the table follows the approved mockup (`nextOf`).
  */
 export function nextStep(view: RequestFlowView): NextStep {
+    const base = baseStep(view);
+    if (!canCancel(view)) return base;
+    return { ...base, more: [...base.more, { act: 'cancelReq', label: 'Batalkan permintaan', icon: 'xC', danger: true }] };
+}
+
+/** Mirrors the backend: the requester may withdraw while it is in review or waiting for a signature; IT any time before installing. */
+const REQUESTER_CANCEL_PHASES: readonly string[] = ['review', 'appr_mgr', 'appr_gm'];
+const IT_CANCEL_PHASES: readonly string[] = ['review', 'appr_mgr', 'appr_gm', 'procure', 'delivery', 'schedule', 'fulfill'];
+function canCancel(view: RequestFlowView): boolean {
+    if (view.viewerRoleInFlow === 'REQUESTER') return REQUESTER_CANCEL_PHASES.includes(view.phase);
+    if (view.viewerRoleInFlow === 'ICT') return IT_CANCEL_PHASES.includes(view.phase);
+    return false;
+}
+
+function baseStep(view: RequestFlowView): NextStep {
     const tone = view.kind === 'HARDWARE' ? 'hw' : 'ef';
     const primaryClass = view.kind === 'HARDWARE' ? 'hwb' : 'efb';
     const P = (act: string, label: string, icon: string, cls: string = primaryClass): StepAction => ({ act, label, icon, cls });

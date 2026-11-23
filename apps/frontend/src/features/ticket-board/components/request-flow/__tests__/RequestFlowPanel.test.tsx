@@ -12,6 +12,9 @@ vi.mock('@/components/ui/SignaturePad', () => ({
 }));
 vi.mock('@/features/request-center/components/eform/ManagerSelector', () => ({ ManagerSelector: () => <div>pilih orang</div> }));
 
+const navigate = vi.fn();
+vi.mock('react-router-dom', async (orig) => ({ ...(await orig<typeof import('react-router-dom')>()), useNavigate: () => navigate }));
+
 afterEach(cleanup);
 
 const TID = '0b6d3c4e-1111-4222-8333-444455556677';
@@ -47,6 +50,13 @@ describe('RequestFlowPanel', () => {
         fireEvent.click(await screen.findByRole('radio', { name: /Tanpa persetujuan/ }));
         fireEvent.click(screen.getByRole('button', { name: 'Langsung proses' }));
         await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/review`, { route: 'NONE' }));
+    });
+
+    it('"Perpanjang akses" opens the e-form create page prefilled from this ticket', async () => {
+        renderPanel(view('done', 'REQUESTER'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Perpanjang akses' }));
+        expect(navigate).toHaveBeenCalledWith(`/client/create?type=eform&renewFrom=${TID}`);
+        expect(api.post).not.toHaveBeenCalled();
     });
 
     it('a requester confirming sends OK straight away, with no dialog', async () => {
