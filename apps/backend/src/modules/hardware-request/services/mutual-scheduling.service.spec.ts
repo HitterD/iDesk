@@ -23,10 +23,11 @@ function setup(schedule: Partial<InstallationSchedule> = {}) {
         [InstallationScheduleItem, { create: jest.fn((v: object) => v), save: jest.fn(async (v: unknown) => v) }],
     ]);
     const manager = { getRepository: (e: unknown) => repos.get(e), query: jest.fn(async () => []) };
-    const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)) };
-    const emitter = { emit: jest.fn() };
+    const trail: string[] = [];
+    const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => { const out = await cb(manager); trail.push('commit'); return out; }) };
+    const emitter = { emit: jest.fn(() => { trail.push('emit'); }) };
     const service = new MutualSchedulingService(null as never, null as never, null as never, null as never, emitter as never, dataSource as never);
-    return { service, schedRepo, manager };
+    return { service, schedRepo, manager, emitter, trail, request, repos };
 }
 
 describe('MutualSchedulingService', () => {
@@ -47,6 +48,38 @@ describe('MutualSchedulingService', () => {
     it('keeps the limit of three reschedule requests and does not count a refused one', async () => {
         const { service, manager } = setup({ rescheduleCount: 3 });
         await expect(service.requestReschedule('hr-1', 's-1', { reason: 'lagi' } as never, { id: 'req-1' })).rejects.toThrow('Batas jadwal ulang (3x) tercapai');
-        expect(manager.query).not.toHaveBeenCalled();
+        expect(manager.query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE request_flows'), expect.anything());
     });
+
+describe('MutualSchedulingService: events and locking', () => {
+    const propose = (service: MutualSchedulingService) => service.proposeSchedule('hr-1', {
+        itemIds: ['i-1'], technicianId: 'tech-1', slots: [{ start: FUTURE(24), end: FUTURE(26) }],
+    }, { id: 'it-1' });
+
+    it.each([
+        ['proposing', (service: MutualSchedulingService) => propose(service), {}],
+        ['picking a slot', (service: MutualSchedulingService) => service.selectSlot('hr-1', 's-1', { slotIndex: 0 } as never, { id: 'req-1' }),
+            { status: InstallStatus.PROPOSED_AWAITING_USER, proposedSlots: [{ start: FUTURE(24), end: FUTURE(26) }] }],
+        ['asking for another time', (service: MutualSchedulingService) => service.requestReschedule('hr-1', 's-1', { reason: 'cuti' } as never, { id: 'req-1' }), {}],
+    ])('%s announces only after the transaction committed', async (_name, act, schedule) => {
+        const { service, trail } = setup(schedule as never);
+        await act(service as never);
+        expect(trail).toEqual(['commit', 'emit']);
+    });
+
+    it('a transaction that fails announces nothing', async () => {
+        const { service, emitter, repos } = setup({ rescheduleCount: 0 });
+        (repos.get(InstallationSchedule) as { save: jest.Mock }).save.mockRejectedValueOnce(new Error('boom'));
+        await expect(service.requestReschedule('hr-1', 's-1', { reason: 'cuti' } as never, { id: 'req-1' })).rejects.toThrow('boom');
+        expect(emitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('takes the request flow row lock first, so two simultaneous picks or proposals cannot both pass', async () => {
+        const { service, manager } = setup({ status: InstallStatus.PROPOSED_AWAITING_USER, proposedSlots: [{ start: FUTURE(24), end: FUTURE(26) }] });
+        await service.selectSlot('hr-1', 's-1', { slotIndex: 0 } as never, { id: 'req-1' });
+        const first = String((manager.query.mock.calls[0] as unknown as [string])[0]);
+        expect(first).toContain('request_flows');
+        expect(first).toContain('FOR UPDATE');
+    });
+});
 });

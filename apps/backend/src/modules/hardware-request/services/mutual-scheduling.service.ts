@@ -55,7 +55,9 @@ export class MutualSchedulingService {
     dto: ScheduleProposeDto,
     actor: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
-    return this.dataSource.transaction(async (mgr) => {
+    const outcome = await this.dataSource.transaction(async (mgr) => {
+      // Two people acting on the same request at once (pick / propose / ask again) queue here instead of both passing the checks.
+      await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
       const reqRepo = mgr.getRepository(HardwareRequest);
       const itemRepo = mgr.getRepository(HardwareRequestItem);
       const schedRepo = mgr.getRepository(InstallationSchedule);
@@ -161,10 +163,10 @@ export class MutualSchedulingService {
         technicianId: dto.technicianId,
         slots: dto.slots,
       };
-      this.emitter.emit(HardwareEvents.ScheduleProposed, payload);
-
-      return saved;
+      return { result: saved, announce: () => this.emitter.emit(HardwareEvents.ScheduleProposed, payload) };
     });
+    outcome.announce();
+    return outcome.result;
   }
 
   async selectSlot(
@@ -173,7 +175,9 @@ export class MutualSchedulingService {
     dto: SelectSlotDto,
     actor?: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
-    return this.dataSource.transaction(async (mgr) => {
+    const outcome = await this.dataSource.transaction(async (mgr) => {
+      // Two people acting on the same request at once (pick / propose / ask again) queue here instead of both passing the checks.
+      await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
       const schedRepo = mgr.getRepository(InstallationSchedule);
       const reqRepo = mgr.getRepository(HardwareRequest);
 
@@ -222,10 +226,10 @@ export class MutualSchedulingService {
         scheduledEnd: savedSched.scheduledEnd!,
         enteredInstallation,
       };
-      this.emitter.emit(HardwareEvents.ScheduleConfirmed, payload);
-
-      return savedSched;
+      return { result: savedSched, announce: () => this.emitter.emit(HardwareEvents.ScheduleConfirmed, payload) };
     });
+    outcome.announce();
+    return outcome.result;
   }
 
   async requestReschedule(
@@ -234,7 +238,9 @@ export class MutualSchedulingService {
     dto: RequestRescheduleDto,
     actor?: { id: string; siteId?: string | null; userRole?: UserRole },
   ): Promise<InstallationSchedule> {
-    return this.dataSource.transaction(async (mgr) => {
+    const outcome = await this.dataSource.transaction(async (mgr) => {
+      // Two people acting on the same request at once (pick / propose / ask again) queue here instead of both passing the checks.
+      await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
       const schedRepo = mgr.getRepository(InstallationSchedule);
       const sched = await schedRepo.findOne({ where: { id: scheduleId }, relations: ['request'] });
       if (!sched) throw new NotFoundException('schedule not found');
@@ -275,9 +281,9 @@ export class MutualSchedulingService {
         reason: dto.reason,
         rescheduleCount: newCount,
       };
-      this.emitter.emit(HardwareEvents.ScheduleRescheduleRequested, payload);
-
-      return saved;
+      return { result: saved, announce: () => this.emitter.emit(HardwareEvents.ScheduleRescheduleRequested, payload) };
     });
+    outcome.announce();
+    return outcome.result;
   }
 }
