@@ -97,7 +97,7 @@ describe('RequestItemsService.edit', () => {
         const added = rows.filter((r) => !r.id);
         expect(added).toHaveLength(2);
         expect(added[0]).toMatchObject({
-            requestId: 'hr-1', quantity: 1, catalogId: null, deliveryStatus: 'PENDING',
+            requestId: 'hr-1', quantity: 1, catalogId: null, deliveryStatus: 'PENDING', recipientName: 'Budi',
             categorySnapshot: { code: null, name: 'Laptop A', category: 'OTHER', customFields: { recipientName: 'Budi' } },
         });
     });

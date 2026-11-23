@@ -39,6 +39,8 @@ export interface ScheduleView {
     technicianName: string | null;
     status: InstallStatus;
     resched: number;
+    /** IT's note written with the proposed slots. */
+    note: string | null;
 }
 
 export interface RequestFlowView {
@@ -172,6 +174,7 @@ export class RequestFlowQueryService {
             technicianName: people.get(row.technicianId) ?? null,
             status: row.status,
             resched: row.rescheduleCount,
+            note: row.note ?? null,
         };
     }
 
@@ -197,7 +200,7 @@ export class RequestFlowQueryService {
                 name: item.categorySnapshot.name,
                 quantity: item.quantity,
                 note: item.notes,
-                recipient: String(item.categorySnapshot.customFields?.recipientName ?? ''),
+                recipient: item.recipientName ?? String(item.categorySnapshot.customFields?.recipientName ?? ''),
                 deliveryStatus: item.deliveryStatus,
                 procurementDecision: item.procurementDecision,
                 // Vendor, cost and invoice are IT's until Task 6 decides who else sees them.

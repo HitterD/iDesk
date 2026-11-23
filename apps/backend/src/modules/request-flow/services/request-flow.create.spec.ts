@@ -91,7 +91,7 @@ describe('RequestFlowService.createHardware', () => {
             division: 'QC',
             justification: 'Dua staf QC baru mulai bulan depan',
             items: [
-                { catalogId: CATALOG_ID, manualName: undefined, quantity: 2, notes: 'RAM 16GB', customFields: { os: 'Windows 11', recipientName: 'Andi' } },
+                { catalogId: CATALOG_ID, manualName: undefined, quantity: 2, notes: 'RAM 16GB', recipientName: 'Andi', customFields: { os: 'Windows 11', recipientName: 'Andi' } },
                 { catalogId: undefined, manualName: 'Docking USB-C', quantity: 1, notes: undefined, customFields: {} },
             ],
         }, { sourceTicketId: 't-1', requesterSignature: SIGNATURE });

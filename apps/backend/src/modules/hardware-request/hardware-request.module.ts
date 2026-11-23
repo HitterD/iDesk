@@ -33,6 +33,7 @@ import { InstallationController } from './presentation/installation.controller';
 import { HardwareDashboardController } from './presentation/hardware-dashboard.controller';
 import { IctBudgetRedirectController } from './presentation/ict-budget-redirect.controller';
 import { InAppNotifierListener } from './listeners/in-app-notifier.listener';
+import { AgingNotifierListener } from './listeners/aging-notifier.listener';
 import { EmailNotifierListener } from './listeners/email-notifier.listener';
 import { AgingReminderCron } from './listeners/aging-reminder.cron';
 import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
@@ -99,6 +100,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         DeliveryTrackingService,
         MutualSchedulingService,
         InAppNotifierListener,
+        AgingNotifierListener,
         EmailNotifierListener,
         HardwareScheduleTicketListener,
         HardwareTicketStatusSyncListener,

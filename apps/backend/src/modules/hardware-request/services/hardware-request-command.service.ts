@@ -38,6 +38,8 @@ export interface DraftItemInput {
     quantity: number;
     customFields?: Record<string, unknown>;
     notes?: string;
+    /** Who this item is for (stored on each unit's own column). */
+    recipientName?: string;
 }
 
 export type DraftInput = Omit<CreateRequestDto, 'items'> & { items: DraftItemInput[] };
@@ -50,7 +52,7 @@ export interface DraftOrigin {
     requesterSignature?: string;
 }
 
-type DraftItemRow = Pick<HardwareRequestItem, 'catalogId' | 'quantity' | 'notes' | 'categorySnapshot'>;
+type DraftItemRow = Pick<HardwareRequestItem, 'catalogId' | 'quantity' | 'notes' | 'recipientName' | 'categorySnapshot'>;
 
 @Injectable()
 export class HardwareRequestCommandService {
@@ -158,7 +160,7 @@ export class HardwareRequestCommandService {
                 throw new BadRequestException('Barang harus dari katalog atau ditulis manual');
             }
             for (let qty = 0; qty < i.quantity; qty++) {
-                rows.push({ catalogId, quantity: 1, notes: i.notes ?? null, categorySnapshot: snapshot });
+                rows.push({ catalogId, quantity: 1, notes: i.notes ?? null, recipientName: i.recipientName ?? null, categorySnapshot: snapshot });
             }
         }
         return rows;
@@ -584,6 +586,15 @@ export class HardwareRequestCommandService {
         }
 
         return this.dataSource.transaction(async (mgr) => {
+            const saved = await this.completeInstallationWith(mgr, requestId, actor.id);
+            this.announceInstallCompleted(saved, actor.id);
+            return saved;
+        });
+    }
+
+    /** INSTALLATION -> AWAITING_USER_CONFIRMATION inside the caller's transaction; emits nothing (the caller announces it). */
+    async completeInstallationWith(mgr: EntityManager, requestId: string, actorId: string): Promise<HardwareRequest> {
+        {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
             const scheduleRepo = mgr.getRepository(InstallationSchedule);
@@ -605,20 +616,22 @@ export class HardwareRequestCommandService {
             const saved = await requestRepo.save(req);
 
             await activityRepo.save(activityRepo.create({
-                requestId: req.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
+                requestId: req.id, actorId, action: ActivityAction.INSTALL_COMPLETED,
                 metadata: { scheduleId: sched.id },
                 fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
             }));
-
-            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
-                requestId,
-                actorId: actor.id,
-                occurredAt: new Date(),
-                requesterId: req.requesterId,
-                status: RequestStatus.AWAITING_USER_CONFIRMATION,
-            });
-
             return saved;
+        }
+    }
+
+    /** Tells the listeners the technician finished (the requester still has to confirm). */
+    announceInstallCompleted(req: HardwareRequest, actorId: string): void {
+        this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+            requestId: req.id,
+            actorId,
+            occurredAt: new Date(),
+            requesterId: req.requesterId,
+            status: RequestStatus.AWAITING_USER_CONFIRMATION,
         });
     }
 

@@ -32,6 +32,7 @@ export function getCategoryFromType(type: NotificationType): NotificationCategor
         NotificationType.HARDWARE_REQUEST_COMPLETED,
         NotificationType.HARDWARE_REQUEST_COMPLETED_LEAD,
         NotificationType.HARDWARE_REQUEST_COMMENTED,
+        NotificationType.HARDWARE_REQUEST_AGING,
     ];
 
     const zoomTypes: NotificationType[] = [

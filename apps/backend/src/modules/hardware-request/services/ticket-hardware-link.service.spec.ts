@@ -26,7 +26,7 @@ describe('TicketHardwareLinkService', () => {
         vendorVisit = { clear: jest.fn() };
         gateway = { notifyNewMessage: jest.fn(), notifyTicketUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
-        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any);
+        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any, { calculateSlaTarget: jest.fn() } as any);
         service = new TicketHardwareLinkService(reqRepo as any, linked);
     });
 

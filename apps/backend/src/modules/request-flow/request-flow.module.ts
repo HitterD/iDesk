@@ -15,6 +15,7 @@ import { RequestFlowReviewService } from './services/request-flow-review.service
 import { RequestFlowStepper } from './services/request-flow-stepper';
 import { RequestFlowService } from './services/request-flow.service';
 import { RequestItemsService } from './services/request-items.service';
+import { RequestInstallFlowService } from './services/request-install-flow.service';
 import { RequestProcurementFlowService } from './services/request-procurement-flow.service';
 import { NotificationModule } from '../notifications/notification.module';
 
@@ -29,7 +30,7 @@ import { NotificationModule } from '../notifications/notification.module';
     controllers: [RequestFlowController],
     providers: [
         RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowQueryService, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
-        RequestItemsService, RequestProcurementFlowService,
+        RequestItemsService, RequestProcurementFlowService, RequestInstallFlowService,
     ],
 })
 export class RequestFlowModule {}

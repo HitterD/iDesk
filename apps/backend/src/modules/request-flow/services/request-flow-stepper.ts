@@ -38,7 +38,7 @@ export interface SignResult { step: ApprovalStep; next: ApprovalStep | null; ver
 export interface TellInput {
     actorId: string | null;
     text: string;
-    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED';
+    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'INSTALLED';
     target?: TicketStatus;
     reason?: string | null;
 }

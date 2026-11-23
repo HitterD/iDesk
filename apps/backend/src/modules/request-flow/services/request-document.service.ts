@@ -15,7 +15,7 @@ import { RequestFlowReader, type FlowContext } from './request-flow-reader';
 
 export interface DocumentViewer extends SiteActor { userId: string }
 
-interface ItemRow { categorySnapshot: { name: string; customFields?: Record<string, unknown> }; notes: string | null; quantity: number }
+interface ItemRow { categorySnapshot: { name: string; customFields?: Record<string, unknown> }; notes: string | null; recipientName?: string | null; quantity: number }
 
 /**
  * The one document of a request ticket. Every signature, route change or item change adds a revision (`bump`); the
@@ -101,7 +101,7 @@ export class RequestDocumentService {
 function groupItems(items: ItemRow[]): HardwarePdfItem[] {
     const rows = new Map<string, HardwarePdfItem>();
     for (const item of items) {
-        const recipient = String(item.categorySnapshot.customFields?.recipientName ?? '');
+        const recipient = item.recipientName ?? String(item.categorySnapshot.customFields?.recipientName ?? '');
         const key = [item.categorySnapshot.name, recipient, item.notes ?? ''].join('|');
         const row = rows.get(key);
         if (row) row.quantity += item.quantity;

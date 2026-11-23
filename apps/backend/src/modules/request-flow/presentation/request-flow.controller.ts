@@ -16,12 +16,14 @@ import { ArrivalsDto } from '../dto/arrivals.dto';
 import { CreateEformTicketDto } from '../dto/create-eform-ticket.dto';
 import { CreateHardwareTicketDto } from '../dto/create-hardware-ticket.dto';
 import { EditItemsDto } from '../dto/edit-items.dto';
+import { InstallDoneDto } from '../dto/install-done.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
 import { ProcureDto } from '../dto/procure.dto';
 import { ReviewDto } from '../dto/review.dto';
 import { RequestFlowQueryService, type RequestFlowView } from '../services/request-flow-query.service';
 import { RequestDocumentService } from '../services/request-document.service';
 import { RequestItemsService } from '../services/request-items.service';
+import { RequestInstallFlowService } from '../services/request-install-flow.service';
 import { RequestProcurementFlowService } from '../services/request-procurement-flow.service';
 import { FlowActor, REQUEST_SCANS_DIR, scanFileFilter, RequestFlowReviewService } from '../services/request-flow-review.service';
 import { CreatedRequestTicket, RequestFlowService } from '../services/request-flow.service';
@@ -51,6 +53,7 @@ export class RequestFlowController {
         private readonly queries: RequestFlowQueryService,
         private readonly items: RequestItemsService,
         private readonly procurement: RequestProcurementFlowService,
+        private readonly installs: RequestInstallFlowService,
     ) {}
 
     @Post('hardware')
@@ -121,6 +124,14 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'IT marks purchased items as arrived at the IT warehouse' })
     arrivals(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: ArrivalsDto) {
         return this.procurement.arrive(actorOf(req), ticketId, dto);
+    }
+
+    @Post(':ticketId/install-done')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT reports the installation: one asset code per unit and the technician signature' })
+    installDone(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: InstallDoneDto) {
+        return this.installs.installDone(actorOf(req), ticketId, dto);
     }
 
     @Get(':ticketId/document.pdf')

@@ -10,6 +10,7 @@ describe('HardwareTicketStatusSyncListener', () => {
     let manager: any;
     let gateway: any;
     let workload: any;
+    let flows: any;
 
     beforeEach(() => {
         ticket = { id: 'ticket-1', siteId: 'site-1', status: TicketStatus.IN_PROGRESS, assignedToId: 'tech-1' };
@@ -24,7 +25,8 @@ describe('HardwareTicketStatusSyncListener', () => {
         workload = { recalculateAgentWorkload: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
 
-        listener = new HardwareTicketStatusSyncListener(reqRepo, schedRepo, dataSource as any, gateway, workload);
+        flows = { has: jest.fn().mockResolvedValue(false) };
+        listener = new HardwareTicketStatusSyncListener(reqRepo, schedRepo, dataSource as any, gateway, workload, flows as any);
     });
 
     const savedMessage = () => manager.create.mock.calls.find((c: any[]) => c[1]?.isSystemMessage)?.[1];
@@ -74,5 +76,15 @@ describe('HardwareTicketStatusSyncListener', () => {
 
         await expect(listener.onInstallCompleted({ requestId: 'req-1', status: RequestStatus.COMPLETED } as any))
             .resolves.toBeUndefined();
+    });
+
+    it('leaves the ticket of a request flow alone (the flow moves it itself)', async () => {
+        flows.has.mockResolvedValue(true);
+
+        await listener.onInstallCompleted({ requestId: 'req-1', status: RequestStatus.COMPLETED } as any);
+        await listener.onRequestCancelled({ requestId: 'req-1' } as any);
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(manager.save).not.toHaveBeenCalled();
     });
 });

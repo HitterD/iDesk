@@ -148,9 +148,9 @@ describe('HardwareRequestCommandService', () => {
         const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
         await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
             justification: 'Docking untuk meeting room',
-            items: [{ manualName: 'Docking USB-C', quantity: 2, notes: 'Port HDMI', customFields: { recipientName: 'Andi' } }],
+            items: [{ manualName: 'Docking USB-C', quantity: 2, notes: 'Port HDMI', recipientName: 'Andi', customFields: { recipientName: 'Andi' } }],
         });
-        const unit = { catalogId: null, quantity: 1, notes: 'Port HDMI', categorySnapshot: {
+        const unit = { catalogId: null, quantity: 1, notes: 'Port HDMI', recipientName: 'Andi', categorySnapshot: {
             code: null, name: 'Docking USB-C', category: ItemCategory.OTHER, specs: {}, customFields: { recipientName: 'Andi' },
         } };
         expect(reqRepo.save).toHaveBeenCalledWith(expect.objectContaining({ items: [unit, unit] }));

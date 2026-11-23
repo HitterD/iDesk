@@ -52,6 +52,15 @@ function setup(ctx: FlowContext, rows: { schedules?: unknown[]; credentials?: nu
 }
 
 describe('RequestFlowQueryService.view', () => {
+    it('reads the recipient of a unit from its own column, and from the snapshot on older rows', async () => {
+        const ctx = context('HARDWARE');
+        const items = ctx.hardware!.items as unknown as Record<string, unknown>[];
+        items.push({ ...items[0], id: 'it-2', recipientName: 'Citra', categorySnapshot: { name: 'Mouse', customFields: {} } });
+        const { service } = setup(ctx);
+        const view = await service.view(viewer('req-1'), TID);
+        expect(view.hardware!.items.map((i) => i.recipient)).toEqual(['Budi', 'Citra']);
+    });
+
     it('view marks the current approver', async () => {
         const { service } = setup(context('HARDWARE'));
         await expect(service.view(viewer('mgr-1'), TID)).resolves.toMatchObject({ viewerRoleInFlow: 'APPROVER_CURRENT', phase: 'appr_mgr', phaseLabel: 'Menunggu Atasan' });
@@ -88,7 +97,7 @@ describe('RequestFlowQueryService.view', () => {
         const ctx = context('HARDWARE', { hardware: { ...context('HARDWARE').hardware!, status: RequestStatus.INSTALLATION } as never, phase: 'other', step: null, approverId: null });
         const { service } = setup(ctx, { schedules: [{
             id: 's-1', status: InstallStatus.CONFIRMED, proposedSlots: slots, scheduledStart: new Date(slots[1].start), scheduledEnd: new Date(slots[1].end),
-            technicianId: 'tech-1', rescheduleCount: 2, createdAt: new Date(),
+            technicianId: 'tech-1', rescheduleCount: 2, note: 'Bawa kabel LAN', createdAt: new Date(),
         }] });
 
         const view = await service.view(viewer('req-1'), TID);
@@ -100,7 +109,7 @@ describe('RequestFlowQueryService.view', () => {
         expect(view.hardware).toMatchObject({
             requestNumber: 'HR-2026-0042', division: 'QC', recipients: ['Leony', 'Budi'],
             assets: [{ code: 'AST-1', itemId: 'it-1' }],
-            schedule: { slots, chosen: 1, technicianName: 'Teknisi A', status: 'CONFIRMED', resched: 2 },
+            schedule: { slots, chosen: 1, technicianName: 'Teknisi A', status: 'CONFIRMED', resched: 2, note: 'Bawa kabel LAN' },
         });
         expect(view.hardware!.items[0]).toMatchObject({ id: 'it-1', name: 'Laptop', quantity: 1, deliveryStatus: 'ARRIVED', vendor: null, actualCost: null });
         expect(JSON.stringify(view)).not.toContain('SECRET');

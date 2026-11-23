@@ -142,21 +142,21 @@ export class RequestItemsService {
         const notes = line.note ?? null;
         if (unit.deliveryStatus === 'ARRIVED') {
             if (unit.categorySnapshot.name !== resolved.snapshot.name) throw new ConflictException(MESSAGES.arrived);
-            return { ...unit, notes, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
+            return { ...unit, notes, recipientName: line.recipientName ?? null, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
         }
         const sameName = unit.categorySnapshot.name === resolved.snapshot.name;
         // A swap would leave the old purchase (vendor, cost, invoice) on a different item.
         if (unit.procurementDecision === 'APPROVED' && !sameName) throw new ConflictException(MESSAGES.purchased);
         if (unit.procurementDecision === 'APPROVED') {
-            return { ...unit, notes, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
+            return { ...unit, notes, recipientName: line.recipientName ?? null, categorySnapshot: { ...unit.categorySnapshot, customFields: resolved.snapshot.customFields } };
         }
         const replaces = line.replacesName ?? (sameName ? (unit.categorySnapshot as { replaces?: string }).replaces : undefined);
-        return { ...unit, catalogId: resolved.catalogId, notes, categorySnapshot: this.withReplaces(resolved.snapshot, replaces) };
+        return { ...unit, catalogId: resolved.catalogId, notes, recipientName: line.recipientName ?? null, categorySnapshot: this.withReplaces(resolved.snapshot, replaces) };
     }
 
     private fresh(requestId: string, line: EditItemLineDto, resolved: ResolvedLine): Partial<HardwareRequestItem> {
         return {
-            requestId, quantity: 1, notes: line.note ?? null, catalogId: resolved.catalogId, deliveryStatus: 'PENDING',
+            requestId, quantity: 1, notes: line.note ?? null, recipientName: line.recipientName ?? null, catalogId: resolved.catalogId, deliveryStatus: 'PENDING',
             categorySnapshot: this.withReplaces(resolved.snapshot, line.replacesName),
         };
     }

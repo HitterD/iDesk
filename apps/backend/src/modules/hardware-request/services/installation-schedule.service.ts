@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HR_EVT } from '../domain/events/hardware-request.events';
 import { InstallationSchedule } from '../domain/entities/installation-schedule.entity';
@@ -202,28 +202,31 @@ export class InstallationScheduleService {
             }
         }
 
-        return this.dataSource.transaction(async (mgr) => {
-            const repo = mgr.getRepository(InstallationSchedule);
+        return this.dataSource.transaction((mgr) => this.completeWith(mgr, requestId, actor.id));
+    }
 
-            // Only an agreed slot can be finished. Completing from a pending proposal or a
-            // reschedule request used to force that row to DONE (or invent a new one), which
-            // closed installations nobody had actually scheduled.
-            const sched = await repo.findOne({
-                where: { requestId, status: In(COMPLETABLE_STATUSES) },
-                order: { createdAt: 'DESC' },
-            });
-            if (!sched) {
-                throw new ConflictException('Belum ada jadwal terkonfirmasi untuk pemasangan ini');
-            }
+    /** The agreed schedule becomes DONE inside the caller's transaction. */
+    async completeWith(mgr: EntityManager, requestId: string, actorId: string): Promise<InstallationSchedule> {
+        const repo = mgr.getRepository(InstallationSchedule);
 
-            sched.startedAt = sched.startedAt ?? new Date();
-            sched.status = InstallStatus.DONE;
-            sched.completedAt = new Date();
-            const saved = await repo.save(sched);
-            await this.activity.log(requestId, actor.id, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
-
-            return saved;
+        // Only an agreed slot can be finished. Completing from a pending proposal or a
+        // reschedule request used to force that row to DONE (or invent a new one), which
+        // closed installations nobody had actually scheduled.
+        const sched = await repo.findOne({
+            where: { requestId, status: In(COMPLETABLE_STATUSES) },
+            order: { createdAt: 'DESC' },
         });
+        if (!sched) {
+            throw new ConflictException('Belum ada jadwal terkonfirmasi untuk pemasangan ini');
+        }
+
+        sched.startedAt = sched.startedAt ?? new Date();
+        sched.status = InstallStatus.DONE;
+        sched.completedAt = new Date();
+        const saved = await repo.save(sched);
+        await this.activity.log(requestId, actorId, 'INSTALL_SCHEDULE_DONE', { scheduleId: saved.id });
+
+        return saved;
     }
 
     async calendar(q: CalendarQueryDto): Promise<any[]> {

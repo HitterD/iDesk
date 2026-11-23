@@ -132,13 +132,14 @@ export class RequestFlowService {
     }
 }
 
-/** Form item -> draft item; the per-item recipient lives with the item's fields until it has its own column. */
+/** Form item -> draft item; the per-item recipient is stored in its own column and, for older readers, with the item's fields. */
 function toDraftItem(item: HardwareTicketItemDto) {
     return {
         catalogId: item.catalogId,
         manualName: item.manualName,
         quantity: item.quantity,
         notes: item.note,
+        recipientName: item.recipientName,
         customFields: { ...(item.fields ?? {}), ...(item.recipientName ? { recipientName: item.recipientName } : {}) },
     };
 }

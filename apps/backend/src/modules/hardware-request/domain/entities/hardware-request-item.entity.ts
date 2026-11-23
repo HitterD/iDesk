@@ -58,6 +58,10 @@ export class HardwareRequestItem {
     @Column({ type: 'text', nullable: true })
     notes: string | null;
 
+    /** Who this unit is for (a unified-flow request); older rows keep it in `categorySnapshot.customFields.recipientName`. */
+    @Column({ name: 'recipient_name', type: 'varchar', length: 120, nullable: true })
+    recipientName: string | null;
+
     @Column({
         type: 'varchar',
         length: 20,

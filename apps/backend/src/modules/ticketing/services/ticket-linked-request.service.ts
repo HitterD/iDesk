@@ -10,6 +10,8 @@ import { WorkloadService } from '../../workload/workload.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activity.util';
+import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { computeResolutionDeadline } from '../utils/resolution-deadline.util';
 
 const MINUTE_MS = 60_000;
 
@@ -53,6 +55,7 @@ export class TicketLinkedRequestService {
         private readonly vendorVisit: TicketVendorVisitService,
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
+        private readonly businessHours: BusinessHoursService,
     ) {}
 
     /** Resolves to whether the ticket's status changed; false as well when nothing could be recorded (never throws). */
@@ -97,7 +100,7 @@ export class TicketLinkedRequestService {
      */
     private async settleTarget(manager: EntityManager, ticketId: string, phase: LinkedPhase): Promise<TicketStatus | undefined> {
         const { target } = phase;
-        if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS) return target;
+        if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS && target !== TicketStatus.RESOLVED) return target;
         const selfId = phase.event.hardwareRequest?.id ?? phase.event.eformRequest?.id ?? null;
         let running = 0;
         let proposals = 0;
@@ -137,6 +140,12 @@ export class TicketLinkedRequestService {
             await this.slaClock.hold(ticket, now);
         } else if (target === TicketStatus.IN_PROGRESS) {
             await this.slaClock.release(ticket, now);
+        } else if (target === TicketStatus.RESOLVED) {
+            // Resolved like an agent's resolve: the requester has one working day to confirm or dispute, SLA held meanwhile.
+            ticket.resolvedAt = now;
+            ticket.disputedAt = null;
+            ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHours, now);
+            await this.slaClock.hold(ticket, now);
         } else if (target === TicketStatus.CLOSED) {
             ticket.closedAt = now;
             ticket.resolutionDeadlineAt = null;

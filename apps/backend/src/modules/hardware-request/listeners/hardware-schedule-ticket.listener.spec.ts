@@ -10,6 +10,7 @@ describe('HardwareScheduleTicketListener — reschedule moves the existing ticke
     let ticketRepo: any;
     let workloadService: any;
     let dataSource: any;
+    let flows: any;
     let ticket: any;
 
     const payload = {
@@ -42,6 +43,7 @@ describe('HardwareScheduleTicketListener — reschedule moves the existing ticke
             incrementAgentWorkload: jest.fn(),
         };
         dataSource = { transaction: jest.fn() };
+        flows = { has: jest.fn().mockResolvedValue(false) };
 
         listener = new HardwareScheduleTicketListener(
             { findOne: jest.fn().mockResolvedValue({ id: 'req-1', requesterId: 'u-1', items: [], siteId: 'site-1' }) } as any,
@@ -52,6 +54,7 @@ describe('HardwareScheduleTicketListener — reschedule moves the existing ticke
             workloadService,
             { notifyDashboardStatsUpdate: jest.fn(), notifyNewTicket: jest.fn() } as any,
             { hardwareTarget: jest.fn().mockResolvedValue(wib('2026-10-07T17:00:00')) } as any,
+            flows as any,
         );
     });
 
@@ -82,5 +85,16 @@ describe('HardwareScheduleTicketListener — reschedule moves the existing ticke
 
         expect(dataSource.transaction).toHaveBeenCalledTimes(1);
         expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('schedule ticket listener skips requests that belong to a request flow', async () => {
+        flows.has.mockResolvedValue(true);
+
+        await listener.onScheduleConfirmed(payload);
+
+        expect(flows.has).toHaveBeenCalledWith('req-1');
+        expect(dataSource.transaction).not.toHaveBeenCalled();
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+        expect(schedRepo.update).not.toHaveBeenCalled();
     });
 });

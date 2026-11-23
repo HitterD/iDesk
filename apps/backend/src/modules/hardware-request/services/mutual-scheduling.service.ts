@@ -141,6 +141,7 @@ export class MutualSchedulingService {
         status: InstallStatus.PROPOSED_AWAITING_USER,
         proposedSlots: dto.slots,
         rescheduleCount: prevRescheduleCount,
+        note: dto.note?.trim() || null,
         proposedBy: actor.id,
         scheduledStart: new Date(dto.slots[0].start), // dummy
         scheduledEnd: new Date(dto.slots[0].end), // dummy
@@ -265,6 +266,8 @@ export class MutualSchedulingService {
         rescheduleCount: newCount,
       } as InstallationSchedule;
       const saved = await schedRepo.save(updated);
+      // A request that lives on a ticket keeps its own count for the ticket page; same transaction as the request.
+      await mgr.query(`UPDATE request_flows SET "rescheduleCount" = "rescheduleCount" + 1 WHERE "hardwareRequestId" = $1`, [requestId]);
 
       const payload: ScheduleRescheduleRequestedPayload = {
         requestId, scheduleId,
