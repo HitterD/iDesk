@@ -594,34 +594,32 @@ export class HardwareRequestCommandService {
 
     /** INSTALLATION -> AWAITING_USER_CONFIRMATION inside the caller's transaction; emits nothing (the caller announces it). */
     async completeInstallationWith(mgr: EntityManager, requestId: string, actorId: string): Promise<HardwareRequest> {
-        {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
-            const scheduleRepo = mgr.getRepository(InstallationSchedule);
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
+        const scheduleRepo = mgr.getRepository(InstallationSchedule);
 
-            const req = await requestRepo.findOne({ where: { id: requestId } });
-            if (!req) throw new NotFoundException('request');
+        const req = await requestRepo.findOne({ where: { id: requestId } });
+        if (!req) throw new NotFoundException('request');
 
-            if (req.status !== RequestStatus.INSTALLATION) {
-                throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
-            }
-
-            const sched = await scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
-            if (!sched) {
-                throw new BadRequestException('Cannot complete installation: schedule not done');
-            }
-
-            req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
-            req.installMarkedDoneAt = new Date();
-            const saved = await requestRepo.save(req);
-
-            await activityRepo.save(activityRepo.create({
-                requestId: req.id, actorId, action: ActivityAction.INSTALL_COMPLETED,
-                metadata: { scheduleId: sched.id },
-                fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
-            }));
-            return saved;
+        if (req.status !== RequestStatus.INSTALLATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
         }
+
+        const sched = await scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
+        if (!sched) {
+            throw new BadRequestException('Cannot complete installation: schedule not done');
+        }
+
+        req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
+        req.installMarkedDoneAt = new Date();
+        const saved = await requestRepo.save(req);
+
+        await activityRepo.save(activityRepo.create({
+            requestId: req.id, actorId, action: ActivityAction.INSTALL_COMPLETED,
+            metadata: { scheduleId: sched.id },
+            fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
+        }));
+        return saved;
     }
 
     /** Tells the listeners the technician finished (the requester still has to confirm). */

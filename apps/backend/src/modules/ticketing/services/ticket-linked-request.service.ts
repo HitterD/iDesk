@@ -11,6 +11,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activity.util';
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { SurveysService } from '../surveys.service';
 import { computeResolutionDeadline } from '../utils/resolution-deadline.util';
 
 const MINUTE_MS = 60_000;
@@ -56,6 +57,7 @@ export class TicketLinkedRequestService {
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
         private readonly businessHours: BusinessHoursService,
+        private readonly surveys: SurveysService,
     ) {}
 
     /** Resolves to whether the ticket's status changed; false as well when nothing could be recorded (never throws). */
@@ -86,6 +88,7 @@ export class TicketLinkedRequestService {
             });
             if (!result) return false;
             await this.publish(result.ticket, result.message, result.moved);
+            if (result.moved && result.ticket.status === TicketStatus.RESOLVED) await this.openSurvey(result.ticket);
             return result.moved;
         } catch (err: any) {
             this.logger.error(`Failed to record a linked request step on ticket ${phase.ticketId}: ${err?.message ?? err}`);
@@ -121,9 +124,14 @@ export class TicketLinkedRequestService {
 
     /** Same clock rules as a manual WAITING_VENDOR wait, without a vendor appointment. */
     private async moveTicket(manager: EntityManager, ticket: Ticket, target: TicketStatus | undefined): Promise<TicketActivityChange[]> {
-        if (!target || ticket.status === target || TICKET_INACTIVE_STATUSES.includes(ticket.status)) return [];
-        // Only a ticket that is waiting on the request resumes; one an agent already moved on is left alone.
-        if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR) return [];
+        if (!target || ticket.status === target) return [];
+        // CLOSED and CANCELLED are final. A RESOLVED ticket waits for the requester: it may still be closed (confirmed)
+        // or taken back (an issue was reported); nothing else moves it.
+        if (ticket.status === TicketStatus.RESOLVED) {
+            if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS) return [];
+        } else if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) return [];
+        // Only a ticket that is waiting on the request resumes (or a resolved one taken back); one an agent already moved on is left alone.
+        if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR && ticket.status !== TicketStatus.RESOLVED) return [];
         const from = ticket.status;
         const now = new Date();
         if (from === TicketStatus.WAITING_VENDOR && ticket.lastPausedAt) {
@@ -138,6 +146,12 @@ export class TicketLinkedRequestService {
             ticket.lastPausedAt = now;
             ticket.waitingVendorAt = now;
             await this.slaClock.hold(ticket, now);
+        } else if (target === TicketStatus.IN_PROGRESS && from === TicketStatus.RESOLVED) {
+            // Same as the requester's dispute: the clock never stopped for good, so the original target stands.
+            ticket.disputedAt = now;
+            ticket.resolvedAt = null;
+            ticket.resolutionDeadlineAt = null;
+            this.slaClock.resumeOnOriginalTarget(ticket, now);
         } else if (target === TicketStatus.IN_PROGRESS) {
             await this.slaClock.release(ticket, now);
         } else if (target === TicketStatus.RESOLVED) {
@@ -152,6 +166,15 @@ export class TicketLinkedRequestService {
         }
         ticket.status = target;
         return [{ field: 'status', from, to: target }];
+    }
+
+    /** A resolved request ticket gets the same satisfaction survey as any resolved ticket; a failure is only logged. */
+    private async openSurvey(ticket: Ticket): Promise<void> {
+        try {
+            await this.surveys.createSurvey(ticket);
+        } catch (err: any) {
+            this.logger.error(`Failed to create the survey of ticket ${ticket.id}: ${err?.message ?? err}`);
+        }
     }
 
     private async publish(ticket: Ticket, message: TicketMessage, moved: boolean): Promise<void> {

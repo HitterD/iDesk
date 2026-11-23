@@ -36,12 +36,14 @@ describe('AgingNotifierListener', () => {
         expect(referenceId).toBe(`hr-1_aging_${new Date().toISOString().slice(0, 10)}`);
     });
 
-    it('a flow ticket without a PIC reaches nobody extra', async () => {
-        const { listener, notif } = setup({ ticket: { ticketId: 't-1', assignedToId: null } });
+    it('a flow ticket without a PIC goes to the ops-support agents of its site, linking the ticket', async () => {
+        const { listener, notif, center } = setup({ ticket: { ticketId: 't-1', assignedToId: null } });
 
         await listener.onAgingFlagged(event);
 
-        expect(notif.create).not.toHaveBeenCalled();
+        expect(center.findStaffAtSite).toHaveBeenCalledWith(expect.arrayContaining(['AGENT_OPERATIONAL_SUPPORT']), 'site-1');
+        expect(notif.create.mock.calls.map((c) => (c as unknown as [{ userId: string }])[0].userId)).toEqual(['ops-1', 'ops-2']);
+        expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({ link: '/tickets/t-1', ticketId: 't-1' }));
     });
 
     it('a legacy request goes to the ops-support agents of its site', async () => {

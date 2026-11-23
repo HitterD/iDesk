@@ -62,7 +62,12 @@ export class HardwareAssetService {
             return await repo.save(rows);
         } catch (err) {
             // The unique index decides when two reports race for the same code.
-            if ((err as { code?: string }).code === UNIQUE_VIOLATION) throw this.duplicate(assets.find((a) => String((err as { detail?: string }).detail ?? '').includes(a.barcode))?.barcode ?? '', undefined);
+            if ((err as { code?: string }).code === UNIQUE_VIOLATION) {
+                // The detail reads `Key (barcode)=(CODE) already exists.`; without it the first code of the report is named.
+                const detail = String((err as { detail?: string }).detail ?? '');
+                const lost = assets.find((a) => detail.includes(`(${a.barcode})`)) ?? assets[0];
+                throw this.duplicate(lost.barcode, undefined);
+            }
             throw err;
         }
     }

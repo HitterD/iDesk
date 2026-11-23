@@ -5,6 +5,8 @@ import { HARDWARE_TICKET_LIMITS, PNG_DATA_URL } from './create-hardware-ticket.d
 export const ASSET_CODE_MIN = 4;
 export const ASSET_CODE_MAX = 128;
 export const PHOTO_URL_MAX = 500;
+/** A photo is an https URL or a file kept under this server's uploads (no `..`, no protocol-relative paths). */
+export const PHOTO_URL = /^(https:\/\/[^\s]+|\/uploads\/(?!.*\.\.)[^\s]+)$/;
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 /** The asset code (barcode / serial) of one installed unit. */
@@ -28,6 +30,6 @@ export class InstallDoneDto {
     @Matches(PNG_DATA_URL, { message: 'Tanda tangan harus gambar PNG' })
     signatureData: string;
 
-    @IsOptional() @IsString() @MaxLength(PHOTO_URL_MAX)
+    @IsOptional() @IsString() @MaxLength(PHOTO_URL_MAX) @Matches(PHOTO_URL, { message: 'Foto harus berupa URL https atau berkas di /uploads' })
     photoUrl?: string;
 }

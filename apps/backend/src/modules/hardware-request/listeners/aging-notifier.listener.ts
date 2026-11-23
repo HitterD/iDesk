@@ -40,15 +40,23 @@ export class AgingNotifierListener {
                        FROM request_flows f JOIN tickets t ON t.id = f."ticketId" WHERE f."hardwareRequestId" = $1 LIMIT 1`,
                     [request.id],
                 );
-                if (!row?.assignedToId) return;
-                await this.send(row.assignedToId, message, referenceId, `/tickets/${row.ticketId}`, row.ticketId);
+                if (row?.assignedToId) {
+                    await this.send(row.assignedToId, message, referenceId, `/tickets/${row.ticketId}`, row.ticketId);
+                    return;
+                }
+                // No PIC yet: the site's agents see it, on the ticket.
+                await this.sendToStaff(request.siteId, message, referenceId, row ? `/tickets/${row.ticketId}` : `/hardware-requests/${request.id}`, row?.ticketId);
                 return;
             }
-            const staff = await this.center.findStaffAtSite(LEGACY_RECIPIENTS, request.siteId);
-            for (const user of staff) await this.send(user.id, message, referenceId, `/hardware-requests/${request.id}`);
+            await this.sendToStaff(request.siteId, message, referenceId, `/hardware-requests/${request.id}`);
         } catch (err) {
             this.logger.error(`Aging notice for request ${e.requestId} failed: ${err instanceof Error ? err.message : err}`);
         }
+    }
+
+    private async sendToStaff(siteId: string | null | undefined, message: string, referenceId: string, link: string, ticketId?: string): Promise<void> {
+        const staff = await this.center.findStaffAtSite(LEGACY_RECIPIENTS, siteId);
+        for (const user of staff) await this.send(user.id, message, referenceId, link, ticketId);
     }
 
     private async send(userId: string, message: string, referenceId: string, link: string, ticketId?: string): Promise<void> {

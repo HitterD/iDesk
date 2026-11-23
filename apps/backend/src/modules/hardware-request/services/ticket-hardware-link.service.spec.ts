@@ -26,7 +26,7 @@ describe('TicketHardwareLinkService', () => {
         vendorVisit = { clear: jest.fn() };
         gateway = { notifyNewMessage: jest.fn(), notifyTicketUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
-        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any, { calculateSlaTarget: jest.fn() } as any);
+        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any, { calculateSlaTarget: jest.fn() } as any, { createSurvey: jest.fn() } as any);
         service = new TicketHardwareLinkService(reqRepo as any, linked);
     });
 
@@ -84,6 +84,17 @@ describe('TicketHardwareLinkService', () => {
         expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
         expect(slaClock.release).not.toHaveBeenCalled();
         expect(message().systemEvent.changes).toEqual([]);
+    });
+
+    it('COMPLETED closes a RESOLVED flow ticket (the requester confirmed the installation)', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+
+        await service.record('req-1', 'COMPLETED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.CLOSED);
+        expect(ticket.closedAt).toBeInstanceOf(Date);
+        expect(ticket.resolutionDeadlineAt).toBeNull();
     });
 
     describe('resumeForInstallation (goods arrived, request enters INSTALLATION)', () => {
