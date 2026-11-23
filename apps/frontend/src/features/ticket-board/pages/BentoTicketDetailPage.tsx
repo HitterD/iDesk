@@ -444,7 +444,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
             <TicketHeader
                 ticket={ticket}
                 notesAction={ticket.viewerAccess === 'handler' && user?.id ? <TicketNotesAction ticketId={ticket.id} userId={user.id} /> : undefined}
-                onCancel={canAct ? handleCancelTicket : undefined}
+                onCancel={canAct && !isRequestTicket ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
                 onResolve={canAct ? handleResolveTicket : undefined}
                 isResolving={isResolving}

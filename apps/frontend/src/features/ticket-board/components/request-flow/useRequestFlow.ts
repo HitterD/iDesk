@@ -51,6 +51,10 @@ export function useRequestFlowAction(ticketId: string) {
             void queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
             void queryClient.invalidateQueries({ queryKey: ['tickets'] });
             void queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+            // Views derived from the flow: the approver's list, the requester's access cards and IT's devices page.
+            void queryClient.invalidateQueries({ queryKey: ['request-flow', 'approvals'] });
+            void queryClient.invalidateQueries({ queryKey: ['request-flow', 'my-access'] });
+            void queryClient.invalidateQueries({ queryKey: ['devices-access'] });
         },
     });
 }

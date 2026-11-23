@@ -155,4 +155,19 @@ describe('BentoTicketDetailPage request ticket', () => {
         expect(vi.mocked(api.get).mock.calls.some(([url]) => String(url).startsWith('/request-flow/'))).toBe(false);
         expect(screen.queryByRole('button', { name: 'Tinjau sekarang' })).toBeNull();
     });
+
+    it('a request ticket has no generic "Batalkan tiket": withdrawing goes through the request flow', async () => {
+        stubApi(REQUEST_TICKET);
+        renderDetailPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+        await screen.findByRole('button', { name: 'Tinjau sekarang' });
+        expect(screen.queryByTitle('Batalkan tiket ini')).toBeNull();
+        expect(screen.queryByText('Batalkan tiket')).toBeNull();
+    });
+
+    it('an ordinary IT ticket keeps its cancel action', async () => {
+        stubApi(initialTicket);
+        renderDetailPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+        await screen.findAllByText('Error sistem saat input data');
+        expect(screen.queryByTitle('Batalkan tiket ini') ?? screen.queryAllByText('Batalkan tiket')[0] ?? null).not.toBeNull();
+    });
 });

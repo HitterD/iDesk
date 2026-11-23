@@ -68,7 +68,7 @@ describe('useRequestFlowAction', () => {
         await act(async () => { await result.current.mutateAsync(flowCalls.review(TID, { route: 'NONE' })); });
         expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/review`, { route: 'NONE' });
         const keys = invalidate.mock.calls.map(([filter]) => JSON.stringify((filter as { queryKey: unknown }).queryKey));
-        expect(keys).toEqual(expect.arrayContaining([JSON.stringify(['request-flow', TID]), JSON.stringify(['ticket', TID]), JSON.stringify(['tickets']), JSON.stringify(['dashboard-stats'])]));
+        expect(keys).toEqual(expect.arrayContaining([JSON.stringify(['request-flow', TID]), JSON.stringify(['ticket', TID]), JSON.stringify(['tickets']), JSON.stringify(['dashboard-stats']), JSON.stringify(['request-flow', 'approvals']), JSON.stringify(['request-flow', 'my-access']), JSON.stringify(['devices-access'])]));
     });
 
     it('a failed call leaves the data alone and rejects with the server message', async () => {
