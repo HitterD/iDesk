@@ -2195,3 +2195,42 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .req-phase-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .req-phase-chip--hw { background: hsl(var(--req-hw-bg)); color: hsl(var(--req-hw-ink)); border-color: hsl(var(--req-hw-line)); }
 .req-phase-chip--ef { background: hsl(var(--req-ef-bg)); color: hsl(var(--req-ef-ink)); border-color: hsl(var(--req-ef-line)); }
+.req-period { display: grid; gap: 10px; }
+.req-period__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.req-period__chips button { padding: 5px 12px; border-radius: 999px; border: 1px solid hsl(var(--border)); font-size: 12.5px; font-weight: 650; }
+.req-period__chips button.is-on { background: hsl(var(--req-ef)); color: #fff; border-color: transparent; }
+.req-period__dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.req-period__sum { font-size: 13px; min-height: 20px; }
+.req-pill-ok { display: inline-flex; padding: 1px 9px; border-radius: 999px; background: hsl(142 60% 92%); color: hsl(142 70% 25%); font-weight: 700; font-size: 12px; }
+.req-dialog__error-inline { color: hsl(0 70% 40%); }
+.req-chipsinput { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid hsl(var(--border)); border-radius: 10px; }
+.req-chipsinput input { flex: 1; min-width: 140px; border: 0; outline: 0; background: transparent; padding: 4px; }
+.req-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; background: hsl(var(--muted)); font-size: 12.5px; font-weight: 650; }
+.req-chip button { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; }
+.req-chip svg { width: 12px; height: 12px; }
+.req-terms__box { max-height: 130px; overflow-y: auto; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-radius: 12px; font-size: 12.5px; }
+.req-terms__box ol { margin: 6px 0; padding-left: 18px; }
+.req-terms__check { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 13px; }
+.req-terms__check.is-off { opacity: .6; }
+.req-terms__check em { font-style: normal; color: hsl(var(--muted-foreground)); }
+.req-form { display: grid; gap: 18px; }
+.req-fsec { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); }
+.req-fsec h3 { display: flex; align-items: center; gap: 10px; font-size: 14.5px; font-weight: 750; }
+.req-fsec h3 > span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: hsl(var(--req-ef)); color: #fff; font-size: 12px; }
+.req-fsec small { color: hsl(var(--muted-foreground)); font-size: 12px; }
+.req-fsec textarea, .req-fsec input:not([type="checkbox"]):not([type="file"]), .req-fsec select { width: 100%; padding: 9px 11px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--card)); font-size: 13.5px; }
+.req-fsec textarea { min-height: 78px; }
+.req-kindgrid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.req-kindgrid button { padding: 8px 16px; border-radius: 12px; border: 1px solid hsl(var(--border)); font-weight: 650; }
+.req-kindgrid button.is-on { background: hsl(var(--req-ef-bg)); border-color: hsl(var(--req-ef)); color: hsl(var(--req-ef-ink)); }
+.req-emailin { display: flex; align-items: center; gap: 6px; }
+.req-emailin i { font-style: normal; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.req-nasadd { display: grid; grid-template-columns: 90px 1fr 130px auto; gap: 8px; }
+@media (max-width: 720px) { .req-nasadd { grid-template-columns: 1fr; } }
+.req-folders { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.req-folders li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.req-folders code { flex: 1; word-break: break-all; }
+.req-banner { padding: 10px 14px; border-radius: 12px; background: hsl(var(--req-ef-bg)); color: hsl(var(--req-ef-ink)); font-weight: 650; }
+.req-note { font-size: 12.5px; color: hsl(var(--muted-foreground)); }
+.req-ffoot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.req-ffoot > span { margin-right: auto; font-size: 12px; color: hsl(var(--muted-foreground)); }

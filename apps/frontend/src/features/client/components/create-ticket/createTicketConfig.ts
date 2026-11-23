@@ -4,10 +4,14 @@ import {
     TriangleAlert, UserCog, WifiOff, Zap, BellOff, type LucideIcon,
 } from 'lucide-react';
 
-export type TicketType = 'none' | 'service' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request';
-export type FormTicketType = Exclude<TicketType, 'none'>;
+export type TicketType = 'none' | 'service' | 'oracle-request' | 'web-dev-request' | 'mobile-dev-request' | 'hardware' | 'eform';
+export type FormTicketType = Exclude<TicketType, 'none' | RequestTicketType>;
 
-export const TICKET_TYPES = ['none', 'service', 'oracle-request', 'web-dev-request', 'mobile-dev-request'] as const satisfies readonly TicketType[];
+export const TICKET_TYPES = ['none', 'service', 'oracle-request', 'web-dev-request', 'mobile-dev-request', 'hardware', 'eform'] as const satisfies readonly TicketType[];
+
+/** The two request types have their own forms; every other type shares the ticket form. */
+export type RequestTicketType = 'hardware' | 'eform';
+export const isRequestType = (type: TicketType): type is RequestTicketType => type === 'hardware' || type === 'eform';
 
 export const PRIORITY_OPTIONS = [
     { id: 'LOW', label: 'Low (Minor/Cosmetic)', shortLabel: 'Low' },
@@ -254,28 +258,29 @@ export const TICKETING_CARDS: readonly TicketCardConfig[] = [
 
 export const REQUEST_CARDS: readonly TicketCardConfig[] = [
     {
-        key: 'hardware-budget',
+        key: 'hardware-request',
+        // Kept until the menu permissions are migrated (Task 14): the same people who saw the old module see this card.
         pageKey: 'hardware_requests',
         section: 'request',
         eyebrow: 'Procurement',
-        title: 'Hardware & Budget',
-        description: 'Ajukan pembelian perangkat keras baru, upgrade spesifikasi laptop/PC, atau penggantian aset.',
+        title: 'Hardware Request',
+        description: 'Ajukan perangkat baru, upgrade, penggantian aset, atau penjadwalan pemasangan.',
         mascotImg: '/characters/mascot-hardware.png',
         mascotAlt: 'Maskot Pengadaan Hardware',
-        ctaLabel: 'Buka Form Pengadaan',
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/hardware-requests`),
+        ctaLabel: 'Buat Hardware Request',
+        action: ({ setTicketType }) => setTicketType('hardware'),
     },
     {
-        key: 'access-request',
+        key: 'eform-request',
         pageKey: 'eform_access',
         section: 'request',
         eyebrow: 'Network & Access',
-        title: 'Access Request',
-        description: 'Minta akses WiFi, koneksi VPN, atau izin akses website/aplikasi dengan form approval resmi.',
+        title: 'E-Form Request',
+        description: 'Minta akses VPN, website, network, email, flashdisk, atau folder NAS dengan form bertanda tangan.',
         mascotImg: '/characters/mascot-access.png',
         mascotAlt: 'Maskot Izin Akses',
-        ctaLabel: 'Ajukan Form Akses',
-        action: ({ navigate, getBasePath }) => navigate(`${getBasePath()}/eform-access/new`),
+        ctaLabel: 'Buat E-Form Request',
+        action: ({ setTicketType }) => setTicketType('eform'),
     },
 ];
 
