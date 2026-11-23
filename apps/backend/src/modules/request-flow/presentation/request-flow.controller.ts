@@ -23,6 +23,8 @@ import { InstallDoneDto } from '../dto/install-done.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
 import { ProcureDto } from '../dto/procure.dto';
 import { ReviewDto } from '../dto/review.dto';
+import { ACCESS_GROUPS, type AccessGroup } from '../domain/access-groups';
+import { DevicesAccessService } from '../services/devices-access.service';
 import { RequestFlowQueryService, type RequestFlowView } from '../services/request-flow-query.service';
 import { RequestDocumentService } from '../services/request-document.service';
 import { RequestItemsService } from '../services/request-items.service';
@@ -63,6 +65,7 @@ export class RequestFlowController {
         private readonly fulfilments: RequestFulfillFlowService,
         private readonly confirmations: RequestConfirmFlowService,
         private readonly numbers: RequestDocumentNumberService,
+        private readonly center: DevicesAccessService,
     ) {}
 
     @Post('hardware')
@@ -80,6 +83,53 @@ export class RequestFlowController {
     }
 
     // Every signed-in role passes the guard; the service decides (requester, the flow's approvers, IT and their site).
+    // Static routes first: `:ticketId` would otherwise swallow them.
+    // Every signed-in role passes the guard; only the approvers named on a flow get rows.
+    @Get('approvals')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'Request tickets waiting for my signature' })
+    approvals(@Request() req: { user: AuthenticatedUser }) {
+        return this.center.approvals(actorOf(req));
+    }
+
+    @Get('center/schedule')
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'Installations of one week and the technician load (weekStart = YYYY-MM-DD)' })
+    centerSchedule(@Request() req: { user: AuthenticatedUser }, @Query('weekStart') weekStart: string) {
+        return this.center.schedule(actorOf(req), weekStart);
+    }
+
+    @Get('center/access')
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'Access validity: soon | expired | active | permanent' })
+    centerAccess(@Request() req: { user: AuthenticatedUser }, @Query('group') group?: string) {
+        const wanted: AccessGroup = ACCESS_GROUPS.includes(group as AccessGroup) ? (group as AccessGroup) : 'soon';
+        return this.center.access(actorOf(req), wanted);
+    }
+
+    @Get('center/summary')
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'Hardware requests by position' })
+    centerSummary(@Request() req: { user: AuthenticatedUser }) {
+        return this.center.summary(actorOf(req));
+    }
+
+    @Post('center/access/:eformId/remind')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'Remind the requester that their access is about to end' })
+    centerRemind(@Request() req: { user: AuthenticatedUser }, @Param('eformId', ParseUUIDPipe) eformId: string) {
+        return this.center.remind(actorOf(req), eformId);
+    }
+
+    @Post('center/access/:eformId/revoke')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'File an IT Support ticket to revoke an expired access' })
+    centerRevoke(@Request() req: { user: AuthenticatedUser }, @Param('eformId', ParseUUIDPipe) eformId: string) {
+        return this.center.revoke(actorOf(req), eformId);
+    }
+
     @Get(':ticketId')
     @Roles(...REQUESTER_ROLES)
     @ApiOperation({ summary: 'Where a request ticket stands: phase, route, revisions and the hardware / e-form summary' })

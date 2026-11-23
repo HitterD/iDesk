@@ -21,6 +21,23 @@ describe('RequestFlowController roles', () => {
         expect(rolesOf('credentials')).toEqual(Object.values(UserRole));
     });
 
+    it.each(['centerSchedule', 'centerAccess', 'centerSummary', 'centerRemind', 'centerRevoke'] as const)('%s is processor-only', (method) => {
+        expect(rolesOf(method)).toEqual([...REQUEST_PROCESSOR_ROLES]);
+    });
+
+    it('approvals is open to every signed-in role; only the flow approvers get rows', () => {
+        expect(rolesOf('approvals')).toEqual(Object.values(UserRole));
+    });
+
+    it('static routes are declared before the :ticketId routes so they are not swallowed by them', () => {
+        const names = Object.getOwnPropertyNames(RequestFlowController.prototype);
+        const path = (m: string) => Reflect.getMetadata('path', RequestFlowController.prototype[m as keyof RequestFlowController]) as string;
+        const firstParam = names.findIndex((n) => String(path(n)).startsWith(':ticketId'));
+        for (const m of ['approvals', 'centerSchedule', 'centerAccess', 'centerSummary']) {
+            expect(names.indexOf(m)).toBeLessThan(firstParam);
+        }
+    });
+
     it.each(['editItems', 'procure', 'arrivals', 'review'] as const)('%s stays processor-only too', (method) => {
         expect(rolesOf(method)).toEqual([...REQUEST_PROCESSOR_ROLES]);
     });
