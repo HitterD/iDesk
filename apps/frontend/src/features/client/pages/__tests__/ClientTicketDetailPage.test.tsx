@@ -63,6 +63,13 @@ vi.mock('@/lib/api', () => ({
                     },
                 });
             }
+            if (url === '/request-flow/ticket-123') {
+                return Promise.resolve({ data: {
+                    kind: 'EFORM', phase: 'confirm', phaseLabel: 'Menunggu konfirmasi pemohon', route: 'MANAGER', managerId: 'm', gmId: null,
+                    hardwareSource: null, returnedReason: null, rescheduleCount: 0, documentVersion: 2, revisions: [], viewerRoleInFlow: 'REQUESTER',
+                    eform: { formType: 'VPN', documentNumber: 'F/1', startDate: '2026-11-01', endDate: null, fields: {}, hasCredentials: true, requiresGm: false },
+                } });
+            }
             if (url === '/tickets/ticket-123/agent-ratings') {
                 return Promise.resolve({
                     data: {
@@ -133,6 +140,14 @@ describe('ClientTicketDetailPage', () => {
                 </MemoryRouter>
             </QueryClientProvider>
         );
+
+    it('a request ticket shows the flow panel with the one button to press, and no "Masalah sudah selesai"', async () => {
+        extraFields = { ticketType: 'EFORM_REQUEST' };
+        renderPage();
+        expect(await screen.findByRole('button', { name: 'Ya, berhasil' })).toBeInTheDocument();
+        expect(screen.getByText('E-Form Request')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Masalah sudah selesai' })).toBeNull();
+    });
 
     it('shows "Masalah sudah selesai" as the requester primary action on an open ticket', async () => {
         renderPage();

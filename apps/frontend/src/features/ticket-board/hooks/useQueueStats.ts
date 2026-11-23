@@ -20,7 +20,7 @@ export interface QueueStats {
 const STATS_STALE_MS = 30_000;
 
 /** Lives under 'dashboard-stats', so the ticket socket and every mutation refresh it like the IT Support stats. */
-export function useQueueStats(queue: StatsQueue, scope: { siteIds: string[]; assignedToMe: boolean; createdByMe: boolean; handlingTeam?: string }, enabled = true) {
+export function useQueueStats(queue: StatsQueue, scope: { siteIds: string[]; assignedToMe: boolean; createdByMe: boolean; handlingTeam?: string; requestKind?: string }, enabled = true) {
     return useQuery<QueueStats>({
         enabled,
         queryKey: ['dashboard-stats', 'queue', queue, scope],
@@ -30,6 +30,7 @@ export function useQueueStats(queue: StatsQueue, scope: { siteIds: string[]; ass
             if (scope.createdByMe) query.append('createdByMe', 'true');
             scope.siteIds.forEach((siteId) => query.append('siteIds', siteId));
             if (scope.handlingTeam) query.append('handlingTeam', scope.handlingTeam);
+            if (scope.requestKind) query.append('requestKind', scope.requestKind);
             return (await api.get(`/tickets/queue-stats?${query}`)).data;
         },
         staleTime: STATS_STALE_MS,

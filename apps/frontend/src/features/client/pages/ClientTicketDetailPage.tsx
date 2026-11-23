@@ -25,6 +25,8 @@ import {
     removeOptimisticMessage,
 } from '@/lib/ticketMessageCache';
 import { ClientTicketHeader } from '../components/ClientTicketHeader';
+import { RequestFlowPanel } from '../../ticket-board/components/request-flow/RequestFlowPanel';
+import { useRequestFlow } from '../../ticket-board/components/request-flow/useRequestFlow';
 import { ClientTicketInspector } from '../components/ClientTicketInspector';
 import { DetailTabs, countChatMessages, pinsOf, type DetailTab } from '../../ticket-board/components/ticket-detail/DetailTabs';
 import { toUploadPercent, validateFiles } from '@/lib/file-validation';
@@ -73,6 +75,10 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
         // Socket is the primary channel; poll only while it's down so replies still arrive.
         refetchInterval: isConnected ? false : TICKET_OFFLINE_POLL_MS,
     });
+
+    // A Hardware / E-Form ticket is driven by its request flow; the requester and the approver answer from its panel.
+    const isRequestTicket = ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const replyMutation = useMutation({
         mutationFn: async ({ formData, onUploadProgress }: { formData: FormData; onUploadProgress?: (percent: number) => void }) => {
@@ -181,7 +187,8 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
     const isClosed = isTerminalStatus(ticket.status);
     const isChatLocked = ticket.status === 'CLOSED' || ticket.status === 'CANCELLED';
     const isRequester = Boolean(user?.id) && ticket.user?.id === user?.id;
-    const canSelfResolve = isRequester && SELF_RESOLVABLE_STATUSES.includes(ticket.status);
+    // A request ticket closes through its own confirmation step, not by "Masalah sudah selesai".
+    const canSelfResolve = isRequester && SELF_RESOLVABLE_STATUSES.includes(ticket.status) && !isRequestTicket;
     const pinsWithAccess = pinsOf(ticket.messages).map((p) => ({
         ...p,
         canUnpin: Boolean(p.canUnpin || user?.role === 'ADMIN' || (user?.id && ticket.assignedTo?.id === user?.id)),
@@ -202,7 +209,8 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 isSidebarOpen={isSidebarOpen}
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
-                canCancel={isRequester}
+                canCancel={isRequester && !isRequestTicket}
+                flow={requestFlow ? { kind: requestFlow.kind, phaseLabel: requestFlow.phaseLabel } : undefined}
                 tabs={(
                     <DetailTabs
                         value={mainTab}
@@ -216,6 +224,10 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                     />
                 )}
             />
+
+                {isRequestTicket && (
+                    <RequestFlowPanel ticketId={ticket.id} ticketNumber={ticket.ticketNumber ?? ticket.id} requesterId={ticket.user?.id} requesterName={ticket.user?.fullName ?? undefined} />
+                )}
 
                 {/* Conversation / Activity / Mobile Details */}
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">

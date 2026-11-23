@@ -33,6 +33,7 @@ import { InstallationController } from './presentation/installation.controller';
 import { HardwareDashboardController } from './presentation/hardware-dashboard.controller';
 import { IctBudgetRedirectController } from './presentation/ict-budget-redirect.controller';
 import { InAppNotifierListener } from './listeners/in-app-notifier.listener';
+import { AgingNotifierListener } from './listeners/aging-notifier.listener';
 import { EmailNotifierListener } from './listeners/email-notifier.listener';
 import { AgingReminderCron } from './listeners/aging-reminder.cron';
 import { InstallAutoConfirmCron } from './listeners/install-auto-confirm.cron';
@@ -41,6 +42,8 @@ import { WsAuthGuard } from './realtime/ws-auth.guard';
 import { HardwareScheduleTicketListener } from './listeners/hardware-schedule-ticket.listener';
 import { HardwareTicketStatusSyncListener } from './listeners/hardware-ticket-status-sync.listener';
 import { TicketHardwareSyncListener } from './listeners/ticket-hardware-sync.listener';
+import { NotInRequestFlowGuard } from './guards/not-in-request-flow.guard';
+import { RequestFlowMembership } from './services/request-flow-membership.service';
 import { TicketHardwareLinkService } from './services/ticket-hardware-link.service';
 import { TicketHardwareRequestService } from './services/ticket-hardware-request.service';
 import { TicketHardwareRequestController } from './presentation/ticket-hardware-request.controller';
@@ -98,10 +101,13 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         DeliveryTrackingService,
         MutualSchedulingService,
         InAppNotifierListener,
+        AgingNotifierListener,
         EmailNotifierListener,
         HardwareScheduleTicketListener,
         HardwareTicketStatusSyncListener,
         TicketHardwareLinkService,
+        RequestFlowMembership,
+        NotInRequestFlowGuard,
         TicketHardwareRequestService,
         TicketHardwareSyncListener,
         AgingReminderCron,
@@ -111,6 +117,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         HardwareDashboardService,
     ],
     exports: [
+        HardwareCatalogService,
         HardwareRequestCommandService,
         HardwareRequestQueryService,
         HardwareCommentService,
@@ -120,6 +127,7 @@ import { TicketingModule } from '../ticketing/ticketing.module';
         ProcurementDecisionService,
         DeliveryTrackingService,
         MutualSchedulingService,
+        TicketHardwareLinkService,
     ],
 })
 export class HardwareRequestModule {}

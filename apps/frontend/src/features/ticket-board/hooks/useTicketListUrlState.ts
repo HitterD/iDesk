@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { requestKindFromParam, requestKindToParam, type RequestKindFilter } from '../components/request-flow/requestKind';
 
 /** URL keys of a ticket list view; short so a restored or shared link stays readable. */
 const PARAM = {
@@ -8,6 +9,7 @@ const PARAM = {
     priority: 'priority',
     overdue: 'overdue',
     sites: 'sites',
+    type: 'type',
     page: 'page',
 } as const;
 
@@ -31,6 +33,7 @@ export function useTicketListUrlState() {
     const [selectedSites, setSelectedSites] = useState<string[]>(
         () => (searchParams.get(PARAM.sites) ?? '').split(',').filter(Boolean),
     );
+    const [requestKind, setRequestKind] = useState<RequestKindFilter>(() => requestKindFromParam(searchParams.get(PARAM.type)));
     const [currentPage, setCurrentPage] = useState(() => parsePage(searchParams.get(PARAM.page)));
 
     useEffect(() => {
@@ -41,10 +44,11 @@ export function useTicketListUrlState() {
         put(PARAM.priority, priorityFilter);
         put(PARAM.overdue, overdueFilter ? '1' : '');
         put(PARAM.sites, selectedSites.join(','));
+        put(PARAM.type, requestKindToParam(requestKind));
         put(PARAM.page, currentPage > 1 ? String(currentPage) : '');
         // Also re-applies the state after a navigation that rewrote the query (scope tabs, view toggle).
         if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-    }, [searchParams, setSearchParams, searchQuery, statusFilter, priorityFilter, overdueFilter, selectedSites, currentPage]);
+    }, [searchParams, setSearchParams, searchQuery, statusFilter, priorityFilter, overdueFilter, selectedSites, requestKind, currentPage]);
 
     return {
         searchQuery, setSearchQuery,
@@ -52,6 +56,7 @@ export function useTicketListUrlState() {
         priorityFilter, setPriorityFilter,
         overdueFilter, setOverdueFilter,
         selectedSites, setSelectedSites,
+        requestKind, setRequestKind,
         currentPage, setCurrentPage,
     };
 }

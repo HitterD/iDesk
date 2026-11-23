@@ -14,10 +14,14 @@ export enum EFormType {
 
 export enum EFormStatus {
   DRAFT = 'DRAFT',
+  /** Filed from the unified ticket form; IT reviews it and picks the approval route before anyone approves. */
+  PENDING_REVIEW = 'PENDING_REVIEW',
   PENDING_MANAGER = 'PENDING_MANAGER',
   /** Approved by the manager; IT collects the GM's wet signature on the printed form and uploads the signed PDF. */
   PENDING_GM = 'PENDING_GM',
   PENDING_ICT = 'PENDING_ICT',
+  /** IT gave the access; the requester tries it and answers OK or issue (or the ticket closes by itself). */
+  AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION',
   CONFIRMED = 'CONFIRMED',
   REJECTED = 'REJECTED',
   /** A proposal from a ticket that the requester declined or IT withdrew before it was signed. */

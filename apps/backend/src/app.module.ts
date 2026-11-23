@@ -126,6 +126,7 @@ import { EFormRequest, EFormApproval, EFormSignature, EFormCredential } from './
 // Shared Guards Module (provides PageAccessGuard, FeatureAccessGuard with dependencies)
 import { SharedGuardsModule } from './shared/core/shared-guards.module';
 import { HardwareRequestModule } from './modules/hardware-request/hardware-request.module';
+import { RequestFlowModule } from './modules/request-flow/request-flow.module';
 import { HrisGatewayModule } from './modules/hris-gateway/hris-gateway.module';
 import { SjaAdapterModule } from './modules/sja-adapter/sja-adapter.module';
 import authConfig from './config/auth.config';
@@ -243,6 +244,7 @@ import { validateAuthEnvironment } from './config/auth.config';
         EFormRequestModule, // E-Form Access (VPN MVP)
         SharedGuardsModule, // Provides PageAccessGuard and FeatureAccessGuard with dependencies
         HardwareRequestModule,
+        RequestFlowModule,
         HrisGatewayModule,
         SjaAdapterModule, // SJA Notification Center Outbox Adapter
         MailModule, // Database-backed SMTP transport

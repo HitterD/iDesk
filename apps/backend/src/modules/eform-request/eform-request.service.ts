@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { EntityManager, Repository, In, Not } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EFormRequest, EFormStatus, EFormType, EFormApproval, EFormSignature, EFormCredential } from './entities';
 import { EFormCredentialService } from './eform-credential.service';
@@ -13,6 +13,7 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { HandlingSiteService } from '../sites/handling-site.service';
+import { EFormFlowMembership } from './ticket-link/eform-flow-membership.service';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import {
   ICT_ROLES,
@@ -20,6 +21,14 @@ import {
   DIRECT_TO_ICT_FORM_TYPES,
   needsGmByDefault,
 } from './eform-roles.constants';
+
+/** The answers as sent, plus the Synology account choice the form asks for separately (only the fields given). */
+const formDataOf = (dto: CreateEFormRequestDto): Record<string, unknown> => ({
+  ...(dto.formData ?? {}),
+  ...(dto.synologyAccountStatus ? { synologyAccountStatus: dto.synologyAccountStatus } : {}),
+  ...(dto.synologyAccountName?.trim() ? { synologyAccountName: dto.synologyAccountName.trim() } : {}),
+  ...(dto.selectedNasServers?.length ? { selectedNasServers: dto.selectedNasServers } : {}),
+});
 
 /** Proposals from a ticket that were never signed (or were dropped) stay out of the e-form lists. */
 const UNLISTED = [EFormStatus.DRAFT, EFormStatus.CANCELLED];
@@ -47,7 +56,13 @@ export class EFormRequestService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly handlingSites: HandlingSiteService,
+    @Optional() private readonly flows?: EFormFlowMembership,
   ) {}
+
+  /** An e-form on a request ticket is given and confirmed on the ticket (POST /request-flow/:ticketId/fulfill), never here. */
+  private async assertNotInFlow(requestId: string): Promise<void> {
+    if (await this.flows?.has(requestId)) throw new BadRequestException('Pengajuan ini diproses lewat tiketnya');
+  }
 
   async getVpnTerms() {
     return this.settingsService.getSetting<string>('eform.vpn.terms', `
@@ -90,7 +105,7 @@ export class EFormRequestService {
       requesterId: userId,
       requesterName,
       requesterDepartment: dto.requesterDepartment || '',
-      formData: dto.formData,
+      formData: formDataOf(dto),
       requestedWebsites: dto.requestedWebsites,
       networkPurpose: dto.networkPurpose,
       termsAccepted: dto.termsAccepted,
@@ -140,6 +155,49 @@ export class EFormRequestService {
   }
 
   /**
+   * An e-form filed from the unified ticket form, inside the ticket's transaction: it waits in PENDING_REVIEW for IT
+   * to pick the approval route, so no approver is assigned, no approval row is created and nobody is notified here.
+   * The document number is taken under its lock in the same transaction; the requester's signature is kept as before.
+   */
+  async createForTicket(
+    manager: EntityManager,
+    userId: string,
+    userFullName: string,
+    dto: CreateEFormRequestDto,
+    sourceTicketId: string,
+  ): Promise<EFormRequest> {
+    const requester = await this.userRepo.findOne({ where: { id: userId } as any });
+    const requesterName = dto.requesterName?.trim() || userFullName;
+    const request = manager.create(EFormRequest, {
+      formType: dto.formType,
+      status: EFormStatus.PENDING_REVIEW,
+      requesterId: userId,
+      requesterName,
+      requesterDepartment: dto.requesterDepartment || '',
+      formData: formDataOf(dto),
+      requestedWebsites: dto.requestedWebsites,
+      networkPurpose: dto.networkPurpose,
+      termsAccepted: dto.termsAccepted,
+      currentApproverId: null,
+      requiresGm: false,
+      gmApproverId: null,
+      siteId: await this.handlingSites.handlingSiteId(requester?.siteId ?? null),
+      sourceTicketId,
+      submittedAt: new Date(),
+      documentNumber: await nextDocumentNumber(manager, dto.formType),
+    });
+    const saved = await manager.save(EFormRequest, request);
+    await manager.save(EFormSignature, {
+      eformRequestId: saved.id,
+      signerId: userId,
+      signerName: requesterName,
+      signatureData: dto.signatureData,
+      signerRole: 'REQUESTER',
+    });
+    return saved;
+  }
+
+  /**
    * Mark a request fulfilled without issuing credentials.
    *
    * For access granted on an account the requester already owns (extra
@@ -165,6 +223,7 @@ export class EFormRequestService {
     if (request.status !== EFormStatus.PENDING_ICT) {
       throw new BadRequestException('Invalid state');
     }
+    await this.assertNotInFlow(requestId);
 
     request.formData = {
       ...(request.formData ?? {}),
@@ -258,6 +317,7 @@ export class EFormRequestService {
       throw new ForbiddenException('Not authorized to submit credentials');
     }
     if (request.status !== EFormStatus.PENDING_ICT) throw new BadRequestException('Invalid state');
+    await this.assertNotInFlow(requestId);
 
     const encUser = this.credentialService.encrypt(dto.username);
     const encPass = this.credentialService.encrypt(dto.password);
@@ -300,6 +360,14 @@ export class EFormRequestService {
 
     const username = this.credentialService.decrypt(credential.encryptedUsername, credential.iv, credential.authTag);
     const password = this.credentialService.decrypt(credential.encryptedPassword, credential.passwordIv, credential.passwordAuthTag);
+
+    this.auditService.logAsync({
+      userId,
+      action: AuditAction.CREDENTIALS_VIEWED,
+      entityType: 'EFormRequest',
+      entityId: requestId,
+      description: 'Viewed E-Form credentials',
+    });
 
     return {
       username,
@@ -471,9 +539,9 @@ export class EFormRequestService {
     }
 
     let credentialData: any = null;
-    const isICT = [UserRole.ADMIN, UserRole.AGENT_ADMIN].includes(actor.role);
+    const isICT = CREDENTIAL_READER_ROLES.includes(actor.role);
 
-    // Kredensial rahasia (username & password VPN) hanya diekspos ke ICT dan Pemohon
+    // Kredensial rahasia (username & password VPN) hanya diekspos ke ICT (aturan pembaca yang sama dengan endpoint kredensial) dan Pemohon
     if (isICT || isRequester) {
       const rawCred = await this.eformCredentialRepository.findOne({
         where: { eformRequestId: id },

@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import {
@@ -24,6 +25,7 @@ export class EmailNotifierListener {
         private readonly mailDispatch: MailDispatchService,
         private readonly notificationCenter: NotificationCenterService,
         private readonly q: HardwareRequestQueryService,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     private async send(to: string, subject: string, context: any) {
@@ -78,6 +80,8 @@ export class EmailNotifierListener {
 
     @OnEvent(HR_EVT.PROCUREMENT_DONE)
     async onProcurementDone(e: HrProcurementDone) {
+        // No SPP is issued for a request-flow request: the purchase is recorded on its ticket.
+        if (await this.flows.has(e.requestId)) return;
         const r = await this.q.findById(e.requestId);
         if (!r) return;
         const context = {

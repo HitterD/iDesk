@@ -10,6 +10,8 @@ import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/s
 import { formatSlaTarget, formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import type { TicketDetail } from '../../ticket-board/components/ticket-detail/types';
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
+import { RequestTypeTag } from '../../ticket-board/components/request-flow/RequestTypeTag';
+import type { RequestKind } from '../../ticket-board/components/request-flow/requestKind';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { CancelReasonNote, formatCancelReason } from '../../ticket-board/components/ticket-detail/CancelTicketDialog';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
@@ -71,6 +73,8 @@ interface ClientTicketHeaderProps {
     canCancel?: boolean;
     /** Percakapan / Aktivitas switch rendered as the header's last row. */
     tabs?: React.ReactNode;
+    /** Set on a Hardware / E-Form ticket: the type tag and one phase chip replace the status pill. */
+    flow?: { kind: RequestKind; phaseLabel: string };
 }
 
 const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
@@ -92,7 +96,7 @@ const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
     );
 };
 
-export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false, canCancel = false, tabs }) => {
+export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, onCancel, isSidebarOpen, onToggleSidebar, canSelfResolve = false, canCancel = false, tabs, flow }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [copied, setCopied] = useState(false);
@@ -133,7 +137,10 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />
+                    {flow && <RequestTypeTag kind={flow.kind} size="lg" />}
+                    {flow
+                        ? <span className={`req-phase-chip req-phase-chip--${flow.kind === 'HARDWARE' ? 'hw' : 'ef'}`}><span className="dot" aria-hidden="true" />{flow.phaseLabel}</span>
+                        : <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />}
                     <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{sla.label}</span>

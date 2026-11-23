@@ -21,8 +21,10 @@ export const VALID_PAGE_KEYS = [
     'oracle_k2_tickets',
     'web_dev_tickets',
     'mobile_dev_tickets',
+    // The two old request pages stay valid keys only so data not yet migrated can still be read; no preset grants them.
     'hardware_requests',
     'eform_access',
+    'devices_access',
     'workloads',
     'ict_budget',
     'data_wipe',
@@ -42,17 +44,17 @@ export function isValidPageKey(key: string): key is PageKey {
 }
 
 const USER_DEFAULT_PAGES: readonly PageKey[] = [
-    'dashboard', 'tickets', 'knowledge_base', 'notifications', 'hardware_requests', 'eform_access',
+    'dashboard', 'tickets', 'knowledge_base', 'notifications',
 ];
 const AGENT_DEFAULT_PAGES: readonly PageKey[] = [
-    ...USER_DEFAULT_PAGES, 'my_dashboard', 'zoom_calendar', 'reports', 'renewal',
+    ...USER_DEFAULT_PAGES, 'my_dashboard', 'zoom_calendar', 'reports', 'renewal', 'devices_access',
 ];
 const DEVELOPER_AGENT_DEFAULT_PAGES: readonly PageKey[] = [
     'my_dashboard', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'notifications', 'reports',
 ];
 /** Managers get the agent pages minus the personal agent dashboard, plus workloads. */
 const MANAGER_DEFAULT_PAGES: readonly PageKey[] = [
-    ...AGENT_DEFAULT_PAGES.filter((page) => page !== 'my_dashboard'), 'workloads',
+    ...AGENT_DEFAULT_PAGES.filter((page) => page !== 'my_dashboard' && page !== 'devices_access'), 'workloads',
 ];
 
 const DEFAULT_PAGES_BY_ROLE: Record<string, readonly PageKey[]> = {

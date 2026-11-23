@@ -6,7 +6,7 @@ import { InstallationSchedule } from '../domain/entities/installation-schedule.e
 import { RequestStatus } from '../domain/enums/request-status.enum';
 import { HardwareRole } from '../domain/enums/hardware-role.enum';
 import { pickRole } from '../guards/hardware-role.guard';
-import { HardwareRequestType, ProposeFromTicketDto, REQUEST_TYPE_PREFIX } from '../dto/propose-from-ticket.dto';
+import { HardwareRequestType, REQUEST_TYPE_PREFIX } from '../dto/propose-from-ticket.dto';
 import { HardwareRequestCommandService } from './hardware-request-command.service';
 import { TicketHardwareLinkService } from './ticket-hardware-link.service';
 import { HandlingTeam, Ticket, TICKET_INACTIVE_STATUSES } from '../../ticketing/entities/ticket.entity';
@@ -71,43 +71,6 @@ export class TicketHardwareRequestService {
         private readonly link: TicketHardwareLinkService,
         private readonly notifications: NotificationService,
     ) {}
-
-    async propose(actorId: string, ticketId: string, dto: ProposeFromTicketDto): Promise<TicketHardwareRequestSummary> {
-        const { actor, ticket } = await this.loadForStaff(actorId, ticketId);
-        if (ticket.handlingTeam && ticket.handlingTeam !== HandlingTeam.OPS_SUPPORT) {
-            throw new BadRequestException('Hardware request hanya bisa diusulkan dari tiket IT Support.');
-        }
-        if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) {
-            throw new BadRequestException('Tiket sudah selesai. Buka kembali tiket sebelum mengusulkan hardware.');
-        }
-        const pending = await this.reqRepo.findOne({ where: { sourceTicketId: ticket.id, status: RequestStatus.DRAFT } });
-        if (pending) {
-            throw new ConflictException(`Usulan ${pending.requestNumber} masih menunggu konfirmasi pemohon.`);
-        }
-        const requester = await this.userRepo.findOne({ where: { id: ticket.userId }, relations: ['department'] });
-        if (!requester) throw new BadRequestException('Pemohon tiket tidak ditemukan.');
-        const siteId = ticket.siteId ?? requester.siteId ?? null;
-
-        const draft = await this.commands.createDraft(requester.id, siteId, requester.role as UserRole, {
-            recipientId: requester.id,
-            recipientName: requester.fullName,
-            division: dto.division?.trim() || requester.department?.name || undefined,
-            justification: `${REQUEST_TYPE_PREFIX[dto.requestType]} ${dto.justification.trim()}`,
-            items: dto.items.map((item) => ({ catalogId: item.catalogId, quantity: item.quantity, notes: item.notes })),
-        }, { sourceTicketId: ticket.id, proposedById: actor.id });
-
-        await this.link.record(draft.id, 'PROPOSED', { actorId: actor.id });
-        await this.notifications.create({
-            userId: requester.id,
-            type: NotificationType.TICKET_UPDATED,
-            title: 'Usulan hardware dari tim IT',
-            message: `Tiket #${ticket.ticketNumber}: ${actor.fullName} mengusulkan ${draft.requestNumber}. Mohon konfirmasi.`,
-            ticketId: ticket.id,
-            link: `/tickets/${ticket.id}`,
-        });
-        const [summary] = await this.summarize([draft.id]);
-        return summary;
-    }
 
     async listForTicket(viewerId: string, ticketId: string): Promise<TicketHardwareRequestSummary[]> {
         const viewer = await this.userRepo.findOne({ where: { id: viewerId } });

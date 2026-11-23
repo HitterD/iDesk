@@ -25,6 +25,7 @@ import { RejectRequestDto } from '../dto/reject-request.dto';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import { ProcurementDecisionDto } from '../dto/procurement-decision.dto';
 import { ProcurementCompleteDto } from '../dto/procurement-complete.dto';
+import { NotInRequestFlowGuard } from '../guards/not-in-request-flow.guard';
 import { UserRole } from '../../users/enums/user-role.enum';
 
 @Controller('hardware-requests')
@@ -71,6 +72,8 @@ export class HardwareRequestController {
     }
 
     @Patch(':id')
+
+    @UseGuards(NotInRequestFlowGuard)
     async update(
         @Req() req: any,
         @Param('id', new ParseUUIDPipe()) id: string,
@@ -90,6 +93,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/cancel')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     async cancel(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
         const data = await this.commands.cancel({ id: req.user.userId, role: pickRole(req.user) as string }, id);
@@ -97,6 +102,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/close')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async close(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
@@ -105,6 +112,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/review')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async review(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
@@ -113,6 +122,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/approve')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async approve(@Req() req: any, @Param('id', new ParseUUIDPipe()) id: string) {
@@ -121,6 +132,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/reject')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async reject(
@@ -133,6 +146,8 @@ export class HardwareRequestController {
     }
 
     @Patch(':id/items/:itemId')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async updateItem(
         @Req() req: any,
@@ -145,6 +160,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/procurement/decision')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async decideProcurementItems(
@@ -157,6 +174,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/procurement/complete')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async completeProcurement(
@@ -169,6 +188,8 @@ export class HardwareRequestController {
     }
 
     @Post(':id/confirm-installation')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     async confirmInstallation(
         @Param('id', ParseUUIDPipe) id: string,

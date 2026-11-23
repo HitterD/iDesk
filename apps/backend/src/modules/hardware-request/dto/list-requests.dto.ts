@@ -23,7 +23,7 @@ export class ListRequestsDto {
     @IsOptional()
     @IsArray()
     @IsEnum(ItemCategory, { each: true })
-    @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
+    @Transform(({ value }) => (Array.isArray(value) ? value : [value]).flatMap((v: string) => String(v).split(',')).map((v: string) => v.trim()).filter(Boolean))
     category?: ItemCategory[];
 
     @IsOptional()

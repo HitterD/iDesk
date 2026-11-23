@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup — Tiket Terpadu (IT Support · Hardware · E-Form)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ticket-unify.css?v=18">
+<link rel="stylesheet" href="ticket-unify-r2.css?v=18">
+<link rel="stylesheet" href="ticket-unify-r3.css?v=18">
+<link rel="stylesheet" href="ticket-unify-r5.css?v=18">
+</head>
+<body>
+<div class="mk-bar">
+  <b>Mockup Tiket Terpadu</b>
+  <span class="lbl">Lihat sebagai</span>
+  <div class="mk-seg" id="roleSeg">
+    <button data-r="agent" class="on">Agent IT</button>
+    <button data-r="req">Pemohon</button>
+    <button data-r="mgr">Atasan</button>
+    <button data-r="gm">GM</button>
+  </div>
+  <span class="lbl">Layar</span>
+  <div class="mk-seg" id="scrSeg">
+    <button data-s="list" class="on">List</button>
+    <button data-s="detail">Detail</button>
+    <button data-s="create">Buat Tiket</button>
+    <button data-s="center">Perangkat &amp; Akses</button>
+  </div>
+  <div class="mk-sim">
+    <label class="mk-note"><input type="checkbox" id="annT" checked> <i></i>catatan desain</label>
+    <button id="resetBtn">Reset data</button>
+  </div>
+</div>
+<div class="shell">
+  <aside class="side" id="side"></aside>
+  <div class="main">
+    <header class="top" id="top"></header>
+    <div class="sheet" id="sheet"></div>
+  </div>
+</div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<script src="ticket-unify.js?v=18"></script>
+</body>
+</html>

@@ -27,6 +27,6 @@ export class ScheduleProposeDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
+  @MaxLength(1000)
   note?: string;
 }

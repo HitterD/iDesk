@@ -28,8 +28,6 @@ interface PageDefinition {
 const USER_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['USER'] },
     { key: 'tickets', name: 'My Tickets', icon: 'Ticket', route: '/tickets', roles: ['USER'] },
-    { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['USER'] },
-    { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['USER'] },
     { key: 'zoom_calendar', name: 'Zoom Booking', icon: 'Video', route: '/zoom-calendar', roles: ['USER'] },
     { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['USER'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['USER'] },
@@ -40,8 +38,7 @@ const AGENT_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['AGENT', 'ADMIN'] },
     { key: 'my_dashboard', name: 'Dashboard Saya', icon: 'UserRound', route: '/dashboard/me', roles: ['AGENT'] },
     { key: 'tickets', name: 'All Tickets', icon: 'Ticket', route: '/tickets', roles: ['AGENT', 'ADMIN'] },
-    { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['AGENT', 'ADMIN'] },
-    { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['AGENT', 'ADMIN'] },
+    { key: 'devices_access', name: 'Perangkat & Akses', icon: 'Package', route: '/devices-access', roles: ['AGENT', 'ADMIN'] },
     { key: 'zoom_calendar', name: 'Zoom Management', icon: 'Video', route: '/zoom-calendar', roles: ['AGENT', 'ADMIN'] },
     { key: 'knowledge_base', name: 'KB Management', icon: 'BookOpen', route: '/kb', roles: ['AGENT', 'ADMIN'] },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications', roles: ['AGENT', 'ADMIN'] },
@@ -64,8 +61,6 @@ const AGENT_PAGES: PageDefinition[] = [
 const MANAGER_PAGES: PageDefinition[] = [
     { key: 'dashboard', name: 'Dashboard', icon: 'LayoutDashboard', route: '/dashboard', roles: ['MANAGER'] },
     { key: 'tickets', name: 'Team Tickets', icon: 'Ticket', route: '/tickets', roles: ['MANAGER'] },
-    { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests', roles: ['MANAGER'] },
-    { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access', roles: ['MANAGER'] },
     { key: 'zoom_calendar', name: 'Zoom Calendar', icon: 'Video', route: '/zoom-calendar', roles: ['MANAGER'] },
     { key: 'reports', name: 'Reports', icon: 'BarChart3', route: '/reports', roles: ['MANAGER'] },
     { key: 'knowledge_base', name: 'Knowledge Base', icon: 'BookOpen', route: '/kb', roles: ['MANAGER'] },
@@ -154,8 +149,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: false,
             knowledge_base: true,
             notifications: true,
-            hardware_requests: true,
-            eform_access: true,
         },
         permissions: {
             // Ticketing - create and edit own only
@@ -188,8 +181,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: true,
             knowledge_base: true,
             notifications: true,
-            hardware_requests: true,
-            eform_access: true,
         },
         permissions: {
             'ticketing.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
@@ -219,8 +210,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: true,
             knowledge_base: true,
             notifications: true,
-            hardware_requests: true,
-            eform_access: true,
+            devices_access: true,
             reports: true,
             renewal: true,
         },
@@ -266,8 +256,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: true,
             knowledge_base: true,
             notifications: true,
-            hardware_requests: true,
-            eform_access: true,
+            devices_access: true,
             reports: true,
             renewal: true,
         },
@@ -379,8 +368,6 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             dashboard: true,
             tickets: true,
             zoom_calendar: true,
-            hardware_requests: true,
-            eform_access: true,
             reports: true,
             knowledge_base: true,
             notifications: true,
@@ -453,8 +440,7 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
             zoom_calendar: true,
             knowledge_base: true,
             notifications: true,
-            hardware_requests: true,
-            eform_access: true,
+            devices_access: true,
             reports: true,
             renewal: true,
             workloads: true,
@@ -841,7 +827,7 @@ export class PermissionsService implements OnModuleInit {
     }
 
     async listUsersWithRole(role: string, siteId?: string | null): Promise<User[]> {
-        // ICT_STAFF = semua user ADMIN+MANAGER+AGENT yang bisa akses hardware_requests
+        // ICT_STAFF = semua user ADMIN+MANAGER+AGENT yang menangani permintaan hardware / akses
         // When siteId provided, scope to that site only (for site-isolated notifications) plus cross-site (null siteId) staff.
         // Cross-site callers may pass undefined/null to get all.
         if (role === 'ICT_STAFF') {

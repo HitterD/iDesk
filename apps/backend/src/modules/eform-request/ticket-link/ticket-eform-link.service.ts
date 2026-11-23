@@ -20,6 +20,14 @@ const PHASE_TEXT: Record<EFormTicketPhase, (access: string, status: EFormStatus)
     GM_APPROVED: (a) => `Persetujuan GM untuk ${a} sudah diterima; diteruskan ke ICT.`,
     GRANTED: (a) => `${a.charAt(0).toUpperCase()}${a.slice(1)} sudah diberikan. Tiket ditutup otomatis.`,
     REJECTED: (a) => `Pengajuan ${a} ditolak. Tiket kembali ditangani.`,
+    // Steps of the unified request flow (RequestFlowReviewService writes its own text).
+    REVIEWED: (a) => `Pengajuan ${a} ditinjau IT.`,
+    SIGNED: (a) => `Pengajuan ${a} ditandatangani.`,
+    RETURNED: (a) => `Pengajuan ${a} dikembalikan ke IT.`,
+    REMINDED: (a) => `Pengingat persetujuan ${a} dikirim.`,
+    FULFILLED: (a) => `Akses ${a} diberikan. Menunggu pemohon mencoba.`,
+    CONFIRMED: (a) => `Pemohon mengonfirmasi ${a}. Tiket ditutup.`,
+    ISSUE_REPORTED: (a) => `Pemohon melaporkan kendala pada ${a}. Kembali ke IT.`,
 };
 
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */

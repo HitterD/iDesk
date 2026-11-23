@@ -14,6 +14,7 @@ import { SlaClockService } from '../../ticketing/services/sla-clock.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { DEFAULT_TIMEZONE } from '../../sla-config/business-hours.calc';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../../ticketing/utils/ticket-number-generator';
 
 /** Schedule times are shown in WIB; the server clock runs in UTC. */
@@ -39,6 +40,7 @@ export class HardwareScheduleTicketListener {
         private readonly workloadService: WorkloadService,
         private readonly eventsGateway: EventsGateway,
         private readonly slaClock: SlaClockService,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     @OnEvent(HardwareEvents.ScheduleConfirmed)
@@ -65,8 +67,8 @@ export class HardwareScheduleTicketListener {
             }
 
             // Raised from an IT support ticket: that ticket follows the request (TicketHardwareSyncListener),
-            // so no separate installation ticket.
-            if (req.sourceTicketId) return;
+            // so no separate installation ticket. A request of the unified flow is its ticket's own.
+            if (req.sourceTicketId || await this.flows.has(req.id)) return;
 
             // Check if ticket already created for this schedule to avoid duplicate
             if (sched.ticketId) {

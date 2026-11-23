@@ -128,6 +128,7 @@ export class NotificationPreferencesController {
                 [NotificationType.HARDWARE_REQUEST_COMPLETED]: 'Hardware request completed',
                 [NotificationType.HARDWARE_REQUEST_COMPLETED_LEAD]: 'Hardware request completed (lead)',
                 [NotificationType.HARDWARE_REQUEST_COMMENTED]: 'New comment on hardware request',
+                [NotificationType.HARDWARE_REQUEST_AGING]: 'Hardware request has not moved for days',
                 [NotificationType.ZOOM_BOOKING_CONFIRMED]: 'Zoom booking confirmed',
                 [NotificationType.ZOOM_BOOKING_CANCELLED]: 'Zoom booking cancelled',
                 [NotificationType.ZOOM_BOOKING_REMINDER]: 'Zoom meeting reminder',

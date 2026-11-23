@@ -118,7 +118,7 @@ export class HardwareRequestGateway implements OnGatewayConnection, OnGatewayDis
     @OnEvent(HR_EVT.PROCUREMENT_DONE)
     onProcurementDone(e: any) {
         this.broadcastToRoom(e.requestId, 'procurement_updated', e);
-        this.broadcastToRoom(e.requestId, 'status_changed', { status: 'PARTIAL_DELIVERED', ...e });
+        this.broadcastToRoom(e.requestId, 'status_changed', { ...e, status: e.status ?? 'AWAITING_DELIVERY' });
     }
 
     @OnEvent(HR_EVT.SCHEDULE_PROPOSED)

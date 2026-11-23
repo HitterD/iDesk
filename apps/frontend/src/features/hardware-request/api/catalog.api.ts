@@ -3,7 +3,8 @@ import type { HardwareCatalog, ApiEnvelope, ItemCategory } from '../types';
 const unwrap = <T>(e: ApiEnvelope<T>) => { if (!e.success) throw new Error(e.error ?? 'API error'); return e.data as T; };
 
 export const CatalogApi = {
-    async list(params?: { category?: ItemCategory; active?: boolean }) {
+    /** `includeInactive` (ICT staff only; the server ignores it for anyone else) also returns the items hidden from the form. */
+    async list(params?: { category?: ItemCategory; active?: boolean; includeInactive?: boolean }) {
         return unwrap((await hrHttp.get<ApiEnvelope<HardwareCatalog[]>>('/catalog', { params })).data);
     },
     async create(payload: Omit<HardwareCatalog, 'id' | 'active' | 'displayOrder'> & { displayOrder?: number }) {

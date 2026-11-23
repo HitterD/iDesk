@@ -38,6 +38,7 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
   let credRepo: any;
   let credentialService: any;
   let pdfService: any;
+  let audit: any;
 
   beforeEach(() => {
     eformRepo = {
@@ -58,8 +59,9 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
     // Constructor order from eform-request.service.ts:
     // audit, eformRequestRepo, eformApprovalRepo, eformSignatureRepo, eformCredentialRepo,
     // credentialService, pdfService, settingsService, eventEmitter, userRepo
+    audit = { logAsync: jest.fn() };
     service = new EFormRequestService(
-      { logAsync: jest.fn() } as any,   // audit
+      audit as any,   // audit
       eformRepo as any,
       {} as any,                        // approvals
       {} as any,                        // signatures
@@ -220,6 +222,20 @@ describe('EFormRequestService site isolation (P0 credential protection)', () => 
         { role: UserRole.USER, siteId: 'site-skd' }, 'eform-1', 'requester-skd', UserRole.USER,
       );
       expect(result.username).toBe('decrypted-u');
+    });
+
+    it.each([UserRole.MANAGER, UserRole.AGENT])('%s who is not the requester cannot read credentials', async (role) => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SPJ, requesterId: 'other' }));
+      await expect(service.getCredentials({ role, siteId: SITE_SPJ }, 'eform-1', 'u-x', role)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(credentialService.decrypt).not.toHaveBeenCalled();
+    });
+
+    it('logs every credential read without the secrets', async () => {
+      eformRepo.findOne.mockResolvedValue(makeEform({ siteId: SITE_SPJ, requesterId: 'other' }));
+      credRepo.findOne.mockResolvedValue({ encryptedUsername: 'u', encryptedPassword: 'p', vpnServer: 's', notes: '' });
+      await service.getCredentials(ictActor, 'eform-1', 'ict-user', UserRole.AGENT_ADMIN);
+      expect(audit.logAsync).toHaveBeenCalledWith(expect.objectContaining({ userId: 'ict-user', action: 'CREDENTIALS_VIEWED', entityId: 'eform-1' }));
+      expect(JSON.stringify(audit.logAsync.mock.calls)).not.toContain('decrypted-');
     });
 
     it('ICT on own site can read credentials', async () => {

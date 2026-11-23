@@ -4,6 +4,7 @@ import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 
 describe('InAppNotifierListener', () => {
     let listener: InAppNotifierListener;
@@ -11,6 +12,7 @@ describe('InAppNotifierListener', () => {
     const notificationCenter = { emitActionItemsRefresh: jest.fn(), findStaffAtSite: jest.fn().mockResolvedValue([{ id: 'lead1' }]) };
     const perm = notificationCenter;
     const q = { findById: jest.fn() };
+    const flows = { has: jest.fn() };
 
     beforeEach(async () => {
         const mod = await Test.createTestingModule({
@@ -19,10 +21,12 @@ describe('InAppNotifierListener', () => {
                 { provide: NotificationService, useValue: notif },
                 { provide: NotificationCenterService, useValue: notificationCenter },
                 { provide: HardwareRequestQueryService, useValue: q },
+                { provide: RequestFlowMembership, useValue: flows },
             ],
         }).compile();
         listener = mod.get(InAppNotifierListener);
         jest.clearAllMocks();
+        flows.has.mockResolvedValue(false);
     });
 
     it('onSubmitted notifies the reviewers at the request site', async () => {
@@ -49,6 +53,26 @@ describe('InAppNotifierListener', () => {
         perm.findStaffAtSite.mockResolvedValue([{ id: 'tech1' }]);
         await (listener as any).onProcurementDone({ requestId: 'r2', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
         expect(perm.findStaffAtSite).toHaveBeenCalledWith(expect.not.arrayContaining(['AGENT_ORACLE', 'ADMIN']), 's1');
+    });
+
+    it('procurement done on a legacy request still asks the technicians to schedule', async () => {
+        q.findById.mockResolvedValue({ id: 'r2', siteId: 's1', requestNumber: 'HR-2026-0002', requesterId: 'u1' });
+        perm.findStaffAtSite.mockResolvedValue([{ id: 'tech1' }]);
+        await (listener as any).onProcurementDone({ requestId: 'r2', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
+        const types = notif.create.mock.calls.map((c: any[]) => c[0].type);
+        expect(types).toContain(NotificationType.HARDWARE_REQUEST_PROC_DONE);
+        expect(types).toContain(NotificationType.HARDWARE_REQUEST_PROC_DONE_TECH);
+    });
+
+    it('procurement done on a request-flow request sends no "siap jadwal" notice, and tells the requester the goods are awaited', async () => {
+        flows.has.mockResolvedValue(true);
+        q.findById.mockResolvedValue({ id: 'r2', siteId: 's1', requestNumber: 'HR-2026-0002', requesterId: 'u1' });
+        perm.findStaffAtSite.mockResolvedValue([{ id: 'tech1' }]);
+        await (listener as any).onProcurementDone({ requestId: 'r2', actorId: 'lead1', requesterId: 'u1', occurredAt: new Date() } as any);
+        const created = notif.create.mock.calls.map((c: any[]) => c[0]);
+        expect(created.map((c: any) => c.type)).not.toContain(NotificationType.HARDWARE_REQUEST_PROC_DONE_TECH);
+        expect(created.some((c: any) => /siap jadwal|menunggu instalasi/i.test(c.message))).toBe(false);
+        expect(created).toEqual([expect.objectContaining({ userId: 'u1', message: expect.stringContaining('menunggu barang tiba') })]);
     });
 
     it('onInstallCompleted tells the requester and the approver, not every ICT account nor the technician who finished', async () => {

@@ -35,11 +35,12 @@ function categoryPath(category: NotificationCategory | undefined, ticketId?: str
         case NotificationCategory.CATEGORY_RENEWAL:
             return '/renewal?tab=contracts';
         case NotificationCategory.CATEGORY_HARDWARE:
-            return ref ? `/hardware-requests/${ref}` : '/hardware-requests';
+            // The request is a ticket now: open it directly when the notification names it; the old id goes through the legacy redirect.
+            return ticketId ? `/tickets/${ticketId}` : ref ? `/hardware-requests/${ref}` : '/hardware-requests';
         case NotificationCategory.CATEGORY_ZOOM:
             return ref ? `/zoom-calendar?booking=${encodeURIComponent(ref)}` : '/zoom-calendar';
         case NotificationCategory.CATEGORY_EFORM:
-            return ref ? `/eform-access/${ref}` : '/eform-access';
+            return ticketId ? `/tickets/${ticketId}` : ref ? `/eform-access/${ref}` : '/eform-access';
         default:
             return ticketId ? `/tickets/${ticketId}` : null;
     }

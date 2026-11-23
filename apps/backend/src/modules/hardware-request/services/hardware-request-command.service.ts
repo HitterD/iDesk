@@ -2,7 +2,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { HR_EVT } from '../domain/events/hardware-request.events';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { HardwareRequestItem } from '../domain/entities/hardware-request-item.entity';
 import { HardwareRequestActivity } from '../domain/entities/hardware-request-activity.entity';
@@ -11,8 +11,10 @@ import { ActivityAction } from '../domain/enums/activity-action.enum';
 import { HardwareCatalogService } from './hardware-catalog.service';
 import { RequestNumberService } from './request-number.service';
 import { CreateRequestDto } from '../dto/create-request.dto';
+import { ItemCategory } from '../domain/enums/item-category.enum';
 import { UpdateDraftDto } from '../dto/update-draft.dto';
 import { RejectRequestDto } from '../dto/reject-request.dto';
+import { canTransition } from '../domain/state-machine/request-state';
 import { UpdateItemDto } from '../dto/update-item.dto';
 import {
     HardwareRequestNotFoundError,
@@ -28,6 +30,31 @@ import { ActingUser } from './installation-schedule.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { HandlingSiteService } from '../../sites/handling-site.service';
 import { SiteActor, resolveSiteScope, isCrossSiteRole, assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
+
+/** An item as asked for: from the catalog, or written by hand (`manualName`) when the catalog has no match. */
+export interface DraftItemInput {
+    catalogId?: string;
+    manualName?: string;
+    quantity: number;
+    customFields?: Record<string, unknown>;
+    notes?: string;
+    /** Who this item is for (stored on each unit's own column). */
+    recipientName?: string;
+    /** The item this one replaces (a swap); kept on the unit's snapshot. */
+    replacesName?: string;
+}
+
+export type DraftInput = Omit<CreateRequestDto, 'items'> & { items: DraftItemInput[] };
+
+/** Where a draft came from: a ticket, proposed by ICT (`proposedById`) or filed and signed by the requester. */
+export interface DraftOrigin {
+    sourceTicketId: string;
+    proposedById?: string;
+    /** PNG data URL the requester signed with; kept on the CREATED activity. */
+    requesterSignature?: string;
+}
+
+type DraftItemRow = Pick<HardwareRequestItem, 'catalogId' | 'quantity' | 'notes' | 'recipientName' | 'categorySnapshot'>;
 
 @Injectable()
 export class HardwareRequestCommandService {
@@ -56,70 +83,90 @@ export class HardwareRequestCommandService {
         userId: string, siteId: string | null, userRole: UserRole, dto: CreateRequestDto,
         origin?: { sourceTicketId: string; proposedById: string },
     ): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
+        return this.dataSource.transaction((mgr) => this.createDraftWith(mgr, userId, siteId, userRole, dto, origin));
+    }
 
-            // P0: Reject client-provided siteId. Source site from authenticated user.
-            // Cross-site roles (ADMIN/MANAGER) may supply siteId via dto (allowed narrowing).
-            // Non-cross-site roles must use their own site; ignore dto.siteId.
-            const actor: SiteActor = { role: userRole, siteId };
-            const scope = resolveSiteScope(actor);
-            const effectiveSiteId = scope.mode === 'all' && dto.siteId ? dto.siteId : siteId;
+    /**
+     * `createDraft` inside the caller's transaction. A request filed from the unified ticket form passes its ticket as
+     * `sourceTicketId` (no `proposedById`) and the requester's signature, kept on the CREATED activity.
+     */
+    async createDraftWith(
+        mgr: EntityManager, userId: string, siteId: string | null, userRole: UserRole, dto: DraftInput, origin?: DraftOrigin,
+    ): Promise<HardwareRequest> {
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-            if (!effectiveSiteId) {
-                // Fail-closed: cannot create without a site context
-                throw new BadRequestException('siteId is required');
-            }
+        // P0: Reject client-provided siteId. Source site from authenticated user.
+        // Cross-site roles (ADMIN/MANAGER) may supply siteId via dto (allowed narrowing).
+        // Non-cross-site roles must use their own site; ignore dto.siteId.
+        const actor: SiteActor = { role: userRole, siteId };
+        const scope = resolveSiteScope(actor);
+        const effectiveSiteId = scope.mode === 'all' && dto.siteId ? dto.siteId : siteId;
 
-            const itemsWithSnapshot = [];
-            for (const i of dto.items) {
-                const cat = await this.catalog.ensureActive(i.catalogId);
-                const snapshot = {
-                    code: cat.code,
-                    name: cat.name,
-                    category: cat.category,
-                    specs: cat.defaultSpecs ?? {},
-                    customFields: i.customFields ?? {},
-                };
-                for (let qty = 0; qty < i.quantity; qty++) {
-                    itemsWithSnapshot.push({
-                        catalogId: cat.id,
-                        quantity: 1, // expanded for individual tracking
-                        notes: i.notes ?? null,
-                        categorySnapshot: snapshot,
-                    });
-                }
-            }
+        if (!effectiveSiteId) {
+            // Fail-closed: cannot create without a site context
+            throw new BadRequestException('siteId is required');
+        }
 
-            const requestNumber = await this.numberer.generate(new Date(), mgr);
-            const entity = requestRepo.create({
-                requestNumber,
-                requesterId: userId,
-                recipientId: dto.recipientId ?? null,
-                recipientName: dto.recipientName ?? null,
-                division: dto.division ?? null,
-                siteId: (await this.handlingSites.handlingSiteId(effectiveSiteId))!,
-                justification: dto.justification,
-                status: RequestStatus.DRAFT,
-                items: itemsWithSnapshot as any,
-                sourceTicketId: origin?.sourceTicketId ?? null,
-                proposedById: origin?.proposedById ?? null,
-            });
-            const saved = await requestRepo.save(entity);
+        // ICT proposals carry no item fields; the requester's own requests must fill what the catalog requires.
+        const itemsWithSnapshot = await this.buildItems(dto.items, { checkRequired: !origin?.proposedById });
 
-            const activity = activityRepo.create({
-                requestId: saved.id,
-                actorId: origin?.proposedById ?? userId,
-                action: ActivityAction.CREATED,
-                fromStatus: null,
-                toStatus: RequestStatus.DRAFT,
-                metadata: origin ? { requestNumber: saved.requestNumber, sourceTicketId: origin.sourceTicketId } : { requestNumber: saved.requestNumber },
-            });
-            await activityRepo.save(activity);
-
-            return saved;
+        const requestNumber = await this.numberer.generate(new Date(), mgr);
+        const entity = requestRepo.create({
+            requestNumber,
+            requesterId: userId,
+            recipientId: dto.recipientId ?? null,
+            recipientName: dto.recipientName ?? null,
+            division: dto.division ?? null,
+            siteId: (await this.handlingSites.handlingSiteId(effectiveSiteId))!,
+            justification: dto.justification,
+            status: RequestStatus.DRAFT,
+            items: itemsWithSnapshot as any,
+            sourceTicketId: origin?.sourceTicketId ?? null,
+            proposedById: origin?.proposedById ?? null,
         });
+        const saved = await requestRepo.save(entity);
+
+        const activity = activityRepo.create({
+            requestId: saved.id,
+            actorId: origin?.proposedById ?? userId,
+            action: ActivityAction.CREATED,
+            fromStatus: null,
+            toStatus: RequestStatus.DRAFT,
+            metadata: {
+                requestNumber: saved.requestNumber,
+                ...(origin ? { sourceTicketId: origin.sourceTicketId } : {}),
+                ...(origin?.requesterSignature ? { signature: origin.requesterSignature } : {}),
+            },
+        });
+        await activityRepo.save(activity);
+
+        return saved;
+    }
+
+    /** One row per unit (individual tracking), each with a snapshot of what was asked for. */
+    private async buildItems(items: DraftItemInput[], options: { checkRequired: boolean }): Promise<DraftItemRow[]> {
+        const rows: DraftItemRow[] = [];
+        for (const i of items) {
+            const customFields = i.customFields ?? {};
+            let catalogId: string | null = null;
+            let snapshot: HardwareRequestItem['categorySnapshot'];
+            if (i.catalogId) {
+                const cat = await this.catalog.ensureActive(i.catalogId);
+                if (options.checkRequired) this.catalog.assertRequiredFields(cat, customFields);
+                catalogId = cat.id;
+                snapshot = { code: cat.code, name: cat.name, category: cat.category, specs: cat.defaultSpecs ?? {}, customFields };
+            } else if (i.manualName?.trim()) {
+                snapshot = { code: null, name: i.manualName.trim(), category: ItemCategory.OTHER, specs: {}, customFields };
+            } else {
+                throw new BadRequestException('Barang harus dari katalog atau ditulis manual');
+            }
+            if (i.replacesName) snapshot = { ...snapshot, replaces: i.replacesName } as typeof snapshot;
+            for (let qty = 0; qty < i.quantity; qty++) {
+                rows.push({ catalogId, quantity: 1, notes: i.notes ?? null, recipientName: i.recipientName ?? null, categorySnapshot: snapshot });
+            }
+        }
+        return rows;
     }
 
     async updateDraft(
@@ -163,26 +210,8 @@ export class HardwareRequestCommandService {
             if (dto.items) {
                 // Replace items wholesale: delete old, create new snapshots.
                 await itemRepo.delete({ requestId: existing.id });
-                const expandedItems = [];
-                for (const i of dto.items) {
-                    const cat = await this.catalog.ensureActive(i.catalogId);
-                    const snapshot = {
-                        code: cat.code,
-                        name: cat.name,
-                        category: cat.category,
-                        specs: cat.defaultSpecs ?? {},
-                        customFields: i.customFields ?? {},
-                    };
-                    for (let qty = 0; qty < i.quantity; qty++) {
-                        expandedItems.push(itemRepo.create({
-                            requestId: existing.id,
-                            catalogId: cat.id,
-                            quantity: 1, // expanded for individual tracking
-                            notes: i.notes ?? null,
-                            categorySnapshot: snapshot,
-                        }));
-                    }
-                }
+                const rows = await this.buildItems(dto.items, { checkRequired: true });
+                const expandedItems = rows.map((row) => itemRepo.create({ requestId: existing.id, ...row }));
                 existing.items = expandedItems;
             }
 
@@ -203,65 +232,86 @@ export class HardwareRequestCommandService {
 
     async submit(userId: string, requestId: string): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
-
-            const existing = await requestRepo.findOne({
-                where: { id: requestId },
-                relations: { items: true },
-            });
-            if (!existing) throw new HardwareRequestNotFoundError(requestId);
-            if (existing.requesterId !== userId) {
-                throw new PermissionDeniedError('submit this request');
-            }
-            if (existing.status !== RequestStatus.DRAFT) {
-                throw new InvalidStateTransitionError(existing.status, RequestStatus.SUBMITTED);
-            }
-            if (!existing.items || existing.items.length === 0) {
-                throw new BadRequestException({
-                    code: 'HR_VALIDATION',
-                    message: 'Request must have at least one item',
-                });
-            }
-
-            const isDirectInstallation = String(existing.justification || '').includes('[PENJADWALAN PEMASANGAN]');
-            const targetStatus = isDirectInstallation ? RequestStatus.INSTALLATION : RequestStatus.SUBMITTED;
-
-            existing.status = targetStatus;
-            existing.submittedAt = new Date();
-            if (isDirectInstallation) {
-                existing.approvedAt = new Date();
-                const itemRepo = mgr.getRepository(HardwareRequestItem);
-                for (const item of existing.items) {
-                    item.deliveryStatus = 'ARRIVED';
-                    item.arrivedAt = new Date();
-                }
-                await itemRepo.save(existing.items);
-            }
-            const saved = await requestRepo.save(existing);
-
-            await activityRepo.save(activityRepo.create({
-                requestId: saved.id,
-                actorId: userId,
-                action: ActivityAction.SUBMITTED,
-                fromStatus: RequestStatus.DRAFT,
-                toStatus: targetStatus,
-                metadata: isDirectInstallation ? { directInstallation: true } : {},
-            }));
-
+            const saved = await this.submitWith(mgr, userId, requestId, { allowDirectInstallation: true });
             this.emitter.emit(HR_EVT.SUBMITTED, {
                 requestId: saved.id,
                 actorId: userId,
                 occurredAt: new Date(),
                 requesterId: saved.requesterId,
             });
-
             return saved;
         });
     }
 
+    /**
+     * DRAFT -> SUBMITTED inside the caller's transaction; emits nothing (the caller announces it).
+     * `allowDirectInstallation` keeps the old form's `[PENJADWALAN PEMASANGAN]` shortcut straight to INSTALLATION;
+     * requests from the unified ticket form leave that choice to IT's review.
+     */
+    async submitWith(
+        mgr: EntityManager, userId: string, requestId: string, options: { allowDirectInstallation: boolean },
+    ): Promise<HardwareRequest> {
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
+
+        const existing = await requestRepo.findOne({
+            where: { id: requestId },
+            relations: { items: true },
+        });
+        if (!existing) throw new HardwareRequestNotFoundError(requestId);
+        if (existing.requesterId !== userId) {
+            throw new PermissionDeniedError('submit this request');
+        }
+        if (existing.status !== RequestStatus.DRAFT) {
+            throw new InvalidStateTransitionError(existing.status, RequestStatus.SUBMITTED);
+        }
+        if (!existing.items || existing.items.length === 0) {
+            throw new BadRequestException({
+                code: 'HR_VALIDATION',
+                message: 'Request must have at least one item',
+            });
+        }
+
+        const isDirectInstallation = options.allowDirectInstallation
+            && String(existing.justification || '').includes('[PENJADWALAN PEMASANGAN]');
+        const targetStatus = isDirectInstallation ? RequestStatus.INSTALLATION : RequestStatus.SUBMITTED;
+
+        existing.status = targetStatus;
+        existing.submittedAt = new Date();
+        if (isDirectInstallation) {
+            existing.approvedAt = new Date();
+            const itemRepo = mgr.getRepository(HardwareRequestItem);
+            for (const item of existing.items) {
+                item.deliveryStatus = 'ARRIVED';
+                item.arrivedAt = new Date();
+            }
+            await itemRepo.save(existing.items);
+        }
+        const saved = await requestRepo.save(existing);
+
+        await activityRepo.save(activityRepo.create({
+            requestId: saved.id,
+            actorId: userId,
+            action: ActivityAction.SUBMITTED,
+            fromStatus: RequestStatus.DRAFT,
+            toStatus: targetStatus,
+            metadata: isDirectInstallation ? { directInstallation: true } : {},
+        }));
+
+        return saved;
+    }
+
     async cancel(actor: { id: string, role: string }, requestId: string): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        const { saved, announce } = await this.dataSource.transaction((mgr) => this.cancelWith(mgr, actor, requestId));
+        announce();
+        return saved;
+    }
+
+    /** The cancellation inside the caller's transaction; the caller runs `announce` once it has committed. */
+    async cancelWith(
+        mgr: EntityManager, actor: { id: string, role: string }, requestId: string, options: { allowed?: readonly RequestStatus[] } = {},
+    ): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
@@ -278,7 +328,8 @@ export class HardwareRequestCommandService {
             const CANCELLABLE_USER = [RequestStatus.DRAFT, RequestStatus.SUBMITTED];
             const CANCELLABLE_ICT = [RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION];
 
-            const allowedStatuses = isIct ? CANCELLABLE_ICT : CANCELLABLE_USER;
+            // A request flow names its own states (the flow knows its phases); the old pages keep the short lists.
+            const allowedStatuses = options.allowed ?? (isIct ? CANCELLABLE_ICT : CANCELLABLE_USER);
 
             if (!allowedStatuses.includes(existing.status)) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.CANCELLED);
@@ -287,6 +338,11 @@ export class HardwareRequestCommandService {
             const fromStatus = existing.status;
             existing.status = RequestStatus.CANCELLED;
             const saved = await requestRepo.save(existing);
+            // A schedule still open would keep showing on the install calendar and could still be picked from.
+            await mgr.query(
+                `UPDATE "installation_schedules" SET "status" = 'CANCELLED' WHERE "requestId" = $1 AND "status"::text IN ('PROPOSED', 'PROPOSED_AWAITING_USER', 'CONFIRMED', 'RESCHEDULE_REQUESTED')`,
+                [saved.id],
+            );
 
             await activityRepo.save(activityRepo.create({
                 requestId: saved.id,
@@ -297,7 +353,7 @@ export class HardwareRequestCommandService {
                 metadata: {},
             }));
 
-            this.emitter.emit(HR_EVT.CANCELLED, {
+            const announce = () => this.emitter.emit(HR_EVT.CANCELLED, {
                 requestId: saved.id,
                 actorId: actor.id,
                 occurredAt: new Date(),
@@ -305,8 +361,8 @@ export class HardwareRequestCommandService {
                 fromStatus: fromStatus,
             });
 
-            return saved;
-        });
+            return { saved, announce };
+        }
     }
 
     async close(userId: string, requestId: string): Promise<HardwareRequest> {
@@ -382,7 +438,12 @@ export class HardwareRequestCommandService {
     }
 
     async review(userId: string, requestId: string): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        return this.dataSource.transaction((mgr) => this.reviewWith(mgr, userId, requestId));
+    }
+
+    /** SUBMITTED -> UNDER_REVIEW inside the caller's transaction; emits nothing. */
+    async reviewWith(mgr: EntityManager, userId: string, requestId: string): Promise<HardwareRequest> {
+        {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
             if (existing.status !== RequestStatus.SUBMITTED) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.UNDER_REVIEW);
@@ -397,11 +458,25 @@ export class HardwareRequestCommandService {
                 fromStatus: RequestStatus.SUBMITTED, toStatus: RequestStatus.UNDER_REVIEW,
             });
             return saved;
-        });
+        }
     }
 
     async approve(userId: string, requestId: string): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
+            const saved = await this.approveWith(mgr, userId, requestId);
+            this.emitter.emit(HR_EVT.APPROVED, {
+                requestId: saved.id,
+                actorId: userId,
+                occurredAt: new Date(),
+                requesterId: saved.requesterId,
+            });
+            return saved;
+        });
+    }
+
+    /** UNDER_REVIEW -> APPROVED inside the caller's transaction; emits nothing (the caller announces it). */
+    async approveWith(mgr: EntityManager, userId: string, requestId: string): Promise<HardwareRequest> {
+        {
             const existing = await this.loadRequestOrThrow(mgr, requestId);
             if (existing.status !== RequestStatus.UNDER_REVIEW) {
                 throw new InvalidStateTransitionError(existing.status, RequestStatus.APPROVED);
@@ -415,36 +490,38 @@ export class HardwareRequestCommandService {
                 action: ActivityAction.APPROVED,
                 fromStatus: RequestStatus.UNDER_REVIEW, toStatus: RequestStatus.APPROVED,
             });
-
-            this.emitter.emit(HR_EVT.APPROVED, {
-                requestId: saved.id,
-                actorId: userId,
-                occurredAt: new Date(),
-                requesterId: saved.requesterId,
-            });
-
             return saved;
+        }
+    }
+
+    /**
+     * UNDER_REVIEW -> APPROVED -> next phase, inside the caller's transaction (the unified ticket flow after its last
+     * approval): items from IT's own stock are already here and go straight to INSTALLATION, anything else to
+     * PROCUREMENT. Emits nothing; the caller announces the approval.
+     */
+    async approveAndStartWith(mgr: EntityManager, userId: string, requestId: string, options: { fromStock: boolean }): Promise<HardwareRequest> {
+        const approved = await this.approveWith(mgr, userId, requestId);
+        const items = await mgr.getRepository(HardwareRequestItem).find({ where: { requestId } });
+        const next = options.fromStock ? RequestStatus.INSTALLATION : RequestStatus.PROCUREMENT;
+        if (!canTransition(approved.status, next)) throw new InvalidStateTransitionError(approved.status, next);
+        if (options.fromStock) {
+            const now = new Date();
+            await mgr.getRepository(HardwareRequestItem).save(items.map((item) => Object.assign(item, { deliveryStatus: 'ARRIVED' as const, arrivedAt: now })));
+        }
+        await mgr.getRepository(HardwareRequest).update({ id: requestId }, { status: next, ...(options.fromStock ? {} : { procuredById: userId }) });
+        const saved = Object.assign(approved, { status: next });
+        await this.logActivity(mgr, {
+            requestId, actorId: userId, action: ActivityAction.PROCUREMENT_UPDATED,
+            fromStatus: RequestStatus.APPROVED, toStatus: next, metadata: { fromStock: options.fromStock },
         });
+        return saved;
     }
 
     async reject(
         userId: string, requestId: string, dto: RejectRequestDto,
     ): Promise<HardwareRequest> {
         return this.dataSource.transaction(async (mgr) => {
-            const existing = await this.loadRequestOrThrow(mgr, requestId);
-            if (existing.status !== RequestStatus.UNDER_REVIEW) {
-                throw new InvalidStateTransitionError(existing.status, RequestStatus.REJECTED);
-            }
-            existing.status = RequestStatus.REJECTED;
-            existing.rejectReason = dto.reason;
-            const saved = await mgr.getRepository(HardwareRequest).save(existing);
-            await this.logActivity(mgr, {
-                requestId: saved.id, actorId: userId,
-                action: ActivityAction.REJECTED,
-                fromStatus: RequestStatus.UNDER_REVIEW, toStatus: RequestStatus.REJECTED,
-                metadata: { reason: dto.reason },
-            });
-
+            const saved = await this.rejectWith(mgr, userId, requestId, dto);
             this.emitter.emit(HR_EVT.REJECTED, {
                 requestId: saved.id,
                 actorId: userId,
@@ -452,9 +529,32 @@ export class HardwareRequestCommandService {
                 requesterId: saved.requesterId,
                 reason: dto.reason,
             });
-
             return saved;
         });
+    }
+
+    /** UNDER_REVIEW -> REJECTED inside the caller's transaction; emits nothing (the caller announces it). */
+    async rejectWith(
+        mgr: EntityManager, userId: string, requestId: string, dto: RejectRequestDto,
+    ): Promise<HardwareRequest> {
+        {
+            const existing = await this.loadRequestOrThrow(mgr, requestId);
+            // IT may refuse a request it has not started reviewing, as well as one that is under review.
+            const from = existing.status;
+            if (from !== RequestStatus.UNDER_REVIEW && from !== RequestStatus.SUBMITTED) {
+                throw new InvalidStateTransitionError(from, RequestStatus.REJECTED);
+            }
+            existing.status = RequestStatus.REJECTED;
+            existing.rejectReason = dto.reason;
+            const saved = await mgr.getRepository(HardwareRequest).save(existing);
+            await this.logActivity(mgr, {
+                requestId: saved.id, actorId: userId,
+                action: ActivityAction.REJECTED,
+                fromStatus: from, toStatus: RequestStatus.REJECTED,
+                metadata: { reason: dto.reason },
+            });
+            return saved;
+        }
     }
 
     async updateItem(
@@ -506,46 +606,62 @@ export class HardwareRequestCommandService {
         }
 
         return this.dataSource.transaction(async (mgr) => {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
-            const scheduleRepo = mgr.getRepository(InstallationSchedule);
-
-            const req = await requestRepo.findOne({ where: { id: requestId } });
-            if (!req) throw new NotFoundException('request');
-
-            if (req.status !== RequestStatus.INSTALLATION) {
-                throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
-            }
-
-            const sched = await scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
-            if (!sched) {
-                throw new BadRequestException('Cannot complete installation: schedule not done');
-            }
-
-            req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
-            req.installMarkedDoneAt = new Date();
-            const saved = await requestRepo.save(req);
-
-            await activityRepo.save(activityRepo.create({
-                requestId: req.id, actorId: actor.id, action: ActivityAction.INSTALL_COMPLETED,
-                metadata: { scheduleId: sched.id },
-                fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
-            }));
-
-            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
-                requestId,
-                actorId: actor.id,
-                occurredAt: new Date(),
-                requesterId: req.requesterId,
-                status: RequestStatus.AWAITING_USER_CONFIRMATION,
-            });
-
+            const saved = await this.completeInstallationWith(mgr, requestId, actor.id);
+            this.announceInstallCompleted(saved, actor.id);
             return saved;
         });
     }
 
+    /** INSTALLATION -> AWAITING_USER_CONFIRMATION inside the caller's transaction; emits nothing (the caller announces it). */
+    async completeInstallationWith(mgr: EntityManager, requestId: string, actorId: string): Promise<HardwareRequest> {
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
+        const scheduleRepo = mgr.getRepository(InstallationSchedule);
+
+        const req = await requestRepo.findOne({ where: { id: requestId } });
+        if (!req) throw new NotFoundException('request');
+
+        if (req.status !== RequestStatus.INSTALLATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.AWAITING_USER_CONFIRMATION);
+        }
+
+        const sched = await scheduleRepo.findOne({ where: { requestId, status: InstallStatus.DONE }, order: { createdAt: 'DESC' } });
+        if (!sched) {
+            throw new BadRequestException('Cannot complete installation: schedule not done');
+        }
+
+        req.status = RequestStatus.AWAITING_USER_CONFIRMATION;
+        req.installMarkedDoneAt = new Date();
+        const saved = await requestRepo.save(req);
+
+        await activityRepo.save(activityRepo.create({
+            requestId: req.id, actorId, action: ActivityAction.INSTALL_COMPLETED,
+            metadata: { scheduleId: sched.id },
+            fromStatus: RequestStatus.INSTALLATION, toStatus: RequestStatus.AWAITING_USER_CONFIRMATION,
+        }));
+        return saved;
+    }
+
+    /** Tells the listeners the technician finished (the requester still has to confirm). */
+    announceInstallCompleted(req: HardwareRequest, actorId: string): void {
+        this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+            requestId: req.id,
+            actorId,
+            occurredAt: new Date(),
+            requesterId: req.requesterId,
+            status: RequestStatus.AWAITING_USER_CONFIRMATION,
+        });
+    }
+
     async autoConfirmInstallation(requestId: string, systemActorId: string | null = null): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        const { saved, announce } = await this.dataSource.transaction((mgr) => this.autoConfirmInstallationWith(mgr, requestId, systemActorId));
+        announce();
+        return saved;
+    }
+
+    /** The auto-confirmation inside the caller's transaction; the caller runs `announce` after the commit. */
+    async autoConfirmInstallationWith(mgr: EntityManager, requestId: string, systemActorId: string | null = null): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
@@ -557,7 +673,7 @@ export class HardwareRequestCommandService {
 
             if (req.status === RequestStatus.COMPLETED) {
                 // Already completed by another concurrent worker / confirmation
-                return req;
+                return { saved: req, announce: () => undefined };
             }
 
             if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
@@ -580,7 +696,7 @@ export class HardwareRequestCommandService {
                 toStatus: RequestStatus.COMPLETED,
             }));
 
-            this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
+            const announce = () => this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                 requestId: req.id,
                 actorId: systemActorId ?? null,
                 occurredAt: new Date(),
@@ -589,59 +705,74 @@ export class HardwareRequestCommandService {
                 status: RequestStatus.COMPLETED,
             });
 
-            return saved;
-        });
+            return { saved, announce };
+        }
     }
 
     async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
+        const { saved, announce } = await this.dataSource.transaction(async (mgr) => {
+            const flows: unknown[] = await mgr.query('SELECT id FROM request_flows WHERE "hardwareRequestId" = $1 FOR UPDATE', [requestId]);
+            if (flows.length > 0) throw new ConflictException('Konfirmasi pemasangan melalui detail tiket.');
+            return this.confirmInstallationWith(mgr, requestId, userId, payload, false);
+        });
+        announce();
+        return saved;
+    }
 
-            const req = await requestRepo.findOne({
-                where: { id: requestId },
-                lock: { mode: 'pessimistic_write' },
-            });
-            if (!req) throw new HardwareRequestNotFoundError(requestId);
+    /**
+     * The requester's answer to a finished installation, inside the caller's transaction. `onBehalf`: IT answers for the
+     * requester (request-flow tickets), so the requester check is skipped and the activity says so. Nothing is emitted
+     * here: the caller runs `announce` once the transaction has committed.
+     */
+    async confirmInstallationWith(
+        mgr: EntityManager, requestId: string, userId: string,
+        payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }, onBehalf = false,
+    ): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-            if (req.requesterId !== userId) {
-                throw new PermissionDeniedError('confirm installation for this request');
-            }
+        const req = await requestRepo.findOne({ where: { id: requestId }, lock: { mode: 'pessimistic_write' } });
+        if (!req) throw new HardwareRequestNotFoundError(requestId);
 
-            if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
-                throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
-            }
+        if (!onBehalf && req.requesterId !== userId) {
+            throw new PermissionDeniedError('confirm installation for this request');
+        }
 
-            req.userConfirmedAt = new Date();
-            req.userConfirmationKind = payload.kind;
+        if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
+        }
 
-            const fromStatus = req.status;
-            let toStatus: RequestStatus;
+        req.userConfirmedAt = new Date();
+        req.userConfirmationKind = payload.kind;
 
-            if (payload.kind === 'ACCEPT_AS_IS') {
-                toStatus = RequestStatus.COMPLETED;
-                req.completedAt = new Date();
-            } else {
-                toStatus = RequestStatus.INSTALLATION;
-            }
+        const fromStatus = req.status;
+        let toStatus: RequestStatus;
 
-            req.status = toStatus;
-            const saved = await requestRepo.save(req);
+        if (payload.kind === 'ACCEPT_AS_IS') {
+            toStatus = RequestStatus.COMPLETED;
+            req.completedAt = new Date();
+        } else {
+            toStatus = RequestStatus.INSTALLATION;
+        }
 
+        req.status = toStatus;
+        const saved = await requestRepo.save(req);
+
+        await activityRepo.save(activityRepo.create({
+            requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
+            metadata: { kind: payload.kind, comments: payload.comments, ...(onBehalf ? { onBehalf: true } : {}) },
+            fromStatus: fromStatus, toStatus: toStatus,
+        }));
+
+        if (payload.comments) {
             await activityRepo.save(activityRepo.create({
-                requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
-                metadata: { kind: payload.kind, comments: payload.comments },
-                fromStatus: fromStatus, toStatus: toStatus,
+                requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
+                metadata: { text: payload.comments },
+                fromStatus: toStatus, toStatus: toStatus,
             }));
+        }
 
-            if (payload.comments) {
-                await activityRepo.save(activityRepo.create({
-                    requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
-                    metadata: { text: payload.comments },
-                    fromStatus: toStatus, toStatus: toStatus,
-                }));
-            }
-
+        const announce = (): void => {
             if (toStatus === RequestStatus.INSTALLATION) {
                 this.emitter.emit(HR_EVT.INSTALL_ISSUE_REPORTED, {
                     requestId: req.id,
@@ -651,7 +782,6 @@ export class HardwareRequestCommandService {
                     comments: payload.comments?.trim() || null,
                 });
             }
-
             if (toStatus === RequestStatus.COMPLETED) {
                 this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                     requestId: req.id,
@@ -662,8 +792,7 @@ export class HardwareRequestCommandService {
                     status: RequestStatus.COMPLETED,
                 });
             }
-
-            return saved;
-        });
+        };
+        return { saved, announce };
     }
 }

@@ -27,6 +27,11 @@ const PHASE_TEXT: Record<HardwareTicketPhase, (no: string, at?: string) => strin
     ISSUE_REPORTED: (no) => `Pemohon melaporkan masalah pada pemasangan ${no}. Tim IT menindaklanjuti.`,
     COMPLETED: (no) => `Hardware request ${no} selesai dan dikonfirmasi. Tiket ditutup otomatis.`,
     CANCELLED: (no) => `Hardware request ${no} dibatalkan. Tiket kembali ditangani.`,
+    // Steps of the unified request flow (RequestFlowReviewService writes its own text).
+    REVIEWED: (no) => `Hardware request ${no} ditinjau IT.`,
+    SIGNED: (no) => `Hardware request ${no} ditandatangani.`,
+    RETURNED: (no) => `Hardware request ${no} dikembalikan ke IT.`,
+    REMINDED: (no) => `Pengingat persetujuan ${no} dikirim.`,
 };
 
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */
@@ -35,7 +40,12 @@ const PHASE_STATUS: Partial<Record<HardwareTicketPhase, TicketStatus>> = {
     REJECTED: TicketStatus.IN_PROGRESS,
     CANCELLED: TicketStatus.IN_PROGRESS,
     COMPLETED: TicketStatus.CLOSED,
+    // The requester found a problem after the installation: a resolved ticket goes back to the agent (see `REOPENING`).
+    ISSUE_REPORTED: TicketStatus.IN_PROGRESS,
 };
+
+/** The only phase that may take a RESOLVED ticket back; every other step leaves a resolved ticket alone. */
+const REOPENING: readonly HardwareTicketPhase[] = ['ISSUE_REPORTED'];
 
 export interface RecordOptions {
     actorId?: string | null;
@@ -56,6 +66,27 @@ export class TicketHardwareLinkService {
         private readonly linked: TicketLinkedRequestService,
     ) {}
 
+    /**
+     * The request just entered INSTALLATION after delivery: the wait is over and scheduling is IT's turn, so the ticket's
+     * SLA runs again. A ticket that is not waiting on the request (manual vendor wait released, in progress, closed) is left alone.
+     */
+    /**
+     * With `silentUnlessMoved` (a retry) nothing is posted unless the ticket really leaves the wait, so repeating the call
+     * is harmless on a ticket another request or an agent keeps held. Resolves to whether the ticket moved.
+     */
+    async resumeForInstallation(requestId: string, actorId?: string | null, options: { silentUnlessMoved?: boolean } = {}): Promise<boolean> {
+        const request = await this.reqRepo.findOne({ where: { id: requestId } }).catch(() => null);
+        if (!request?.sourceTicketId) return false;
+        return this.linked.record({
+            silentUnlessMoved: options.silentUnlessMoved,
+            ticketId: request.sourceTicketId,
+            actorId,
+            target: TicketStatus.IN_PROGRESS,
+            text: `Barang untuk ${request.requestNumber} sudah tiba. Tim IT menjadwalkan pemasangan.`,
+            event: { hardwareRequest: { id: request.id, number: request.requestNumber, phase: 'PROCUREMENT_DONE', at: null } },
+        });
+    }
+
     async record(requestId: string, phase: HardwareTicketPhase, options: RecordOptions = {}): Promise<void> {
         const request = await this.reqRepo.findOne({ where: { id: requestId } }).catch(() => null);
         if (!request?.sourceTicketId) return;
@@ -64,6 +95,7 @@ export class TicketHardwareLinkService {
             ticketId: request.sourceTicketId,
             actorId: options.actorId,
             target: PHASE_STATUS[phase],
+            ...(REOPENING.includes(phase) ? { reopenResolved: true as const } : {}),
             text: PHASE_TEXT[phase](request.requestNumber, at?.toLocaleString('id-ID', WHEN_FORMAT)),
             event: {
                 ...(options.reason ? { reason: options.reason } : {}),

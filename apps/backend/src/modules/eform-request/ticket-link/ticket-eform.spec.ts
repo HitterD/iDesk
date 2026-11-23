@@ -39,36 +39,13 @@ describe('TicketEFormService', () => {
         );
     });
 
-    const propose = (extra: Record<string, unknown> = {}) => service.propose(AGENT.id, TICKET.id, {
-        formType: EFormType.VPN, note: 'Perlu VPN untuk WFH', details: { kebutuhanAkses: 'SAP', password: 'x' }, ...extra,
-    } as any);
-
-    it('drafts the access for the ticket requester, prefilled, and asks them to sign it', async () => {
-        const summary = await propose();
-
-        const saved = repo.save.mock.calls[0][0];
-        expect(saved).toEqual(expect.objectContaining({
-            status: EFormStatus.DRAFT, requesterId: 'u-req', requesterName: 'Budi', requesterDepartment: 'Finance',
-            sourceTicketId: 'ticket-1', proposedById: 'u-agent', termsAccepted: false, siteId: 'site-1',
-        }));
-        // Only known detail keys are kept.
-        expect(saved.formData).toEqual({ alasan: 'Perlu VPN untuk WFH', kebutuhanAkses: 'SAP' });
-        expect(link.record).toHaveBeenCalledWith(EFORM_ID, 'PROPOSED', { actorId: 'u-agent' });
-        expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u-req', ticketId: 'ticket-1' }));
-        expect(summary).toEqual(expect.objectContaining({ code: '#3F2A9C1B', status: EFormStatus.DRAFT, note: 'Perlu VPN untuk WFH' }));
-    });
-
-    it('keeps one unanswered proposal per ticket', async () => {
-        await propose();
-        await expect(propose()).rejects.toThrow(ConflictException);
-    });
-
-    it('lets only IT propose', async () => {
-        await expect(service.propose(REQUESTER.id, TICKET.id, { formType: EFormType.VPN, note: 'x' } as any)).rejects.toThrow(ForbiddenException);
-    });
+    /** A proposal made before proposing was removed: still waiting for the requester, with its row in place. */
+    const existingProposal = () => {
+        rows[EFORM_ID] = { id: EFORM_ID, formType: EFormType.VPN, status: EFormStatus.DRAFT, requesterId: 'u-req', sourceTicketId: 'ticket-1', proposedById: 'u-agent', createdAt: new Date(), formData: {} };
+    };
 
     it('tells a declined proposal from a withdrawn one', async () => {
-        await propose();
+        existingProposal();
         await service.cancelProposal('u-req', EFORM_ID);
         expect(rows[EFORM_ID].status).toBe(EFormStatus.CANCELLED);
         expect(link.record).toHaveBeenLastCalledWith(EFORM_ID, 'DECLINED', { actorId: 'u-req' });
@@ -79,7 +56,7 @@ describe('TicketEFormService', () => {
     });
 
     it('does not cancel a proposal that was already signed', async () => {
-        await propose();
+        existingProposal();
         rows[EFORM_ID].status = EFormStatus.PENDING_MANAGER;
         await expect(service.cancelProposal('u-req', EFORM_ID)).rejects.toThrow(BadRequestException);
     });
@@ -128,6 +105,19 @@ describe('TicketEFormSyncListener', () => {
         await listener.onRejected({ request, userId: 'u-mgr' });
         expect(link.record.mock.calls.map((c) => c[1])).toEqual(['SUBMITTED', 'SUBMITTED', 'MANAGER_APPROVED', 'GRANTED', 'GRANTED', 'REJECTED']);
         expect(link.record).toHaveBeenLastCalledWith(EFORM_ID, 'REJECTED', { actorId: 'u-mgr', reason: 'Tidak perlu' });
+    });
+});
+
+describe('TicketEFormSyncListener for a request-flow e-form', () => {
+    const link = { record: jest.fn() };
+    const flows = { has: jest.fn(async () => true) };
+    const listener = new TicketEFormSyncListener(link as any, flows as any);
+    const request = { id: EFORM_ID } as any;
+
+    it('posts no legacy GRANTED card (the flow posts its own message)', async () => {
+        await listener.onCredentialsIssued({ request });
+        await listener.onFulfilled({ request });
+        expect(link.record).not.toHaveBeenCalled();
     });
 });
 

@@ -16,6 +16,7 @@ import {
     ArrowRight,
     Ellipsis,
     Forward,
+    Download,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -25,6 +26,8 @@ import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { formatSlaTarget, formatSlaTargetFull } from '@/lib/utils/slaDuration';
 import { PriorityPill, StatusPill } from './TicketPropertyRows';
 import { useTicketHold } from './useTicketHold';
+import { RequestTypeTag } from '../request-flow/RequestTypeTag';
+import type { RequestKind } from '../request-flow/requestKind';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ResolveTicketModal } from './ResolveTicketModal';
@@ -55,6 +58,10 @@ interface TicketHeaderProps {
     /** Optional controlled open state for ResolveTicketModal (e.g. opened via keyboard shortcut). */
     resolveOpen?: boolean;
     onResolveOpenChange?: (open: boolean) => void;
+    /** Set on a Hardware / E-Form ticket: one phase chip replaces the status, and Teruskan / Selesaikan go away. */
+    flow?: { kind: RequestKind; phase: string; phaseLabel: string; paused: boolean };
+    /** The "Unduh dokumen PDF" item of a request ticket's menu. */
+    onDownloadPdf?: () => void;
 }
 
 type SlaState = 'none' | 'normal' | 'paused' | 'overdue' | 'warning';
@@ -75,6 +82,8 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     notesAction,
     resolveOpen,
     onResolveOpenChange,
+    flow,
+    onDownloadPdf,
 }) => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -195,8 +204,9 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
 
     const isTerminal = isTerminalStatus(ticket.status);
     const canCancel = !isTerminal && Boolean(onCancel);
-    const canForward = !isTerminal && Boolean(onForward);
-    const canResolve = !isTerminal && Boolean(onResolve);
+    // A request ticket moves through its own steps (next-step bar): no hand-forwarding or resolving from the header.
+    const canForward = !isTerminal && Boolean(onForward) && !flow;
+    const canResolve = !isTerminal && Boolean(onResolve) && !flow;
     const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
     const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
@@ -361,11 +371,20 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                         <span>#{ticketNumber}</span>
                         {copied ? <Check className="text-emerald-600" aria-hidden="true" /> : <Copy aria-hidden="true" />}
                     </button>
-                    <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />
+                    {flow && <RequestTypeTag kind={flow.kind} size="lg" />}
+                    {flow
+                        ? <span className={`req-phase-chip req-phase-chip--${flow.kind === 'HARDWARE' ? 'hw' : 'ef'}`}><span className="dot" aria-hidden="true" />{flow.phaseLabel}</span>
+                        : <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />}
+                    {flow?.paused && !isTerminal ? (
+                        <TicketPill tone="amber" title="Waktu SLA IT tidak berjalan saat menunggu pihak lain">
+                            <Pause className="h-3 w-3 shrink-0" aria-hidden="true" /><span>SLA dijeda</span>
+                        </TicketPill>
+                    ) : (
                     <TicketPill tone={slaTone} title={slaTooltip}>
                         <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
                         <span className="tabular-nums">{resolutionTime}</span>
                     </TicketPill>
+                    )}
                     {firstResponse && (
                         <TicketPill tone={firstResponse.tone} title={firstResponse.tooltip}>
                             <MessageSquare className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -391,7 +410,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 <Forward aria-hidden="true" /><span>Teruskan</span>
                             </Button>
                         )}
-                        {(canCancel || canForward) && (
+                        {(canCancel || canForward || (flow && onDownloadPdf)) && (
                             <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="subtle" size="icon" className="td-act-more" aria-label="Aksi lainnya" title="Aksi lainnya">
@@ -401,6 +420,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                                 <DropdownMenuContent align="end" variant="compact" className="ticket-action-menu" aria-label="Aksi lainnya">
                                     {canForward && <DropdownMenuItem className="ticket-action-forward-menu" onSelect={() => onForward?.()}><Forward />Teruskan ke tim / site lain</DropdownMenuItem>}
                                     <DropdownMenuItem onSelect={handleCopyNumber}><Copy />Salin nomor tiket</DropdownMenuItem>
+                                    {flow && onDownloadPdf && <DropdownMenuItem onSelect={onDownloadPdf}><Download />Unduh dokumen PDF</DropdownMenuItem>}
                                     {onToggleSidebar && <DropdownMenuItem onSelect={onToggleSidebar}><PanelRightOpen />Properti tiket</DropdownMenuItem>}
                                     {canCancel && (
                                         <DropdownMenuItem variant="destructive" onSelect={() => setShowCancelConfirm(true)}>

@@ -16,7 +16,7 @@ import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { NotificationService } from '../../notifications/notification.service';
 import { NotificationCenterService } from '../../notifications/notification-center.service';
 import { NotificationType } from '../../notifications/entities/notification.entity';
-import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
+import { reopenAsDispute, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
 
 /** Actor id recorded for transitions made by the auto-close cron. */
@@ -88,13 +88,7 @@ export class TicketResolutionService {
             if (ticket.status !== TicketStatus.RESOLVED) {
                 throw new BadRequestException(RESOLUTION_MESSAGES.NOT_AWAITING_CONFIRMATION);
             }
-            ticket.status = TicketStatus.IN_PROGRESS;
-            ticket.disputedAt = new Date();
-            ticket.resolutionDeadlineAt = null;
-            // The ticket is no longer done; the next resolve sets a fresh timestamp.
-            ticket.resolvedAt = null;
-            // A disputed resolve was never finished: the clock kept running, so the original target stands.
-            this.slaClock.resumeOnOriginalTarget(ticket);
+            reopenAsDispute(ticket, this.slaClock);
             const reasonMessage = await this.saveMessage(manager, ticket.id, `Sanggahan penyelesaian: ${reason.trim()}`, owner.id, false);
             // Chat clients render user bubbles from the embedded sender, like a normal reply.
             const reasonWithSender = Object.assign(reasonMessage, { sender: { id: owner.id, fullName: owner.fullName, role: owner.role } });

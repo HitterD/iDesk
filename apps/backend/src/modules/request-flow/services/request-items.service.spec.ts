@@ -1,0 +1,246 @@
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { HardwareRequestItem } from '../../hardware-request/domain/entities/hardware-request-item.entity';
+import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
+import type { EditItemsDto } from '../dto/edit-items.dto';
+import type { FlowContext } from './request-flow-reader';
+import type { FlowActor } from './request-flow-review.service';
+import { RequestItemsService } from './request-items.service';
+
+const IT: FlowActor = { userId: 'it-1', role: UserRole.AGENT_OPERATIONAL_SUPPORT, siteId: 'site-1', fullName: 'RM Bagastyo' };
+const TID = '0b6d3c4e-1111-4222-8333-444455556677';
+const REASON = 'Stok laptop lama habis';
+
+const unit = (id: string, name: string, over: Partial<HardwareRequestItem> = {}): HardwareRequestItem => ({
+    id, requestId: 'hr-1', catalogId: 'cat-1', quantity: 1, notes: null, deliveryStatus: 'PENDING', procurementDecision: null,
+    categorySnapshot: { code: 'LT1', name, category: 'LAPTOP', specs: {}, customFields: {} }, ...over,
+}) as HardwareRequestItem;
+
+function context(items: HardwareRequestItem[], over: { status?: string; signed?: { manager: boolean; gm: boolean }; route?: 'MANAGER' | null } = {}): FlowContext {
+    const status = over.status ?? 'UNDER_REVIEW';
+    return {
+        flow: { id: 'flow-1', ticketId: TID, kind: 'HARDWARE', route: over.route ?? null, managerId: 'mgr-1', gmId: 'gm-1', documentVersion: 2, returnedReason: null } as never,
+        ticket: { id: TID, ticketNumber: '221126-QC-0035', siteId: 'site-1' } as never,
+        kind: 'HARDWARE', requesterId: 'req-1', requesterName: 'Leony', number: 'HR-2026-0042',
+        hardware: { id: 'hr-1', requestNumber: 'HR-2026-0042', status, items } as never,
+        eform: null, signed: over.signed ?? { manager: false, gm: false }, phase: 'review', step: null, approverId: null,
+    };
+}
+
+function setup(ctx: FlowContext, schedules = 0) {
+    const manager = {
+        save: jest.fn(async (_e: unknown, v: unknown) => v),
+        create: jest.fn((_e: unknown, v: unknown) => v),
+        delete: jest.fn(async () => undefined),
+        count: jest.fn(async () => schedules),
+    };
+    const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)) };
+    const reader = { load: jest.fn(async () => ctx) };
+    const documents = { bump: jest.fn(async () => 3) };
+    const stepper = { tell: jest.fn(async () => undefined) };
+    const notifier = { tellUser: jest.fn(async () => undefined) };
+    const catalog = {
+        ensureActive: jest.fn(async (id: string) => ({ id, code: 'LT2', name: 'Laptop B', category: 'LAPTOP', defaultSpecs: { ram: '16' } })),
+        assertRequiredFields: jest.fn(),
+    };
+    const service = new RequestItemsService(dataSource as never, reader as never, stepper as never, documents as never, notifier as never, catalog as never);
+    return { service, manager, documents, stepper, notifier, catalog };
+}
+
+const edit = (items: EditItemsDto['items']): EditItemsDto => ({ items, reason: REASON });
+const savedRows = (manager: { save: jest.Mock }) =>
+    manager.save.mock.calls.filter(([entity]) => entity === HardwareRequestItem).flatMap(([, rows]) => rows as HardwareRequestItem[]);
+
+describe('RequestItemsService.edit', () => {
+    it('swapping an item records replaces and bumps the document', async () => {
+        const { service, manager, documents, stepper } = setup(context([unit('a', 'Laptop A')]));
+
+        const result = await service.edit(IT, TID, edit([{ existingItemIds: ['a'], catalogId: 'cat-2', quantity: 1, replacesName: 'Laptop A' }]));
+
+        const [row] = savedRows(manager);
+        expect(row).toMatchObject({ id: 'a', catalogId: 'cat-2', categorySnapshot: { name: 'Laptop B', code: 'LT2', replaces: 'Laptop A' } });
+        expect(documents.bump).toHaveBeenCalledWith('flow-1', 'GEN', 'Barang diubah oleh IT', 'it-1', manager);
+        expect(result).toEqual({ version: 3 });
+        expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            text: expect.stringContaining('RM Bagastyo mengubah barang'), reason: REASON,
+        }));
+        const text = (stepper.tell.mock.calls[0] as unknown as [unknown, { text: string }])[1].text;
+        expect(text).toContain('Sebelum: 1× Laptop A');
+        expect(text).toContain('Sesudah: 1× Laptop B');
+    });
+
+    it('refuses to remove an arrived unit', async () => {
+        const { service } = setup(context([unit('a', 'Laptop A', { deliveryStatus: 'ARRIVED' }), unit('b', 'Mouse')], { status: 'INSTALLATION' }));
+
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['b'], manualName: 'Mouse', quantity: 1 }])))
+            .rejects.toThrow(new ConflictException('Barang yang sudah tiba tidak bisa diubah'));
+    });
+
+    it('refuses to rename an arrived unit but lets its note change', async () => {
+        const arrived = unit('a', 'Laptop A', { deliveryStatus: 'ARRIVED' });
+        const { service, manager } = setup(context([arrived], { status: 'INSTALLATION' }));
+
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop Z', quantity: 1 }])))
+            .rejects.toThrow('Barang yang sudah tiba tidak bisa diubah');
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 1, note: 'Warna hitam' }]));
+        expect(savedRows(manager)[0]).toMatchObject({ id: 'a', notes: 'Warna hitam' });
+    });
+
+    it('adding a unit creates one row per unit', async () => {
+        const { service, manager } = setup(context([unit('a', 'Laptop A')]));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 3, recipientName: 'Budi' }]));
+
+        const rows = savedRows(manager);
+        expect(rows).toHaveLength(3);
+        const added = rows.filter((r) => !r.id);
+        expect(added).toHaveLength(2);
+        expect(added[0]).toMatchObject({
+            requestId: 'hr-1', quantity: 1, catalogId: null, deliveryStatus: 'PENDING', recipientName: 'Budi',
+            categorySnapshot: { code: null, name: 'Laptop A', category: 'OTHER', customFields: { recipientName: 'Budi' } },
+        });
+    });
+
+    it('removes units that are no longer asked for', async () => {
+        const { service, manager } = setup(context([unit('a', 'Laptop A'), unit('b', 'Laptop A'), unit('c', 'Mouse')]));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a', 'b'], manualName: 'Laptop A', quantity: 1 }]));
+
+        expect(manager.delete).toHaveBeenCalledWith(HardwareRequestItem, ['b', 'c']);
+    });
+
+    it('checks the catalog fields of a catalog item', async () => {
+        const { service, catalog } = setup(context([unit('a', 'Laptop A')]));
+
+        await service.edit(IT, TID, edit([{ catalogId: 'cat-2', quantity: 1, fields: { ram: '16' } }, { existingItemIds: ['a'], manualName: 'Laptop A', quantity: 1 }]));
+
+        expect(catalog.assertRequiredFields).toHaveBeenCalledWith(expect.objectContaining({ id: 'cat-2' }), { ram: '16' });
+    });
+
+    it('tells the approvers once someone has signed', async () => {
+        const { service, notifier } = setup(context([unit('a', 'Laptop A')], { status: 'UNDER_REVIEW', route: 'MANAGER', signed: { manager: true, gm: false } }));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], catalogId: 'cat-2', quantity: 1 }]));
+
+        expect(notifier.tellUser).toHaveBeenCalledWith(expect.anything(), 'mgr-1', expect.any(String), expect.stringContaining('221126-QC-0035'));
+        expect(notifier.tellUser).not.toHaveBeenCalledWith(expect.anything(), 'gm-1', expect.anything(), expect.anything());
+    });
+
+    it('does not bother approvers when nobody has signed', async () => {
+        const { service, notifier } = setup(context([unit('a', 'Laptop A')]));
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], catalogId: 'cat-2', quantity: 1 }]));
+        expect(notifier.tellUser).not.toHaveBeenCalled();
+    });
+
+    it('refuses once installation is under way, for e-forms, non-IT and an unknown unit', async () => {
+        const lines = [{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 2 }];
+        await expect(setup(context([unit('a', 'Laptop A')], { status: 'INSTALLATION' }), 1).service.edit(IT, TID, edit(lines))).rejects.toThrow(ConflictException);
+        await expect(setup(context([unit('a', 'Laptop A')], { status: 'AWAITING_USER_CONFIRMATION' })).service.edit(IT, TID, edit(lines))).rejects.toThrow(ConflictException);
+        await expect(setup({ ...context([]), hardware: null }).service.edit(IT, TID, edit(lines))).rejects.toThrow(ConflictException);
+        await expect(setup(context([unit('a', 'Laptop A')])).service.edit({ ...IT, role: UserRole.USER }, TID, edit(lines))).rejects.toThrow(ForbiddenException);
+        await expect(setup(context([unit('a', 'Laptop A')])).service.edit(IT, TID, edit([{ existingItemIds: ['zzz'], manualName: 'X', quantity: 1 }]))).rejects.toThrow(BadRequestException);
+    });
+
+    it('refuses extra units once the goods are bought', async () => {
+        const { service } = setup(context([unit('a', 'Laptop A', { procurementDecision: 'APPROVED' })], { status: 'AWAITING_DELIVERY' }));
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 2 }])))
+            .rejects.toThrow('Barang tidak bisa ditambah setelah pembelian');
+    });
+
+    it('a unit named by two lines is refused', async () => {
+        const { service } = setup(context([unit('a', 'Laptop A')]));
+        await expect(service.edit(IT, TID, edit([
+            { existingItemIds: ['a'], manualName: 'Laptop A', quantity: 1 }, { existingItemIds: ['a'], manualName: 'Laptop B', quantity: 1 },
+        ]))).rejects.toThrow(BadRequestException);
+    });
+});
+
+describe('RequestItemsService.edit: purchased units', () => {
+    const BOUGHT = 'Barang yang sudah dibeli tidak bisa diubah. Batalkan pembelian lewat IT terlebih dahulu.';
+    const bought = (id: string, over: Partial<HardwareRequestItem> = {}) =>
+        unit(id, 'Laptop A', { procurementDecision: 'APPROVED', vendor: 'CV Sinar', actualCost: '12400000.00', invoiceNumber: 'INV-1', ...over });
+
+    it('refuses to remove a purchased unit', async () => {
+        const { service, manager } = setup(context([bought('a'), unit('b', 'Mouse')], { status: 'PROCUREMENT' }));
+
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['b'], manualName: 'Mouse', quantity: 1 }])))
+            .rejects.toThrow(new ConflictException(BOUGHT));
+        expect(manager.delete).not.toHaveBeenCalled();
+    });
+
+    it('refuses to swap a purchased unit for another item', async () => {
+        const { service } = setup(context([bought('a')], { status: 'PROCUREMENT' }));
+
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['a'], catalogId: 'cat-2', quantity: 1, replacesName: 'Laptop A' }])))
+            .rejects.toThrow(new ConflictException(BOUGHT));
+    });
+
+    it('keeps the arrived copy for an arrived unit', async () => {
+        const { service } = setup(context([bought('a', { deliveryStatus: 'ARRIVED' })], { status: 'INSTALLATION' }));
+        await expect(service.edit(IT, TID, edit([{ catalogId: 'cat-2', quantity: 1 }]))).rejects.toThrow('Barang yang sudah tiba tidak bisa diubah');
+    });
+
+    it('lets a purchased unit change its note and fields and keeps its vendor, cost and invoice', async () => {
+        const { service, manager } = setup(context([bought('a')], { status: 'PROCUREMENT' }));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 1, note: 'Warna hitam', fields: { ram: '16' } }]));
+
+        expect(savedRows(manager)[0]).toMatchObject({
+            id: 'a', notes: 'Warna hitam', vendor: 'CV Sinar', actualCost: '12400000.00', invoiceNumber: 'INV-1', procurementDecision: 'APPROVED',
+            categorySnapshot: { name: 'Laptop A', customFields: { ram: '16' } },
+        });
+    });
+
+    it('lets the quantity of a purchased line grow with new pending units', async () => {
+        const { service, manager } = setup(context([bought('a')], { status: 'PROCUREMENT' }));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], manualName: 'Laptop A', quantity: 2 }]));
+
+        const rows = savedRows(manager);
+        expect(rows).toHaveLength(2);
+        expect(rows.find((r) => r.id === 'a')).toMatchObject({ procurementDecision: 'APPROVED' });
+        expect(rows.find((r) => !r.id)).toMatchObject({ deliveryStatus: 'PENDING' });
+    });
+
+    it('a reduction removes pending units before purchased ones, whatever order the ids came in', async () => {
+        const { service, manager } = setup(context([unit('p1', 'Laptop A'), bought('a'), unit('p2', 'Laptop A')], { status: 'PROCUREMENT' }));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['p1', 'a', 'p2'], manualName: 'Laptop A', quantity: 1 }]));
+
+        expect(savedRows(manager).map((r) => r.id)).toEqual(['a']);
+        expect(manager.delete).toHaveBeenCalledWith(HardwareRequestItem, ['p1', 'p2']);
+    });
+
+    it('a reduction keeps arrived units over purchased and pending ones', async () => {
+        const items = [unit('p', 'Laptop A'), bought('a', { deliveryStatus: 'ARRIVED' })];
+        const { service, manager } = setup(context(items, { status: 'INSTALLATION' }));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['p', 'a'], manualName: 'Laptop A', quantity: 1 }]));
+
+        expect(savedRows(manager).map((r) => r.id)).toEqual(['a']);
+        expect(manager.delete).toHaveBeenCalledWith(HardwareRequestItem, ['p']);
+    });
+
+    it('a reduction that would drop a purchased unit is refused', async () => {
+        const { service, manager } = setup(context([bought('a'), bought('b')], { status: 'PROCUREMENT' }));
+
+        await expect(service.edit(IT, TID, edit([{ existingItemIds: ['a', 'b'], manualName: 'Laptop A', quantity: 1 }])))
+            .rejects.toThrow(new ConflictException(BOUGHT));
+        expect(manager.delete).not.toHaveBeenCalled();
+    });
+
+    it('writes an activity row for the edit without signature data', async () => {
+        const { service, manager } = setup(context([unit('a', 'Laptop A')]));
+
+        await service.edit(IT, TID, edit([{ existingItemIds: ['a'], catalogId: 'cat-2', quantity: 1 }]));
+
+        const call = manager.save.mock.calls.find(([entity]) => entity === HardwareRequestActivity);
+        expect(call?.[1]).toMatchObject({
+            requestId: 'hr-1', actorId: 'it-1', action: 'UPDATED',
+            metadata: { change: 'ITEMS_EDITED', reason: REASON, before: '1× Laptop A', after: '1× Laptop B' },
+        });
+        expect(JSON.stringify(call?.[1])).not.toContain('signature');
+        expect((call?.[1] as { metadata: Record<string, unknown> }).metadata.step).toBeUndefined();
+    });
+});

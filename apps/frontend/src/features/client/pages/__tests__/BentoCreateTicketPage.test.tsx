@@ -98,9 +98,9 @@ describe('BentoCreateTicketPage catalogue', () => {
     it('hides Hardware & Budget card when user lacks pageAccess and never shows Lost Item Report', () => {
         renderPage();
         expect(screen.getByRole('heading', { name: 'Service Ticket' })).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Access Request' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'E-Form Request' })).toBeInTheDocument();
         expect(screen.queryByText('Lost Item Report')).not.toBeInTheDocument();
-        expect(screen.queryByText('Hardware & Budget')).not.toBeInTheDocument();
+        expect(screen.queryByText('Hardware Request')).not.toBeInTheDocument();
         expect(screen.queryByAltText('Maskot Pengadaan Hardware')).not.toBeInTheDocument();
     });
 
@@ -139,7 +139,7 @@ describe('BentoCreateTicketPage catalogue', () => {
         fireEvent.change(search, { target: { value: 'oracle' } });
         expect(screen.getByRole('heading', { name: 'Oracle / K2 Request' })).toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: 'Service Ticket' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('heading', { name: 'Access Request' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'E-Form Request' })).not.toBeInTheDocument();
 
         fireEvent.change(search, { target: { value: 'zzz-tidak-ada' } });
         expect(screen.getByText(/tidak ada jenis bantuan yang cocok/i)).toBeInTheDocument();
@@ -152,10 +152,12 @@ describe('BentoCreateTicketPage catalogue', () => {
         expect(document.getElementById('oracle-ticket-title')).toBeInTheDocument();
     });
 
-    it('navigates the Access Request card to the existing e-form route', () => {
+    it('the E-Form Request card opens the e-form form on this page, not another module', () => {
         renderPage();
-        fireEvent.click(screen.getByRole('button', { name: 'Pilih Access Request' }));
-        expect(screen.getByTestId('location')).toHaveTextContent('/client/eform-access/new');
+        fireEvent.click(screen.getByRole('button', { name: 'Pilih E-Form Request' }));
+        expect(screen.getByRole('heading', { level: 1, name: /E-Form Request/ })).toBeInTheDocument();
+        // The first numbered step of the e-form form is on screen: nothing navigated away.
+        expect(screen.getByText('Akses apa yang dibutuhkan?')).toBeInTheDocument();
     });
 });
 

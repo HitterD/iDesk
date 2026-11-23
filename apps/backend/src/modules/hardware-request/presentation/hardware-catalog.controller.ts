@@ -8,10 +8,11 @@ import {
     Patch,
     Post,
     Query,
+    Request,
     UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/infrastructure/guards/jwt-auth.guard';
-import { HardwareRoleGuard } from '../guards/hardware-role.guard';
+import { HardwareRoleGuard, pickRole } from '../guards/hardware-role.guard';
 import { HardwareRoles } from '../guards/roles.decorator';
 import { HardwareRole } from '../domain/enums/hardware-role.enum';
 import { HardwareCatalogService } from '../services/hardware-catalog.service';
@@ -25,8 +26,10 @@ export class HardwareCatalogController {
 
     // Any authenticated user can view the catalog (needed by request form).
     @Get()
-    async list(@Query('includeInactive') includeInactive?: string) {
-        const data = includeInactive === 'true'
+    async list(@Request() req: { user?: unknown }, @Query('includeInactive') includeInactive?: string) {
+        // Hidden items are for the catalog page of ICT staff; a requester never sees them, whatever the query says.
+        const wantsAll = includeInactive === 'true' && pickRole(req.user) === HardwareRole.ICT_STAFF;
+        const data = wantsAll
             ? await this.service.listAll()
             : await this.service.listActive();
         return { success: true, data };

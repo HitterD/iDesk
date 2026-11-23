@@ -1,3 +1,4 @@
+import { NotInEformFlowGuard } from './ticket-link/not-in-eform-flow.guard';
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -26,6 +27,7 @@ import { TicketEFormController } from './ticket-link/ticket-eform.controller';
 import { TicketEFormService } from './ticket-link/ticket-eform.service';
 import { TicketEFormLinkService } from './ticket-link/ticket-eform-link.service';
 import { TicketEFormSyncListener } from './ticket-link/ticket-eform-sync.listener';
+import { EFormFlowMembership } from './ticket-link/eform-flow-membership.service';
 
 @Module({
   imports: [
@@ -60,7 +62,9 @@ import { TicketEFormSyncListener } from './ticket-link/ticket-eform-sync.listene
     TicketEFormService,
     TicketEFormLinkService,
     TicketEFormSyncListener,
+    EFormFlowMembership,
+    NotInEformFlowGuard,
   ],
-  exports: [EFormRequestService, EFormPdfService, SynologyNasBrowseService],
+  exports: [EFormRequestService, EFormGmService, EFormPdfService, SynologyNasBrowseService, EFormCredentialService],
 })
 export class EFormRequestModule {}

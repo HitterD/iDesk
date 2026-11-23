@@ -14,8 +14,16 @@ describe('getRoleDefaultPageAccess', () => {
     it('gives USER the standard pages without zoom_calendar', () => {
         const access = getRoleDefaultPageAccess('USER');
         expect(access.tickets).toBe(true);
-        expect(access.eform_access).toBe(true);
+        // Hardware and E-Form requests are tickets now: requesters have no page of their own for them.
+        expect(access.eform_access).toBeUndefined();
+        expect(access.hardware_requests).toBeUndefined();
+        expect(access.devices_access).toBeUndefined();
         expect(access.zoom_calendar).toBeUndefined();
+    });
+
+    it('gives IT staff roles the Perangkat & Akses page; managers and requesters do not get it', () => {
+        expect(getRoleDefaultPageAccess('AGENT').devices_access).toBe(true);
+        expect(getRoleDefaultPageAccess('MANAGER').devices_access).toBeUndefined();
     });
 
     it('limits developer agents to their own dashboard, request queues and team reports', () => {

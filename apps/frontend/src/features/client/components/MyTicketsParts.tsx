@@ -8,6 +8,8 @@ import { CLIENT_ROUTES } from '@/config/routes';
 import { format, isThisYear, isYesterday } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { RequestTypeTag } from '@/features/ticket-board/components/request-flow/RequestTypeTag';
+import { FlowPhaseLine } from '@/features/ticket-board/components/request-flow/FlowPhaseLine';
 
 export interface MyTicketItem {
     id: string;
@@ -17,6 +19,11 @@ export interface MyTicketItem {
     priority: string;
     category?: string;
     ticketType?: string;
+    /** Set on Hardware / E-Form request tickets (GET /tickets/paginated). */
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhaseLabel?: string | null;
+    flowPaused?: boolean;
+    needsMyAction?: boolean;
     createdAt: string;
     updatedAt: string;
     hasUnreadChat?: boolean;
@@ -139,11 +146,15 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
     const number = ticket.ticketNumber || ticket.id.slice(0, SHORT_ID_LENGTH);
 
     const statusPill = (
-        <TicketPill tone={statusTone}>
-            {/* Mockup requester rows: status dot, not an icon. */}
-            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />
-            {statusConfig.label}
-        </TicketPill>
+        <span className="flex flex-col items-start gap-1">
+            <TicketPill tone={statusTone}>
+                {/* Mockup requester rows: status dot, not an icon. */}
+                <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />
+                {statusConfig.label}
+            </TicketPill>
+            <FlowPhaseLine ticket={{ ...ticket, flowPhase: ticket.flowPhaseLabel }} />
+            {ticket.needsMyAction && <span className="req-turn req-turn--mine">Perlu tindakan Anda</span>}
+        </span>
     );
     const priorityPill = (
         <TicketPill tone={priorityTone} title={priorityConfig.label}>
@@ -155,7 +166,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
     const meta = (
         <>
             <span>#{number}</span>
-            {ticket.category && <span className="queue-src">{ticket.category}</span>}
+            {ticket.requestKind && <RequestTypeTag kind={ticket.requestKind} />}
+            {ticket.category && !ticket.requestKind && <span className="queue-src">{ticket.category}</span>}
             {ticket.isParticipant && (
                 <TicketPill tone="navy" className="!min-h-5 !py-0 !px-2 !text-[11px]">
                     <Users className="w-3 h-3" aria-hidden="true" />

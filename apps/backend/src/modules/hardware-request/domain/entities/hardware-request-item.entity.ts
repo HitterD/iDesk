@@ -32,7 +32,8 @@ export class HardwareRequestItem {
 
     @Column({ type: 'jsonb' })
     categorySnapshot: {
-        code: string;
+        /** Null for an item written by hand (not from the catalog). */
+        code: string | null;
         name: string;
         category: string;
         specs: Record<string, unknown>;
@@ -56,6 +57,10 @@ export class HardwareRequestItem {
 
     @Column({ type: 'text', nullable: true })
     notes: string | null;
+
+    /** Who this unit is for (a unified-flow request); older rows keep it in `categorySnapshot.customFields.recipientName`. */
+    @Column({ name: 'recipient_name', type: 'varchar', length: 120, nullable: true })
+    recipientName: string | null;
 
     @Column({
         type: 'varchar',

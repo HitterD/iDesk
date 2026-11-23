@@ -10,6 +10,10 @@ import { Logger } from '@nestjs/common';
  * - Provides structured logging format
  * - Configurable via environment variables
  */
+/** Tables whose query parameters are secrets (encrypted credentials): never logged, in any environment. */
+const SECRET_TABLES = /eform_credentials/i;
+const HIDDEN = '[hidden]';
+
 export class CustomTypeOrmLogger implements TypeOrmLogger {
     private readonly logger = new Logger('TypeORM');
 
@@ -40,7 +44,7 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
             durationMs: time,
             threshold: this.slowQueryThreshold,
             query: this.truncateQuery(query),
-            parameters: this.isProduction ? '[hidden]' : parameters,
+            parameters: this.visibleParameters(query, parameters),
         });
     }
 
@@ -54,7 +58,7 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
             message: 'QUERY_ERROR',
             error: errorMessage,
             query: this.truncateQuery(query),
-            parameters: this.isProduction ? '[hidden]' : parameters,
+            parameters: this.visibleParameters(query, parameters),
         });
     }
 
@@ -90,6 +94,10 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
         }
     }
 
+    private visibleParameters(query: string, parameters?: any[]): any[] | string | undefined {
+        return this.isProduction || SECRET_TABLES.test(query) ? HIDDEN : parameters;
+    }
+
     /**
      * Truncate long queries for logging
      */
@@ -108,6 +116,6 @@ export class CustomTypeOrmLogger implements TypeOrmLogger {
         if (!parameters || parameters.length === 0) {
             return query;
         }
-        return `${this.truncateQuery(query)} -- params: ${JSON.stringify(parameters)}`;
+        return `${this.truncateQuery(query)} -- params: ${JSON.stringify(this.visibleParameters(query, parameters))}`;
     }
 }

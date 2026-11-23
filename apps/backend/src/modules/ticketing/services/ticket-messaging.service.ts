@@ -9,7 +9,7 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { TicketRepliedEvent } from '../events/ticket-replied.event';
-import { resolveTicketViewerAccess } from './ticket-oracle-access';
+import { isRequestFlowApprover, resolveTicketViewerAccessWithFlow } from './ticket-oracle-access';
 import { canAccessTicketObject, isTicketRequesterSide } from '../utils/oracle-ticket-access.util';
 import { canAccessTicketSite } from '../utils/site-access.util';
 import { TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
@@ -71,7 +71,7 @@ export class TicketMessagingService {
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         const access = userRole
-            ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
+            ? await resolveTicketViewerAccessWithFlow(ticket, { id: userId, role: userRole, siteId: userSiteId }, this.ticketRepo.manager)
             : 'handler';
 
         const messages = await this.messageRepo.find({
@@ -109,7 +109,7 @@ export class TicketMessagingService {
         });
         if (!ticket) throw new NotFoundException('Ticket not found');
         const access = userRole
-            ? resolveTicketViewerAccess(ticket, { id: userId, role: userRole, siteId: userSiteId })
+            ? await resolveTicketViewerAccessWithFlow(ticket, { id: userId, role: userRole, siteId: userSiteId }, this.ticketRepo.manager)
             : 'handler';
 
         const safePage = Math.max(1, Math.trunc(Number(page)) || 1);
@@ -203,7 +203,7 @@ export class TicketMessagingService {
             if (!user) {
                 throw new NotFoundException('User not found');
             }
-            const access = resolveTicketViewerAccess(ticket, user);
+            const access = await resolveTicketViewerAccessWithFlow(ticket, user, manager);
             // The requester side chats like a requester: no internal notes and no
             // handler effects (first response, start of work), even when staff.
             if (access === 'requester' && isInternal) {
@@ -375,8 +375,9 @@ export class TicketMessagingService {
             select: ['id', 'userId', 'createdById', 'handlingTeam', 'category', 'ticketType', 'siteId'],
         });
         if (!ticket) return;
-        const isRequesterStaff = isTicketRequesterSide(userId, ticket);
         const isHandler = canAccessTicketObject({ role }, ticket) && canAccessTicketSite(role as UserRole, userSiteId, ticket.siteId);
+        // The approver of a request flow reads like a requester, wherever the ticket is.
+        const isRequesterStaff = isTicketRequesterSide(userId, ticket) || (!isHandler && await isRequestFlowApprover(this.ticketRepo.manager, ticketId, userId));
         const updateData = {
             ...(isHandler || !isRequesterStaff ? { agentLastReadAt: now } : {}),
             ...(isRequesterStaff ? { userLastReadAt: now } : {}),

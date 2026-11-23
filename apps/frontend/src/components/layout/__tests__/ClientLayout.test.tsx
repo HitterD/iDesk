@@ -1,4 +1,4 @@
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from '../ClientLayout';
@@ -21,7 +21,13 @@ vi.mock('@/features/client/components/UserGuidebookModal', () => ({ UserGuideboo
 vi.mock('@/features/csi/components/CsiStartupPopup', () => ({ CsiStartupPopup: () => null }));
 vi.mock('@/components/notifications/InAppNotificationToast', () => ({ InAppNotificationToast: () => null }));
 vi.mock('@/components/notifications/ActionCommandCenter', () => ({ ActionCommandCenter: () => null }));
-vi.mock('../ClientTopbar', () => ({ ClientTopbar: () => <header data-testid="client-topbar" /> }));
+let approvalsWaiting = 0;
+vi.mock('@/features/client/pages/ApprovalsPage', () => ({ useApprovals: () => ({ data: Array.from({ length: approvalsWaiting }, (_, i) => ({ ticketId: `t-${i}` })) }) }));
+vi.mock('../ClientTopbar', () => ({
+    ClientTopbar: ({ navItems }: { navItems: Array<{ path: string; label: string; badge?: number }> }) => (
+        <header data-testid="client-topbar">{navItems.map((item) => <a key={item.path} href={item.path}>{item.label}{item.badge ? ` (${item.badge})` : ''}</a>)}</header>
+    ),
+}));
 vi.mock('../ClientBottomNav', () => ({ ClientBottomNav: () => <nav data-testid="client-bottom-nav" /> }));
 
 afterEach(cleanup);
@@ -45,5 +51,29 @@ describe('ClientLayout', () => {
         expect(sheet).toHaveClass('overflow-clip');
         expect(scrollToSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' });
         scrollToSpy.mockRestore();
+    });
+
+    const renderAt = (path = '/client/my-tickets') => render(
+        <MemoryRouter initialEntries={[path]}>
+            <Routes><Route element={<ClientLayout />}><Route path="*" element={<div>Halaman</div>} /></Route></Routes>
+        </MemoryRouter>,
+    );
+
+    it('the old Hardware and E-Form menu items are gone: those requests live in My Tickets now', () => {
+        approvalsWaiting = 0;
+        renderAt();
+        expect(screen.queryByText('Hardware Requests')).toBeNull();
+        expect(screen.queryByText('E-Form Access')).toBeNull();
+        expect(screen.getByText('My Tickets')).toBeInTheDocument();
+    });
+
+    it('"Persetujuan" appears, with how many wait, only when something waits for my signature', () => {
+        approvalsWaiting = 0;
+        const { unmount } = renderAt();
+        expect(screen.queryByText(/Persetujuan/)).toBeNull();
+        unmount();
+        approvalsWaiting = 3;
+        renderAt();
+        expect(screen.getByText('Persetujuan (3)')).toHaveAttribute('href', '/client/approvals');
     });
 });

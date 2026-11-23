@@ -25,6 +25,7 @@ import { useTicketListSocket } from '@/hooks/useTicketSocket';
 import { useSocket } from '@/lib/socket';
 import { toast } from 'sonner';
 import { useAuth } from '@/stores/useAuth';
+import { ActiveAccessCard, type ActiveAccess } from '../components/ActiveAccessCard';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { CLIENT_ROUTES } from '@/config/routes';
 import { CsiPendingCard } from '@/features/csi/components/CsiPendingCard';
@@ -78,9 +79,21 @@ export const BentoMyTicketsPage: React.FC = () => {
     return <BentoMyTicketsContent key={initialSearch} initialSearch={initialSearch} />;
 };
 
+const KIND_FILTER_OPTIONS = [
+    { value: 'all', label: 'Semua' },
+    { value: 'IT', label: 'IT Support' },
+    { value: 'HARDWARE', label: 'Hardware' },
+    { value: 'EFORM', label: 'E-Form' },
+] as const;
+
 const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSearch }) => {
     const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [searchParams] = useSearchParams();
+    const [kindFilter, setKindFilter] = useState<'all' | 'IT' | 'HARDWARE' | 'EFORM'>(() => {
+        const wanted = searchParams.get('kind');
+        return wanted === 'IT' || wanted === 'HARDWARE' || wanted === 'EFORM' ? wanted : 'all';
+    });
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
     const navigate = useNavigate();
@@ -145,6 +158,13 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
         staleTime: 20_000,
     });
 
+    // The requester's active accesses (end date, days left, renewal) sit above the list.
+    const { data: activeAccess } = useQuery<ActiveAccess[]>({
+        queryKey: ['request-flow', 'my-access'],
+        queryFn: async () => ((await api.get('/request-flow/my-access')).data ?? []) as ActiveAccess[],
+        staleTime: 60_000,
+    });
+
     const queryParams = new URLSearchParams();
     queryParams.set('page', page.toString());
     queryParams.set('limit', limit.toString());
@@ -152,6 +172,7 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
     queryParams.set('sortOrder', 'DESC');
     if (debouncedSearch) queryParams.set('search', debouncedSearch);
     if (statusFilter !== 'all') queryParams.set('status', statusFilter);
+    if (kindFilter !== 'all') queryParams.set('requestKind', kindFilter);
 
     // Main paginated query
     const {
@@ -161,7 +182,7 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
         isError,
         refetch,
     } = useQuery<PaginatedResponse>({
-        queryKey: ['tickets', 'my-tickets', page, limit, debouncedSearch, statusFilter],
+        queryKey: ['tickets', 'my-tickets', page, limit, debouncedSearch, statusFilter, kindFilter],
         queryFn: async () => {
             const res = await api.get(`/tickets/paginated?${queryParams.toString()}`);
             return res.data;
@@ -195,7 +216,7 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
         setPage(1);
     };
 
-    const hasActiveFilters = Boolean(searchQuery || statusFilter !== 'all');
+    const hasActiveFilters = Boolean(searchQuery || statusFilter !== 'all' || kindFilter !== 'all');
 
     if (isLoading && !response) {
         return (
@@ -270,6 +291,17 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
                 </button>
             </div>
 
+            {(activeAccess ?? []).length > 0 && (
+                <section aria-label="Akses aktif" className="space-y-2">
+                    <h2 className="text-sm font-bold">Akses aktif</h2>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        {(activeAccess ?? []).map((access) => (
+                            <ActiveAccessCard key={access.eformId} access={access} onRenew={(ticketId) => navigate(`/client/create?type=eform&renewFrom=${ticketId}`)} />
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <CsiPendingCard />
 
             <HelpBanner />
@@ -320,7 +352,13 @@ const BentoMyTicketsContent: React.FC<{ initialSearch: string }> = ({ initialSea
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <SegmentedControl
+                        aria-label="Filter tipe tiket"
+                        options={KIND_FILTER_OPTIONS}
+                        value={kindFilter}
+                        onValueChange={(value) => { setKindFilter(value as typeof kindFilter); setPage(1); }}
+                    />
                     <SegmentedControl
                         aria-label="Filter status tiket"
                         options={STATUS_FILTER_OPTIONS}

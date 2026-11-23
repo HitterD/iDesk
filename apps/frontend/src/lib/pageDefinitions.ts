@@ -27,6 +27,8 @@ export const AGENT_PAGES: PageDefinition[] = [
     { key: 'tickets', name: 'IT Support Tickets', icon: 'Ticket', route: '/tickets' },
     { key: 'hardware_requests', name: 'Hardware Requests', icon: 'MonitorSmartphone', route: '/hardware-requests' },
     { key: 'eform_access', name: 'E-Form Access', icon: 'FileText', route: '/eform-access' },
+    // Replaces the two above once the page access data is migrated (Task 14).
+    { key: 'devices_access', name: 'Perangkat & Akses', icon: 'Package', route: '/devices-access' },
     { key: 'zoom_calendar', name: 'Zoom Management', icon: 'Video', route: '/zoom-calendar' },
     { key: 'knowledge_base', name: 'KB Management', icon: 'BookOpen', route: '/kb' },
     { key: 'notifications', name: 'Notifications', icon: 'Bell', route: '/notifications' },

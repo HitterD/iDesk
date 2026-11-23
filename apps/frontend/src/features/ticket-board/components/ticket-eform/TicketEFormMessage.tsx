@@ -61,11 +61,4 @@ function LinkedEForms({ requests: shown }: { requests: TicketEFormRequest[] }) {
     );
 }
 
-const PROPOSABLE_TEAMS = new Set([undefined, null, '', 'OPS_SUPPORT']);
-const FINISHED = new Set(['RESOLVED', 'CLOSED', 'CANCELLED']);
-/** Same roles as the backend's EFORM_PROPOSER_ROLES. */
-const PROPOSER_ROLES = new Set(['ADMIN', 'AGENT_ADMIN', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT']);
 
-/** IT can propose e-form access from an open IT support ticket. */
-export const canProposeEForm = (ticket: { handlingTeam?: string | null; status: string }, isAgentView: boolean, role?: string) =>
-    isAgentView && Boolean(role && PROPOSER_ROLES.has(role)) && PROPOSABLE_TEAMS.has(ticket.handlingTeam ?? undefined) && !FINISHED.has(ticket.status);

@@ -48,6 +48,7 @@ describe('TicketMessagingService Oracle scope', () => {
             findOne: jest.fn()
                 .mockResolvedValueOnce({ id: 'standard', category: 'GENERAL', ticketType: TicketType.SERVICE })
                 .mockResolvedValueOnce({ id: 'oracle-1', role: UserRole.AGENT_ORACLE }),
+            query: jest.fn().mockResolvedValue([]),
         };
         const dataSource = { transaction: jest.fn((callback) => callback(manager)) };
         const service = new TicketMessagingService(

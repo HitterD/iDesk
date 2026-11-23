@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial, MoreThanOrEqual } from 'typeorm';
+import { Repository, DeepPartial, EntityManager, MoreThanOrEqual } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { Ticket, TicketStatus, TicketSource, TicketPriority, TicketType, HandlingTeam } from '../entities/ticket.entity';
@@ -29,6 +29,9 @@ export interface ExternalTicketRef {
 }
 
 import type { RequesterDeviceSnapshot } from '../requester-device/requester-device.service';
+
+/** Writes a new ticket's opening records inside its creation transaction (see `createTicketWithin`). */
+export type TicketFill = (manager: EntityManager, ticket: Ticket, requester: User) => Promise<void>;
 
 @Injectable()
 export class TicketCreateService {
@@ -78,6 +81,36 @@ export class TicketCreateService {
         /** Resolves where the request came from, given the final requester; web submissions only. */
         requesterDevice?: (requesterId: string) => Promise<RequesterDeviceSnapshot | null>,
     ): Promise<Ticket> {
+        // The opening report (description + attachments) is the requester's, even when an
+        // agent files on their behalf; who filed it is kept in createdById.
+        return this.create(userId, createTicketDto, async (manager, savedTicket, user) => {
+            const message = this.messageRepo.create({
+                content: createTicketDto.description,
+                ticket: savedTicket,
+                senderId: user.id,
+                attachments: files,
+                attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
+            });
+            await manager.save(message);
+        }, external, requesterDevice);
+    }
+
+    /**
+     * Creates a ticket whose opening records are the caller's: `fill` runs in the ticket's transaction right after the
+     * ticket is saved (with its number), so the ticket and those records commit or roll back together. No opening
+     * message is written. Events, audit and auto-assign follow the commit exactly as for `createTicket`.
+     */
+    async createTicketWithin(userId: string, createTicketDto: CreateTicketDto, fill: TicketFill): Promise<Ticket> {
+        return this.create(userId, createTicketDto, fill);
+    }
+
+    private async create(
+        userId: string,
+        createTicketDto: CreateTicketDto,
+        fill: TicketFill,
+        external?: ExternalTicketRef,
+        requesterDevice?: (requesterId: string) => Promise<RequesterDeviceSnapshot | null>,
+    ): Promise<Ticket> {
         try {
             const creator = await this.userRepo.findOne({
                 where: { id: userId },
@@ -89,67 +122,10 @@ export class TicketCreateService {
             // Anyone may submit to any team (handling stays with that team);
             // the filer keeps requester-level access via userId/createdById.
             const user = await this.resolveRequester(creator, createTicketDto.requesterId);
-            const handlingTeam = resolveInitialHandlingTeam(
-                createTicketDto.category,
-                createTicketDto.ticketType,
-            );
-
-            const ticket = this.ticketRepo.create({
-                title: createTicketDto.title,
-                description: createTicketDto.description,
-                priority: createTicketDto.priority,
-                category: createTicketDto.category || 'GENERAL',
-                ticketType: createTicketDto.ticketType || TicketType.SERVICE,
-                handlingTeam,
-                source: createTicketDto.source || TicketSource.WEB,
-                device: createTicketDto.device,
-                software: createTicketDto.software,
-                user,
-                createdById: external?.filedById && external.filedById !== user.id ? external.filedById : creator.id === user.id ? null : creator.id,
-                status: TicketStatus.TODO,
-                // The site that handles the requester's site (Sukodono → Sepanjang); routing, auto-assign
-                // and notifications all follow it. The requester keeps access as the ticket's owner.
-                siteId: await this.handlingSite.handlingSiteId(user.siteId),
-                criticalReason: createTicketDto.criticalReason || null,
-                externalSource: external?.source ?? null,
-                externalRef: external?.ref ?? null,
-                ...(requesterDevice ? await requesterDevice(user.id) : null),
-            } as DeepPartial<Ticket>);
+            const ticket = await this.buildTicket(creator, user, createTicketDto, external, requesterDevice);
 
             const date = new Date();
             const division = departmentDivision(user.department, 'GEN');
-
-            // === Hardware Installation: Special Handling ===
-            const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
-                createTicketDto.isHardwareInstallation === true;
-
-            if (isHardwareInstallation) {
-                // Auto-set priority to HARDWARE_INSTALLATION
-                ticket.priority = TicketPriority.HARDWARE_INSTALLATION;
-                ticket.ticketType = TicketType.HARDWARE_INSTALLATION;
-                ticket.isHardwareInstallation = true;
-                ticket.scheduledDate = createTicketDto.scheduledDate ? new Date(createTicketDto.scheduledDate) : null;
-                ticket.scheduledTime = createTicketDto.scheduledTime || null;
-                ticket.hardwareType = createTicketDto.hardwareType || null;
-                ticket.userAcknowledged = createTicketDto.userAcknowledged || false;
-
-                // Hardware installation tickets: SLA is based on scheduled date, not creation time
-                // SLA Target = scheduled date + 1 day (auto-resolve H+1)
-                if (ticket.scheduledDate) {
-                    ticket.slaTarget = await this.slaClock.hardwareTarget(ticket.scheduledDate);
-                }
-                ticket.slaStartedAt = new Date();
-                ticket.firstResponseTarget = null; // No first response SLA for hardware installation
-            } else {
-                // === Standard SLA Logic ===
-                const priority = createTicketDto.priority || 'MEDIUM';
-                // First Response Target - counts from creation (or the next working hour)
-                ticket.firstResponseTarget = await this.slaClock.firstResponseTarget(priority);
-
-                // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
-                ticket.slaStartedAt = null;
-                ticket.slaTarget = null;
-            }
 
             // Wrap in transaction (M7: multiple-write ops)
             const finalTicket = await withTicketNumberRetry(this.logger, () => this.ticketRepo.manager.transaction(async (manager) => {
@@ -160,108 +136,169 @@ export class TicketCreateService {
                 ticket.ticketNumber = await generateNextTicketNumber(manager, division, date);
 
                 const savedTicket = await manager.save(ticket);
-
-                // The opening report (description + attachments) is the requester's, even when an
-                // agent files on their behalf; who filed it is kept in createdById.
-                const message = this.messageRepo.create({
-                    content: createTicketDto.description,
-                    ticket: savedTicket,
-                    senderId: user.id,
-                    attachments: files,
-                    attachmentInfo: attachmentInfo.length > 0 ? attachmentInfo : null,
-                });
-                await manager.save(message);
-
+                await fill(manager, savedTicket, user);
                 return savedTicket;
             })); // End of transaction
 
-            // Domain events + audit fire AFTER commit: listeners must only react
-            // to a ticket that actually persisted (no phantom notifications on rollback).
-            const createdEvent = new TicketCreatedEvent(
-                finalTicket.id,
-                finalTicket.ticketNumber,
-                finalTicket.title,
-                finalTicket.priority,
-                finalTicket.category,
-                finalTicket.status,
-                user.id,
-                user.fullName,
-                user.email,
-                finalTicket.createdAt,
-                finalTicket.siteId,
-                finalTicket.ticketType,
-                finalTicket.createdById ?? null,
-            );
-            this.eventEmitter.emit('ticket.created', createdEvent);
-
-            // Audit log for ticket creation
-            this.auditService.logAsync({
-                userId,
-                action: AuditAction.CREATE_TICKET,
-                entityType: 'ticket',
-                entityId: finalTicket.id,
-                newValue: { ticketNumber: finalTicket.ticketNumber, title: finalTicket.title, priority: finalTicket.priority, category: finalTicket.category },
-                description: `Ticket #${finalTicket.ticketNumber} created: ${finalTicket.title}`,
-            });
-
-            // Site-isolated real-time fan-out (outside transaction, after commit)
-            this.eventsGateway.notifyDashboardStatsUpdate((finalTicket as any).siteId ?? null);
-            this.eventsGateway.notifyNewTicket({
-                id: finalTicket.id,
-                ticketNumber: finalTicket.ticketNumber,
-                title: finalTicket.title,
-                status: finalTicket.status,
-                priority: finalTicket.priority,
-                category: finalTicket.category,
-                siteId: (finalTicket as any).siteId ?? null,
-                user: {
-                    id: user.id,
-                    fullName: user.fullName,
-                    email: user.email,
-                },
-                createdAt: finalTicket.createdAt,
-            });
-            if ((finalTicket as any).siteId) {
-                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (finalTicket as any).siteId });
-            }
-
-            // === Auto-Assignment: Assign to agent with lowest workload ===
-            // The per-module guard lives in WorkloadService.autoAssignTicket, so
-            // this path cannot disagree with forward / SLA breach / the manual
-            // API about which tickets may be auto-assigned. A disabled module
-            // simply returns a BadRequest, which is caught and logged below.
-            if (!(createTicketDto as any).assignedToId && finalTicket.siteId) {
-                try {
-                    const assignedTicket = await this.workloadService.autoAssignTicket(finalTicket.id);
-                    if (assignedTicket.assignedTo) {
-                        this.logger.log(
-                            `✅ Ticket ${finalTicket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
-                        );
-                        // Update local ticket reference with assignment
-                        finalTicket.assignedToId = assignedTicket.assignedToId;
-                        finalTicket.assignedTo = assignedTicket.assignedTo;
-                    }
-                } catch (autoAssignError) {
-                    // Don't fail ticket creation if auto-assign is disabled or
-                    // no eligible agent is available — the ticket stays visibly
-                    // unassigned instead.
-                    this.logger.warn(
-                        `⚠️ Auto-assign skipped for ticket ${finalTicket.ticketNumber}: ${autoAssignError.message}`
-                    );
-                }
-            }
-
-            // Team notice once routing is known: an auto-assigned ticket already has its PIC ("Ditugaskan"),
-            // so the team is told only about tickets still waiting for someone.
-            this.eventEmitter.emit(TICKET_ROUTED_EVENT, {
-                created: createdEvent,
-                assignedToId: finalTicket.assignedToId ?? null,
-            } satisfies TicketRoutedPayload);
-
+            await this.announce(userId, user, finalTicket, createTicketDto);
             return finalTicket;
         } catch (error) {
             this.logger.error(`Error creating ticket: ${error.message}`, error.stack);
             throw error;
         }
+    }
+
+    private async buildTicket(
+        creator: User,
+        user: User,
+        createTicketDto: CreateTicketDto,
+        external?: ExternalTicketRef,
+        requesterDevice?: (requesterId: string) => Promise<RequesterDeviceSnapshot | null>,
+    ): Promise<Ticket> {
+        const handlingTeam = resolveInitialHandlingTeam(
+            createTicketDto.category,
+            createTicketDto.ticketType,
+        );
+
+        const ticket = this.ticketRepo.create({
+            title: createTicketDto.title,
+            description: createTicketDto.description,
+            priority: createTicketDto.priority,
+            category: createTicketDto.category || 'GENERAL',
+            ticketType: createTicketDto.ticketType || TicketType.SERVICE,
+            handlingTeam,
+            source: createTicketDto.source || TicketSource.WEB,
+            device: createTicketDto.device,
+            software: createTicketDto.software,
+            user,
+            createdById: external?.filedById && external.filedById !== user.id ? external.filedById : creator.id === user.id ? null : creator.id,
+            status: TicketStatus.TODO,
+            // The site that handles the requester's site (Sukodono → Sepanjang); routing, auto-assign
+            // and notifications all follow it. The requester keeps access as the ticket's owner.
+            siteId: await this.handlingSite.handlingSiteId(user.siteId),
+            criticalReason: createTicketDto.criticalReason || null,
+            externalSource: external?.source ?? null,
+            externalRef: external?.ref ?? null,
+            ...(requesterDevice ? await requesterDevice(user.id) : null),
+        } as DeepPartial<Ticket>);
+
+        // === Hardware Installation: Special Handling ===
+        const isHardwareInstallation = createTicketDto.category === 'HARDWARE_INSTALLATION' ||
+            createTicketDto.isHardwareInstallation === true;
+
+        if (isHardwareInstallation) {
+            // Auto-set priority to HARDWARE_INSTALLATION
+            ticket.priority = TicketPriority.HARDWARE_INSTALLATION;
+            ticket.ticketType = TicketType.HARDWARE_INSTALLATION;
+            ticket.isHardwareInstallation = true;
+            ticket.scheduledDate = createTicketDto.scheduledDate ? new Date(createTicketDto.scheduledDate) : null;
+            ticket.scheduledTime = createTicketDto.scheduledTime || null;
+            ticket.hardwareType = createTicketDto.hardwareType || null;
+            ticket.userAcknowledged = createTicketDto.userAcknowledged || false;
+
+            // Hardware installation tickets: SLA is based on scheduled date, not creation time
+            // SLA Target = scheduled date + 1 day (auto-resolve H+1)
+            if (ticket.scheduledDate) {
+                ticket.slaTarget = await this.slaClock.hardwareTarget(ticket.scheduledDate);
+            }
+            ticket.slaStartedAt = new Date();
+            ticket.firstResponseTarget = null; // No first response SLA for hardware installation
+        } else {
+            // === Standard SLA Logic ===
+            const priority = createTicketDto.priority || 'MEDIUM';
+            // First Response Target - counts from creation (or the next working hour)
+            ticket.firstResponseTarget = await this.slaClock.firstResponseTarget(priority);
+
+            // Resolution SLA will only start when agent picks up the ticket (status -> IN_PROGRESS)
+            ticket.slaStartedAt = null;
+            ticket.slaTarget = null;
+        }
+        return ticket;
+    }
+
+    /** Events, audit, real-time fan-out and auto-assign; only for a ticket that actually committed. */
+    private async announce(userId: string, user: User, finalTicket: Ticket, createTicketDto: CreateTicketDto): Promise<void> {
+        // Domain events + audit fire AFTER commit: listeners must only react
+        // to a ticket that actually persisted (no phantom notifications on rollback).
+        const createdEvent = new TicketCreatedEvent(
+            finalTicket.id,
+            finalTicket.ticketNumber,
+            finalTicket.title,
+            finalTicket.priority,
+            finalTicket.category,
+            finalTicket.status,
+            user.id,
+            user.fullName,
+            user.email,
+            finalTicket.createdAt,
+            finalTicket.siteId,
+            finalTicket.ticketType,
+            finalTicket.createdById ?? null,
+        );
+        this.eventEmitter.emit('ticket.created', createdEvent);
+
+        // Audit log for ticket creation
+        this.auditService.logAsync({
+            userId,
+            action: AuditAction.CREATE_TICKET,
+            entityType: 'ticket',
+            entityId: finalTicket.id,
+            newValue: { ticketNumber: finalTicket.ticketNumber, title: finalTicket.title, priority: finalTicket.priority, category: finalTicket.category },
+            description: `Ticket #${finalTicket.ticketNumber} created: ${finalTicket.title}`,
+        });
+
+        // Site-isolated real-time fan-out (outside transaction, after commit)
+        this.eventsGateway.notifyDashboardStatsUpdate((finalTicket as any).siteId ?? null);
+        this.eventsGateway.notifyNewTicket({
+            id: finalTicket.id,
+            ticketNumber: finalTicket.ticketNumber,
+            title: finalTicket.title,
+            status: finalTicket.status,
+            priority: finalTicket.priority,
+            category: finalTicket.category,
+            siteId: (finalTicket as any).siteId ?? null,
+            user: {
+                id: user.id,
+                fullName: user.fullName,
+                email: user.email,
+            },
+            createdAt: finalTicket.createdAt,
+        });
+        if ((finalTicket as any).siteId) {
+            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: (finalTicket as any).siteId });
+        }
+
+        // === Auto-Assignment: Assign to agent with lowest workload ===
+        // The per-module guard lives in WorkloadService.autoAssignTicket, so
+        // this path cannot disagree with forward / SLA breach / the manual
+        // API about which tickets may be auto-assigned. A disabled module
+        // simply returns a BadRequest, which is caught and logged below.
+        if (!(createTicketDto as any).assignedToId && finalTicket.siteId) {
+            try {
+                const assignedTicket = await this.workloadService.autoAssignTicket(finalTicket.id);
+                if (assignedTicket.assignedTo) {
+                    this.logger.log(
+                        `✅ Ticket ${finalTicket.ticketNumber} auto-assigned to ${assignedTicket.assignedTo.fullName}`
+                    );
+                    // Update local ticket reference with assignment
+                    finalTicket.assignedToId = assignedTicket.assignedToId;
+                    finalTicket.assignedTo = assignedTicket.assignedTo;
+                }
+            } catch (autoAssignError) {
+                // Don't fail ticket creation if auto-assign is disabled or
+                // no eligible agent is available — the ticket stays visibly
+                // unassigned instead.
+                this.logger.warn(
+                    `⚠️ Auto-assign skipped for ticket ${finalTicket.ticketNumber}: ${autoAssignError.message}`
+                );
+            }
+        }
+
+        // Team notice once routing is known: an auto-assigned ticket already has its PIC ("Ditugaskan"),
+        // so the team is told only about tickets still waiting for someone.
+        this.eventEmitter.emit(TICKET_ROUTED_EVENT, {
+            created: createdEvent,
+            assignedToId: finalTicket.assignedToId ?? null,
+        } satisfies TicketRoutedPayload);
     }
 }

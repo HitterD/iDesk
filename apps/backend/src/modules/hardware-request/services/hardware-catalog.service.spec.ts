@@ -94,10 +94,54 @@ describe('HardwareCatalogService', () => {
         ).rejects.toThrow(/already exists/i);
     });
 
+    it('listAll keeps hidden items for the catalog page, in display order', async () => {
+        repo.find.mockResolvedValue([{ id: '1', active: true, displayOrder: 10 }, { id: '2', active: false, displayOrder: 20 }] as any);
+        const res = await service.listAll();
+        expect(repo.find).toHaveBeenCalledWith({ order: { displayOrder: 'ASC', name: 'ASC' } });
+        expect(res.map((r) => r.id)).toEqual(['1', '2']);
+    });
+
+    it('update changes order, required fields and visibility, and refreshes the lists', async () => {
+        repo.findOne.mockResolvedValue({ id: 'c1', code: 'LAPTOP_STD', active: true, displayOrder: 10, requiredFields: [] } as any);
+        const saved = await service.update('c1', { displayOrder: 30, active: false, requiredFields: [{ key: 'seat', label: 'Jumlah seat', type: 'number', required: true }] });
+        expect(saved).toMatchObject({ displayOrder: 30, active: false, requiredFields: [{ key: 'seat' }] });
+        expect(cacheService.delAsync).toHaveBeenCalledWith('hw-catalog:list:active');
+        expect(cacheService.delAsync).toHaveBeenCalledWith('hw-catalog:list:all');
+    });
+
     it('ensureActive throws CatalogItemInactiveError when inactive', async () => {
         repo.findOne.mockResolvedValue({ id: 'c1', active: false } as any);
         await expect(service.ensureActive('c1')).rejects.toMatchObject({
             response: expect.objectContaining({ code: 'HR_CATALOG_INACTIVE' }),
+        });
+    });
+    describe('assertRequiredFields', () => {
+        const license = {
+            id: 'c-lic', code: 'SW_LICENSE', name: 'Lisensi Software', category: ItemCategory.SOFTWARE, active: true,
+            requiredFields: [
+                { key: 'software', label: 'Nama software', type: 'text', required: true },
+                { key: 'edition', label: 'Edisi', type: 'select', options: ['Standard', 'Pro'], required: false },
+                { key: 'note', label: 'Catatan', type: 'text' },
+            ],
+        } as any;
+
+        it.each([[{}], [{ software: '' }], [{ software: '   ' }], [{ software: null }]])(
+            'rejects a catalog item whose required field is empty (%j)',
+            (fields) => {
+                expect(() => service.assertRequiredFields(license, fields)).toThrow('Isian "Nama software" wajib untuk Lisensi Software');
+            },
+        );
+
+        it('accepts filled required fields and leaves optional ones empty', () => {
+            expect(() => service.assertRequiredFields(license, { software: 'AutoCAD' })).not.toThrow();
+        });
+
+        it('accepts a number as a filled value', () => {
+            expect(() => service.assertRequiredFields(license, { software: 0 })).not.toThrow();
+        });
+
+        it('accepts a catalog item without required fields', () => {
+            expect(() => service.assertRequiredFields({ ...license, requiredFields: [] }, {})).not.toThrow();
         });
     });
 });

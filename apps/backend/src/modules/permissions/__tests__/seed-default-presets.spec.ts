@@ -1,6 +1,7 @@
 /**
  * Task 11: Seed Default Presets — unit test (mock-based, no DB)
- * Verifikasi bahwa DEFAULT_PRESETS Admin/Manager/Agent include hardware_requests=true
+ * Verifikasi preset bawaan setelah Hardware Request / E-Form menjadi tiket: staf IT (Admin/Agent) mendapat devices_access,
+ * Manager dan User tidak punya halaman itu lagi.
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -63,43 +64,47 @@ describe('PermissionsService — seedDefaultPresets', () => {
         jest.spyOn(svc as any, 'seedDefaultFeatures').mockResolvedValue(undefined);
     });
 
-    it('default Admin preset includes hardware_requests=true', async () => {
+    it('default Admin preset includes devices_access=true and no old request pages', async () => {
         await (svc as any).seedDefaultPresets();
         const saved = presetRepo.save.mock.calls.map((c: any) => c[0]);
         const admin = saved.find((p: any) => p.name === 'Admin');
         expect(admin).toBeDefined();
-        expect(admin?.pageAccess?.hardware_requests).toBe(true);
+        expect(admin?.pageAccess?.devices_access).toBe(true);
+        expect(admin?.pageAccess).not.toHaveProperty('hardware_requests');
+        expect(admin?.pageAccess).not.toHaveProperty('eform_access');
     });
 
-    it('default Manager preset includes hardware_requests=true', async () => {
+    it('default Manager preset has neither the old request pages nor devices_access', async () => {
         await (svc as any).seedDefaultPresets();
         const saved = presetRepo.save.mock.calls.map((c: any) => c[0]);
         const mgr = saved.find((p: any) => p.name === 'Manager');
         expect(mgr).toBeDefined();
-        expect(mgr?.pageAccess?.hardware_requests).toBe(true);
+        expect(mgr?.pageAccess).not.toHaveProperty('hardware_requests');
+        expect(mgr?.pageAccess).not.toHaveProperty('eform_access');
+        expect(mgr?.pageAccess?.devices_access).toBeUndefined();
     });
 
-    it('default Agent preset includes hardware_requests=true', async () => {
+    it('default Agent preset includes devices_access=true', async () => {
         await (svc as any).seedDefaultPresets();
         const saved = presetRepo.save.mock.calls.map((c: any) => c[0]);
         const agent = saved.find((p: any) => p.name === 'Agent');
         expect(agent).toBeDefined();
-        expect(agent?.pageAccess?.hardware_requests).toBe(true);
+        expect(agent?.pageAccess?.devices_access).toBe(true);
     });
 
-    it('idempotent — hardware_requests tetap true setelah multiple seed calls', async () => {
+    it('idempotent — devices_access tetap true untuk Admin setelah multiple seed calls', async () => {
         // Run seedDefaultPresets twice
         await (svc as any).seedDefaultPresets();
         await (svc as any).seedDefaultPresets();
 
         // Verify all Admin save calls (create or merge) always have hardware_requests=true
-        const adminSaveCalls = presetRepo.save.mock.calls.filter((c: any) => c[0]?.name === 'Admin' || c[0]?.pageAccess?.hardware_requests !== undefined);
+        const adminSaveCalls = presetRepo.save.mock.calls.filter((c: any) => c[0]?.name === 'Admin' || c[0]?.pageAccess?.devices_access !== undefined);
         // At minimum, at least one save happened for Admin
         expect(adminSaveCalls.length).toBeGreaterThanOrEqual(1);
-        // And all saves preserve hardware_requests=true
+        // And all saves preserve devices_access=true
         for (const call of adminSaveCalls) {
             if (call[0]?.name === 'Admin') {
-                expect(call[0]?.pageAccess?.hardware_requests).toBe(true);
+                expect(call[0]?.pageAccess?.devices_access).toBe(true);
             }
         }
     });

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { Ticket, TicketStatus, TICKET_INACTIVE_STATUSES } from '../entities/ticket.entity';
 import { TicketMessage } from '../entities/ticket-message.entity';
@@ -10,8 +10,14 @@ import { WorkloadService } from '../../workload/workload.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activity.util';
+import { BusinessHoursService } from '../../sla-config/business-hours.service';
+import { SurveysService } from '../surveys.service';
+import { computeResolutionDeadline, reopenAsDispute } from '../utils/resolution-deadline.util';
+
+interface RecordedPhase { ticket: Ticket; message: TicketMessage; moved: boolean }
 
 const MINUTE_MS = 60_000;
+
 
 /**
  * Where requests raised from a ticket live, and which statuses mean they no longer hold it. A DRAFT is a proposal the
@@ -34,6 +40,13 @@ export interface LinkedPhase {
     /** Chat text (also used by email and search); the structured event drives the card. */
     text: string;
     event: LinkedRequestEvent;
+    /** Post the message only when the ticket's status really changes (a retry must not repeat the card). */
+    silentUnlessMoved?: boolean;
+    /**
+     * Only with target IN_PROGRESS: take a RESOLVED ticket back to the agent (the requester reported an issue). Every
+     * other step leaves a resolved ticket alone, so a late rejection or a retried resume cannot reopen it.
+     */
+    reopenResolved?: true;
 }
 
 /**
@@ -51,36 +64,69 @@ export class TicketLinkedRequestService {
         private readonly vendorVisit: TicketVendorVisitService,
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
+        private readonly businessHours: BusinessHoursService,
+        private readonly surveys: SurveysService,
     ) {}
 
-    async record(phase: LinkedPhase): Promise<void> {
+    /** Resolves to whether the ticket's status changed; false as well when nothing could be recorded (never throws). */
+    async record(phase: LinkedPhase): Promise<boolean> {
         try {
-            const result = await this.dataSource.transaction(async (manager) => {
-                const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
-                if (!ticket) return null;
-                const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
-                const target = await this.settleTarget(manager, ticket.id, phase);
-                const changes = await this.moveTicket(manager, ticket, target);
-                if (changes.length > 0) await manager.save(Ticket, ticket);
-                const systemEvent: TicketSystemEvent = {
-                    v: 1,
-                    actor: actor ? { id: actor.id, name: actor.fullName } : null,
-                    changes,
-                    ...phase.event,
-                };
-                const message = await manager.save(TicketMessage, manager.create(TicketMessage, {
-                    ticketId: ticket.id,
-                    content: `System: ${phase.text}`,
-                    senderId: actor?.id ?? (null as unknown as string),
-                    isSystemMessage: true,
-                    systemEvent,
-                }));
-                return { ticket, message, moved: changes.length > 0 };
-            });
-            if (result) await this.publish(result.ticket, result.message, result.moved);
+            const result = await this.dataSource.transaction((manager) => this.persist(manager, phase));
+            if (!result) return false;
+            await this.publishRecorded(result);
+            return result.moved;
         } catch (err: any) {
             this.logger.error(`Failed to record a linked request step on ticket ${phase.ticketId}: ${err?.message ?? err}`);
+            return false;
         }
+    }
+
+    /** The caller owns the transaction and runs the returned effects only after commit. */
+    async recordWithin(manager: EntityManager, phase: LinkedPhase): Promise<() => Promise<void>> {
+        const result = await this.persist(manager, phase, true);
+        return async () => {
+            if (!result) return;
+            try {
+                await this.publishRecorded(result);
+            } catch (error) {
+                this.logger.error(`Failed to publish linked request step on ticket ${phase.ticketId}`, error);
+            }
+        };
+    }
+
+    private async persist(manager: EntityManager, phase: LinkedPhase, strict = false): Promise<RecordedPhase | null> {
+        const ticket = await manager.findOne(Ticket, { where: { id: phase.ticketId }, lock: { mode: 'pessimistic_write' } });
+        if (!ticket) {
+            if (strict) throw new NotFoundException('Tiket tidak ditemukan');
+            return null;
+        }
+        const actor = phase.actorId ? await manager.findOne(User, { where: { id: phase.actorId } }) : null;
+        const target = await this.settleTarget(manager, ticket.id, phase);
+        const changes = await this.moveTicket(manager, ticket, target, phase.reopenResolved === true);
+        if (strict && phase.target && (ticket.status !== phase.target || !changes.length)) {
+            throw new ConflictException('Status tiket berubah. Muat ulang detail tiket.');
+        }
+        if (changes.length > 0) await manager.save(Ticket, ticket);
+        if (phase.silentUnlessMoved && changes.length === 0) return null;
+        const systemEvent: TicketSystemEvent = {
+            v: 1,
+            actor: actor ? { id: actor.id, name: actor.fullName } : null,
+            changes,
+            ...phase.event,
+        };
+        const message = await manager.save(TicketMessage, manager.create(TicketMessage, {
+            ticketId: ticket.id,
+            content: `System: ${phase.text}`,
+            senderId: actor?.id ?? (null as unknown as string),
+            isSystemMessage: true,
+            systemEvent,
+        }));
+        return { ticket, message, moved: changes.length > 0 };
+    }
+
+    private async publishRecorded(result: RecordedPhase): Promise<void> {
+        await this.publish(result.ticket, result.message, result.moved);
+        if (result.moved && result.ticket.status === TicketStatus.RESOLVED) await this.openSurvey(result.ticket);
     }
 
     /**
@@ -90,7 +136,7 @@ export class TicketLinkedRequestService {
      */
     private async settleTarget(manager: EntityManager, ticketId: string, phase: LinkedPhase): Promise<TicketStatus | undefined> {
         const { target } = phase;
-        if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS) return target;
+        if (target !== TicketStatus.CLOSED && target !== TicketStatus.IN_PROGRESS && target !== TicketStatus.RESOLVED) return target;
         const selfId = phase.event.hardwareRequest?.id ?? phase.event.eformRequest?.id ?? null;
         let running = 0;
         let proposals = 0;
@@ -105,15 +151,30 @@ export class TicketLinkedRequestService {
             proposals += Number(row?.proposals ?? 0);
         }
         if (running > 0) return undefined;
-        if (target === TicketStatus.CLOSED && proposals > 0) return TicketStatus.IN_PROGRESS;
+        if (target === TicketStatus.CLOSED && proposals > 0) {
+            // A confirmed request must never reopen a ticket that already waits for the requester as a dispute.
+            return await this.isResolved(manager, ticketId) ? undefined : TicketStatus.IN_PROGRESS;
+        }
         return target;
     }
 
+    private async isResolved(manager: EntityManager, ticketId: string): Promise<boolean> {
+        const ticket = await manager.findOne(Ticket, { where: { id: ticketId }, select: ['id', 'status'] });
+        return ticket?.status === TicketStatus.RESOLVED;
+    }
+
     /** Same clock rules as a manual WAITING_VENDOR wait, without a vendor appointment. */
-    private async moveTicket(manager: EntityManager, ticket: Ticket, target: TicketStatus | undefined): Promise<TicketActivityChange[]> {
-        if (!target || ticket.status === target || TICKET_INACTIVE_STATUSES.includes(ticket.status)) return [];
-        // Only a ticket that is waiting on the request resumes; one an agent already moved on is left alone.
-        if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR) return [];
+    private async moveTicket(manager: EntityManager, ticket: Ticket, target: TicketStatus | undefined, reopenResolved = false): Promise<TicketActivityChange[]> {
+        if (!target || ticket.status === target) return [];
+        // An issue report only reopens a resolved ticket; it never resumes another wait.
+        if (reopenResolved && ticket.status !== TicketStatus.RESOLVED) return [];
+        // CLOSED and CANCELLED are final. A RESOLVED ticket waits for the requester: it may still be closed (confirmed)
+        // or, only when asked to (`reopenResolved`), taken back because an issue was reported; nothing else moves it.
+        if (ticket.status === TicketStatus.RESOLVED) {
+            if (target !== TicketStatus.CLOSED && !(target === TicketStatus.IN_PROGRESS && reopenResolved)) return [];
+        } else if (TICKET_INACTIVE_STATUSES.includes(ticket.status)) return [];
+        // Only a ticket that is waiting on the request resumes (or a resolved one taken back); one an agent already moved on is left alone.
+        if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR && ticket.status !== TicketStatus.RESOLVED) return [];
         const from = ticket.status;
         const now = new Date();
         if (from === TicketStatus.WAITING_VENDOR && ticket.lastPausedAt) {
@@ -128,14 +189,31 @@ export class TicketLinkedRequestService {
             ticket.lastPausedAt = now;
             ticket.waitingVendorAt = now;
             await this.slaClock.hold(ticket, now);
+        } else if (target === TicketStatus.IN_PROGRESS && from === TicketStatus.RESOLVED) {
+            reopenAsDispute(ticket, this.slaClock, now);
         } else if (target === TicketStatus.IN_PROGRESS) {
             await this.slaClock.release(ticket, now);
+        } else if (target === TicketStatus.RESOLVED) {
+            // Resolved like an agent's resolve: the requester has one working day to confirm or dispute, SLA held meanwhile.
+            ticket.resolvedAt = now;
+            ticket.disputedAt = null;
+            ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHours, now);
+            await this.slaClock.hold(ticket, now);
         } else if (target === TicketStatus.CLOSED) {
             ticket.closedAt = now;
             ticket.resolutionDeadlineAt = null;
         }
         ticket.status = target;
         return [{ field: 'status', from, to: target }];
+    }
+
+    /** A resolved request ticket gets the same satisfaction survey as any resolved ticket; a failure is only logged. */
+    private async openSurvey(ticket: Ticket): Promise<void> {
+        try {
+            await this.surveys.createSurvey(ticket);
+        } catch (err: any) {
+            this.logger.error(`Failed to create the survey of ticket ${ticket.id}: ${err?.message ?? err}`);
+        }
     }
 
     private async publish(ticket: Ticket, message: TicketMessage, moved: boolean): Promise<void> {

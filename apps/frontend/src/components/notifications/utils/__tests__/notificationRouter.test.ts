@@ -40,18 +40,21 @@ describe('getNotificationRedirectPath — every category lands on its page', () 
         expect(getNotificationRedirectPath(n({ link: `/tickets/${id}` }), 'MANAGER')).toBe(`/tickets/${id}`);
     });
 
-    it('opens a hardware request in the requester portal', () => {
+    const ticket = '0b6d3c4e-1111-4222-8333-444455556677';
+
+    it('a request notification that names its ticket opens that ticket, in the reader portal', () => {
+        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_HARDWARE, ticketId: ticket, referenceId: `${id}_submitted` }), 'USER')).toBe(`/client/tickets/${ticket}`);
+        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_EFORM, ticketId: ticket, referenceId: id }), 'AGENT')).toBe(`/tickets/${ticket}`);
+    });
+
+    it('an old link to a request page is routed to the legacy redirect of the reader portal, which finds the ticket', () => {
         expect(getNotificationRedirectPath(n({ link: `/hardware-requests/${id}` }), 'USER')).toBe(`/client/hardware-requests/${id}`);
+        expect(getNotificationRedirectPath(n({ link: `/eform-access/${id}` }), 'AGENT')).toBe(`/eform-access/${id}`);
     });
 
-    it('routes e-form notifications without a link by referenceId', () => {
-        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_EFORM, referenceId: id }), 'USER'))
-            .toBe(`/client/eform-access/${id}`);
-    });
-
-    it('strips the step suffix from hardware referenceIds', () => {
-        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_HARDWARE, referenceId: `${id}_submitted` }), 'AGENT'))
-            .toBe(`/hardware-requests/${id}`);
+    it('without a ticket id, request notifications fall back to the legacy redirect by the old request id (step suffix stripped)', () => {
+        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_EFORM, referenceId: id }), 'USER')).toBe(`/client/eform-access/${id}`);
+        expect(getNotificationRedirectPath(n({ category: NotificationCategory.CATEGORY_HARDWARE, referenceId: `${id}_submitted` }), 'AGENT')).toBe(`/hardware-requests/${id}`);
     });
 
     it('opens a Zoom booking in the client calendar, ignoring external join URLs', () => {

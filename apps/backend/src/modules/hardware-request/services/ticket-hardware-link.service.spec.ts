@@ -22,11 +22,11 @@ describe('TicketHardwareLinkService', () => {
             // The other requests raised from the ticket: [hardware_requests, eform_requests] counts of running and unanswered.
             query: jest.fn(async () => [{ running: '0', proposals: '0' }]),
         };
-        slaClock = { hold: jest.fn(), release: jest.fn() };
+        slaClock = { hold: jest.fn(), release: jest.fn(), resumeOnOriginalTarget: jest.fn() };
         vendorVisit = { clear: jest.fn() };
         gateway = { notifyNewMessage: jest.fn(), notifyTicketUpdate: jest.fn(), notifyTicketListUpdate: jest.fn(), notifyDashboardStatsUpdate: jest.fn() };
         const dataSource = { transaction: jest.fn(async (cb: any) => cb(manager)) };
-        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any);
+        const linked = new TicketLinkedRequestService(dataSource as any, slaClock, vendorVisit, gateway, { recalculateAgentWorkload: jest.fn() } as any, { calculateSlaTarget: jest.fn() } as any, { createSurvey: jest.fn() } as any);
         service = new TicketHardwareLinkService(reqRepo as any, linked);
     });
 
@@ -65,6 +65,170 @@ describe('TicketHardwareLinkService', () => {
         expect(slaClock.release).toHaveBeenCalled();
         expect(vendorVisit.clear).toHaveBeenCalledWith(manager, ticket);
         expect(message().systemEvent.reason).toBe('Stok ada');
+    });
+
+    it('keeps the SLA held through procurement and delivery (PROCUREMENT_DONE changes no status)', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+
+        await service.record('req-1', 'PROCUREMENT_DONE');
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+    });
+
+    it('SCHEDULED is informational: it never changes the ticket status', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+
+        await service.record('req-1', 'SCHEDULED', { at: new Date('2026-11-25T02:00:00Z') });
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+        expect(message().systemEvent.changes).toEqual([]);
+    });
+
+    it('COMPLETED closes a RESOLVED flow ticket (the requester confirmed the installation)', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+
+        await service.record('req-1', 'COMPLETED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.CLOSED);
+        expect(ticket.closedAt).toBeInstanceOf(Date);
+        expect(ticket.resolutionDeadlineAt).toBeNull();
+    });
+
+    describe.each(['REJECTED', 'CANCELLED'] as const)('%s on a RESOLVED flow ticket', (phase) => {
+        it('leaves it waiting for the requester', async () => {
+            ticket.status = TicketStatus.RESOLVED;
+            ticket.resolutionDeadlineAt = new Date();
+
+            await service.record('req-1', phase, { actorId: 'user-1' });
+
+            expect(ticket.status).toBe(TicketStatus.RESOLVED);
+            expect(ticket.resolutionDeadlineAt).toBeInstanceOf(Date);
+            expect(ticket.disputedAt).toBeUndefined();
+        });
+    });
+
+    it('a retried resumeForInstallation after install-done leaves a RESOLVED ticket untouched', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+
+        await expect(service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true })).resolves.toBe(false);
+        await expect(service.resumeForInstallation('req-1', 'agent-1')).resolves.toBe(false);
+
+        expect(ticket.status).toBe(TicketStatus.RESOLVED);
+        expect(ticket.disputedAt).toBeUndefined();
+    });
+
+    it('ISSUE_REPORTED reopens a RESOLVED ticket as a dispute (deadline cleared, disputedAt set)', async () => {
+        ticket.status = TicketStatus.RESOLVED;
+        ticket.resolutionDeadlineAt = new Date();
+        ticket.resolvedAt = new Date();
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1', reason: 'Monitor mati' });
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(ticket.resolutionDeadlineAt).toBeNull();
+        expect(ticket.resolvedAt).toBeNull();
+        expect(ticket.disputedAt).toBeInstanceOf(Date);
+    });
+
+    it('ISSUE_REPORTED never resumes a ticket that still waits on a vendor', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+        ticket.lastPausedAt = new Date();
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(slaClock.release).not.toHaveBeenCalled();
+    });
+
+    it('ISSUE_REPORTED on a ticket that is not resolved changes nothing', async () => {
+        ticket.status = TicketStatus.IN_PROGRESS;
+
+        await service.record('req-1', 'ISSUE_REPORTED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+        expect(message().systemEvent.changes).toEqual([]);
+    });
+
+    describe('resumeForInstallation (goods arrived, request enters INSTALLATION)', () => {
+        it('resumes a ticket that waits on the request', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            ticket.lastPausedAt = new Date(Date.now() - 10 * 60_000);
+
+            await service.resumeForInstallation('req-1', 'agent-1');
+
+            expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+            expect(slaClock.release).toHaveBeenCalled();
+            expect(message().systemEvent.changes).toEqual([{ field: 'status', from: 'WAITING_VENDOR', to: 'IN_PROGRESS' }]);
+        });
+
+        it('leaves a ticket an agent already moved on alone', async () => {
+            ticket.status = TicketStatus.TODO;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.TODO);
+
+            ticket.status = TicketStatus.IN_PROGRESS;
+            await service.resumeForInstallation('req-1');
+            expect(slaClock.release).not.toHaveBeenCalled();
+        });
+
+        it('does not reopen a finished ticket', async () => {
+            ticket.status = TicketStatus.CLOSED;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.CLOSED);
+            ticket.status = TicketStatus.CANCELLED;
+            await service.resumeForInstallation('req-1');
+            expect(ticket.status).toBe(TicketStatus.CANCELLED);
+        });
+
+        it('a silent resume posts nothing and reports false while another request keeps the ticket held', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+
+            const moved = await service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true });
+
+            expect(moved).toBe(false);
+            expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
+            expect(message()).toBeUndefined();
+            expect(gateway.notifyNewMessage).not.toHaveBeenCalled();
+            expect(gateway.notifyTicketUpdate).not.toHaveBeenCalled();
+        });
+
+        it('a silent resume still records the card when it really moves the ticket', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+
+            const moved = await service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true });
+
+            expect(moved).toBe(true);
+            expect(ticket.status).toBe(TicketStatus.IN_PROGRESS);
+            expect(message()).toBeDefined();
+        });
+
+        it('the first (non-silent) resume keeps posting its card even when the ticket stays held', async () => {
+            ticket.status = TicketStatus.WAITING_VENDOR;
+            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+
+            await expect(service.resumeForInstallation('req-1', 'agent-1')).resolves.toBe(false);
+
+            expect(message()).toBeDefined();
+        });
+
+        it('ignores requests that did not come from a ticket', async () => {
+            request.sourceTicketId = null;
+            await service.resumeForInstallation('req-1');
+            expect(manager.save).not.toHaveBeenCalled();
+        });
+    });
+
+    it('keeps the SLA held while a schedule is only proposed (still waiting for the goods)', async () => {
+        ticket.status = TicketStatus.WAITING_VENDOR;
+
+        await service.record('req-1', 'SCHEDULE_PROPOSED', { actorId: 'user-1' });
+
+        expect(ticket.status).toBe(TicketStatus.WAITING_VENDOR);
     });
 
     it('does not reopen a ticket an agent already moved on from the wait', async () => {

@@ -1,0 +1,244 @@
+import { EntityManager } from 'typeorm';
+import { EFormStatus, EFormType } from '../../eform-request/entities/eform-request.entity';
+import { EFORM_ACCESS_LABEL, eformCode } from '../../eform-request/ticket-link/eform-ticket.util';
+import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
+import { HandlingTeam, TicketStatus } from '../../ticketing/entities/ticket.entity';
+import { departmentDivision, generateNextTicketNumber } from '../../ticketing/utils/ticket-number-generator';
+import type { ApprovalRoute } from '../domain/approval-route';
+import { HardwareSource, RequestKind, ticketTypeOf } from '../domain/request-kind';
+
+/**
+ * One-off backfill: every existing hardware / e-form request becomes (or joins) a ticket with a `request_flows` row.
+ *
+ * Raw SQL with explicit columns on purpose: it runs from a migration, so it must not depend on entity metadata that
+ * later migrations change. No events or notifications are sent. Idempotent: requests that already have a flow are left
+ * alone. Must run inside a transaction (the ticket-number generator takes a transaction-scoped lock).
+ */
+
+export interface BackfillResult { created: number; linked: number; skipped: number }
+
+const DIVISION_FALLBACK = 'GEN';
+const FIRST_REVISION = { version: 1, kind: 'GEN', label: 'Dibuat dari data lama' } as const;
+/** The old hardware flow had IT review and approve; nobody signed as manager, so IT picks the route on the ticket. */
+const HARDWARE_ROUTE_PENDING: ReadonlyArray<string> = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW];
+const NOT_STARTED: ReadonlyArray<string> = [RequestStatus.DRAFT, RequestStatus.CANCELLED];
+
+/** Justification prefixes the old hardware form wrote for its request type. */
+const HARDWARE_SOURCE_PREFIXES: ReadonlyArray<[string, HardwareSource]> = [
+    ['[BUDGET TAHUNAN]', 'ANNUAL_BUDGET'],
+    ['[NON-BUDGET]', 'NON_BUDGET'],
+    ['[PENJADWALAN PEMASANGAN]', 'IT_STOCK'],
+];
+
+const HARDWARE_TICKET_STATUS: Partial<Record<RequestStatus, TicketStatus>> = {
+    [RequestStatus.COMPLETED]: TicketStatus.CLOSED,
+    [RequestStatus.CLOSED]: TicketStatus.CLOSED,
+    [RequestStatus.REJECTED]: TicketStatus.CANCELLED,
+    [RequestStatus.CANCELLED]: TicketStatus.CANCELLED,
+    // Installed, waiting for the requester: the ticket is RESOLVED like any ticket whose work is reported done.
+    [RequestStatus.AWAITING_USER_CONFIRMATION]: TicketStatus.RESOLVED,
+};
+
+const EFORM_TICKET_STATUS: Partial<Record<EFormStatus, TicketStatus>> = {
+    [EFormStatus.CONFIRMED]: TicketStatus.CLOSED,
+    [EFormStatus.REJECTED]: TicketStatus.CANCELLED,
+};
+
+const REQUESTER_JOINS = `
+    LEFT JOIN "users" u ON u."id"::text = r."requesterId"::text
+    LEFT JOIN "departments" d ON d."id"::text = u."departmentId"::text
+    LEFT JOIN "tickets" t ON t."id" = r."sourceTicketId" AND t."deletedAt" IS NULL`;
+
+/** Every statement the backfill runs, exported so tests can answer them by identity. */
+export const BACKFILL_SQL = {
+    selectHardware: `SELECT r."id", r."requestNumber", r."requesterId", r."siteId", r."justification", r."status"::text AS "status",
+        r."sourceTicketId", r."createdAt", COALESCE(r."completedAt", r."updatedAt") AS "doneAt",
+        d."code" AS "deptCode", d."name" AS "deptName", u."siteId" AS "userSiteId", t."id" IS NOT NULL AS "sourceTicketExists"
+        FROM "hardware_requests" r${REQUESTER_JOINS}
+        ORDER BY r."createdAt" ASC`,
+    selectEform: `SELECT r."id", r."formType"::text AS "formType", r."documentNumber", r."requesterId", r."siteId",
+        COALESCE(r."formData"->>'alasan', r."networkPurpose") AS "reason", r."requiresGm", r."status"::text AS "status",
+        r."sourceTicketId", r."createdAt", COALESCE(r."resolvedAt", r."updatedAt") AS "doneAt",
+        (SELECT a."approverId"::text FROM "eform_approvals" a WHERE a."eformRequestId" = r."id" AND a."role" = 'MANAGER' ORDER BY a."sequence" ASC LIMIT 1) AS "managerId",
+        r."gmApproverId"::text AS "gmId",
+        d."code" AS "deptCode", d."name" AS "deptName", u."siteId" AS "userSiteId", t."id" IS NOT NULL AS "sourceTicketExists"
+        FROM "eform_requests" r${REQUESTER_JOINS}
+        ORDER BY r."createdAt" ASC`,
+    selectFlows: `SELECT "hardwareRequestId", "eformRequestId" FROM "request_flows"`,
+    insertTicket: `INSERT INTO "tickets"
+        ("ticketNumber", "title", "description", "status", "ticketType", "handlingTeam", "userId", "siteId", "createdAt", "closedAt", "resolvedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING "id"`,
+    /** Heals tickets made before this rule (or by an earlier run): hardware waiting for the requester must be RESOLVED with a confirmation deadline. */
+    repairAwaitingConfirmation: `UPDATE "tickets" t SET "status" = 'RESOLVED', "resolvedAt" = COALESCE(t."resolvedAt", now()),
+        "resolutionDeadlineAt" = COALESCE(t."resolutionDeadlineAt", now() + interval '1 day')
+        FROM "request_flows" f JOIN "hardware_requests" h ON h."id" = f."hardwareRequestId"
+        WHERE f."ticketId" = t."id" AND h."status"::text = 'AWAITING_USER_CONFIRMATION'
+        AND (t."status"::text = 'IN_PROGRESS' OR (t."status"::text = 'RESOLVED' AND t."resolutionDeadlineAt" IS NULL))
+        RETURNING t."id"`,
+    linkHardware: `UPDATE "hardware_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
+    linkEform: `UPDATE "eform_requests" SET "sourceTicketId" = $1 WHERE "id" = $2`,
+    insertFlow: `INSERT INTO "request_flows" ("ticketId", "kind", "hardwareRequestId", "eformRequestId", "route", "hardwareSource", "managerId", "gmId")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id"`,
+    /**
+     * The old pages proposed ONE time (status PROPOSED, start and end set, no slot list) and the requester confirmed it.
+     * The ticket page offers slots to pick from, so such a schedule becomes a one-slot proposal awaiting the requester.
+     */
+    convertLegacySchedules: `UPDATE "installation_schedules" s
+        SET "status" = 'PROPOSED_AWAITING_USER',
+            "proposedSlots" = jsonb_build_array(jsonb_build_object('start', to_jsonb(s."scheduledStart"), 'end', to_jsonb(s."scheduledEnd")))
+        WHERE s."status"::text = 'PROPOSED' AND s."proposedSlots" IS NULL AND s."scheduledStart" IS NOT NULL AND s."scheduledEnd" IS NOT NULL
+        AND s."requestId" IN (SELECT f."hardwareRequestId" FROM "request_flows" f WHERE f."hardwareRequestId" IS NOT NULL)`,
+    /** A legacy schedule with no time and no slots has nothing for the requester to pick: retire it so IT proposes a new one. */
+    retireTimelessSchedules: `UPDATE "installation_schedules" s
+        SET "status" = 'CANCELLED'
+        WHERE s."status"::text IN ('PROPOSED', 'RESCHEDULE_REQUESTED') AND s."proposedSlots" IS NULL AND s."scheduledStart" IS NULL
+        AND s."requestId" IN (SELECT f."hardwareRequestId" FROM "request_flows" f WHERE f."hardwareRequestId" IS NOT NULL)`,
+    insertRevision: `INSERT INTO "request_document_revisions" ("flowId", "version", "kind", "label") VALUES ($1, $2, $3, $4)`,
+} as const;
+
+interface RequesterRow {
+    id: string;
+    requesterId: string;
+    siteId: string | null;
+    status: string;
+    sourceTicketId: string | null;
+    sourceTicketExists: boolean;
+    createdAt: Date;
+    doneAt: Date | null;
+    deptCode: string | null;
+    deptName: string | null;
+    userSiteId: string | null;
+}
+interface HardwareRow extends RequesterRow { requestNumber: string; justification: string | null }
+interface EformRow extends RequesterRow {
+    formType: EFormType; documentNumber: string | null; reason: string | null; requiresGm: boolean;
+    /** Who was asked to sign (from the old approval rows and the chosen GM): without them nobody could sign on the ticket. */
+    managerId: string | null; gmId: string | null;
+}
+
+/** What a legacy request becomes: its ticket fields and its flow. */
+interface Plan {
+    kind: RequestKind;
+    row: RequesterRow;
+    title: string;
+    description: string;
+    status: TicketStatus;
+    /** Null while IT still has to choose it (hardware not yet approved). */
+    route: ApprovalRoute | null;
+    hardwareSource: HardwareSource | null;
+    managerId: string | null;
+    gmId: string | null;
+}
+
+export function hardwareSourceOf(justification: string | null): HardwareSource | null {
+    const text = justification ?? '';
+    return HARDWARE_SOURCE_PREFIXES.find(([prefix]) => text.includes(prefix))?.[1] ?? null;
+}
+
+function hardwarePlan(row: HardwareRow): Plan {
+    const title = `Hardware Request ${row.requestNumber}`;
+    return {
+        kind: 'HARDWARE', row, title, description: row.justification || title,
+        status: HARDWARE_TICKET_STATUS[row.status as RequestStatus] ?? TicketStatus.IN_PROGRESS,
+        route: HARDWARE_ROUTE_PENDING.includes(row.status) ? null : 'MANAGER', hardwareSource: hardwareSourceOf(row.justification),
+        managerId: null, gmId: null,
+    };
+}
+
+function eformRoute(row: EformRow): ApprovalRoute {
+    if (row.requiresGm) return 'MANAGER_GM';
+    // Filed straight to IT (no manager was ever asked): nobody has to approve.
+    if (row.formType === EFormType.SYNOLOGY_NAS || !row.managerId) return 'NONE';
+    return 'MANAGER';
+}
+
+function eformPlan(row: EformRow): Plan {
+    const label = EFORM_ACCESS_LABEL[row.formType] ?? 'akses';
+    const title = `${label.charAt(0).toUpperCase()}${label.slice(1)} — ${row.documentNumber ?? eformCode(row.id)}`;
+    return {
+        kind: 'EFORM', row, title, description: row.reason || title,
+        status: EFORM_TICKET_STATUS[row.status as EFormStatus] ?? TicketStatus.IN_PROGRESS,
+        route: eformRoute(row), hardwareSource: null, managerId: row.managerId ?? null, gmId: row.gmId ?? null,
+    };
+}
+
+async function insertFlow(manager: EntityManager, ticketId: string, plan: Plan): Promise<void> {
+    const isHardware = plan.kind === 'HARDWARE';
+    const [flow]: { id: string }[] = await manager.query(BACKFILL_SQL.insertFlow, [
+        ticketId, plan.kind, isHardware ? plan.row.id : null, isHardware ? null : plan.row.id, plan.route, plan.hardwareSource,
+        plan.managerId, plan.gmId,
+    ]);
+    await manager.query(BACKFILL_SQL.insertRevision, [flow.id, FIRST_REVISION.version, FIRST_REVISION.kind, FIRST_REVISION.label]);
+}
+
+/** Creates the parent ticket for a standalone request; false when it has no site to file it under. */
+async function createParent(manager: EntityManager, plan: Plan, now: Date): Promise<boolean> {
+    const { row } = plan;
+    const siteId = row.siteId ?? row.userSiteId;
+    if (!siteId) return false;
+    const division = departmentDivision({ code: row.deptCode, name: row.deptName }, DIVISION_FALLBACK);
+    const ticketNumber = await generateNextTicketNumber(manager, division, new Date(row.createdAt));
+    const closedAt = plan.status === TicketStatus.CLOSED ? row.doneAt ?? now : null;
+    // A closed ticket was resolved first: completion reports read `resolvedAt`, so it must not stay empty.
+    const resolvedAt = plan.status === TicketStatus.RESOLVED || plan.status === TicketStatus.CLOSED ? row.doneAt ?? now : null;
+    const [ticket]: { id: string }[] = await manager.query(BACKFILL_SQL.insertTicket, [
+        ticketNumber, plan.title, plan.description, plan.status, ticketTypeOf(plan.kind), HandlingTeam.OPS_SUPPORT,
+        row.requesterId, siteId, row.createdAt, closedAt, resolvedAt,
+    ]);
+    await manager.query(plan.kind === 'HARDWARE' ? BACKFILL_SQL.linkHardware : BACKFILL_SQL.linkEform, [ticket.id, row.id]);
+    await insertFlow(manager, ticket.id, plan);
+    return true;
+}
+
+/** A request that cannot move on any more: nothing is left to do on it. */
+function isOver(plan: Plan): boolean {
+    return plan.status === TicketStatus.CLOSED || plan.status === TicketStatus.CANCELLED;
+}
+
+function requestsPerTicket(plans: Plan[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const { row } of plans) {
+        if (row.sourceTicketId) counts.set(row.sourceTicketId, (counts.get(row.sourceTicketId) ?? 0) + 1);
+    }
+    return counts;
+}
+
+/** `now` only stands in for a missing completion time; ticket numbers follow each request's own createdAt. */
+export async function backfillRequestFlows(manager: EntityManager, now: Date = new Date()): Promise<BackfillResult> {
+    const hardware: HardwareRow[] = await manager.query(BACKFILL_SQL.selectHardware);
+    const eforms: EformRow[] = await manager.query(BACKFILL_SQL.selectEform);
+    const flows: { hardwareRequestId: string | null; eformRequestId: string | null }[] = await manager.query(BACKFILL_SQL.selectFlows);
+    const hasFlow = new Set(flows.flatMap((f) => [f.hardwareRequestId, f.eformRequestId]).filter(Boolean));
+
+    const plans = [...hardware.map(hardwarePlan), ...eforms.map(eformPlan)];
+    // Counted over every request (any status) so a ticket that ever raised several keeps the old cards.
+    const perTicket = requestsPerTicket(plans);
+    const legacySkipped = new Set<string>();
+    const result: BackfillResult = { created: 0, linked: 0, skipped: 0 };
+
+    for (const plan of plans) {
+        const { row } = plan;
+        if (hasFlow.has(row.id) || NOT_STARTED.includes(row.status)) continue;
+        const alone = row.sourceTicketId && perTicket.get(row.sourceTicketId) === 1 && row.sourceTicketExists;
+        if (alone) {
+            await insertFlow(manager, row.sourceTicketId!, plan);
+            result.linked += 1;
+        } else if (row.sourceTicketId && isOver(plan)) {
+            // Over already: it stays as history on the ticket it came from (it keeps its old cards).
+            if (!legacySkipped.has(row.sourceTicketId)) {
+                legacySkipped.add(row.sourceTicketId);
+                result.skipped += 1;
+            }
+        } else if (await createParent(manager, plan, now)) {
+            // Still running but with no ticket of its own to continue on (none, a deleted one, or one shared with
+            // other requests): it gets its own ticket, otherwise nobody could review, sign or install it any more.
+            result.created += 1;
+        } else {
+            result.skipped += 1;
+        }
+    }
+    await manager.query(BACKFILL_SQL.convertLegacySchedules);
+    await manager.query(BACKFILL_SQL.retireTimelessSchedules);
+    await manager.query(BACKFILL_SQL.repairAwaitingConfirmation);
+    return result;
+}

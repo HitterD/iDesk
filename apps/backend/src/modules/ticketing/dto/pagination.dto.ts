@@ -52,6 +52,11 @@ export class PaginationDto {
     @IsString()
     category?: string;
 
+    @ApiPropertyOptional({ enum: ['IT', 'HARDWARE', 'EFORM'], description: 'Tipe tiket: IT biasa, Hardware Request, atau E-Form' })
+    @IsOptional()
+    @IsIn(['IT', 'HARDWARE', 'EFORM'])
+    requestKind?: 'IT' | 'HARDWARE' | 'EFORM';
+
     @ApiPropertyOptional({ description: 'Filter out specific category' })
     @IsOptional()
     @IsString()
@@ -164,4 +169,9 @@ export class QueueStatsQueryDto {
     @IsOptional()
     @IsIn(REPORT_TEAMS)
     handlingTeam?: ReportTeam;
+
+    @ApiPropertyOptional({ enum: ['IT', 'HARDWARE', 'EFORM'], description: 'Tipe tiket: IT biasa, Hardware Request, atau E-Form' })
+    @IsOptional()
+    @IsIn(['IT', 'HARDWARE', 'EFORM'])
+    requestKind?: 'IT' | 'HARDWARE' | 'EFORM';
 }

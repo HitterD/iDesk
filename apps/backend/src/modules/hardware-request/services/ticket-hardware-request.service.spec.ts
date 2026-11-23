@@ -50,45 +50,6 @@ describe('TicketHardwareRequestService', () => {
         );
     });
 
-    it('drafts the request for the ticket requester, posts the card and notifies them', async () => {
-        const summary = await service.propose('agent-1', 'ticket-1', dto);
-
-        expect(commands.createDraft).toHaveBeenCalledWith('user-1', 'site-1', UserRole.USER, expect.objectContaining({
-            recipientId: 'user-1', division: 'Finance', justification: '[NON-BUDGET] Mouse rusak, perlu ganti',
-        }), { sourceTicketId: 'ticket-1', proposedById: 'agent-1' });
-        expect(link.record).toHaveBeenCalledWith('req-1', 'PROPOSED', { actorId: 'agent-1' });
-        expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user-1', link: '/tickets/ticket-1' }));
-        expect(summary).toEqual(expect.objectContaining({
-            requestType: HardwareRequestType.NON_BUDGET, justification: 'Mouse rusak, perlu ganti',
-            proposedBy: { id: 'agent-1', name: 'Agen IT' },
-            items: [{ name: 'Mouse', category: 'PERIPHERAL', quantity: 2 }, { name: 'Keyboard', category: 'PERIPHERAL', quantity: 1 }],
-            // The keyboard was never procured, so it is not waited for.
-            delivery: { arrived: 1, total: 2 },
-        }));
-    });
-
-    it('refuses tickets of the development teams', async () => {
-        ticket.handlingTeam = HandlingTeam.ORACLE_DEV;
-        // An admin can open any ticket, so the team rule (not access) is what stops it.
-        users.findOne.mockResolvedValueOnce({ ...agent, role: UserRole.ADMIN });
-        await expect(service.propose('agent-1', 'ticket-1', dto)).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('refuses finished tickets', async () => {
-        ticket.status = TicketStatus.RESOLVED;
-        await expect(service.propose('agent-1', 'ticket-1', dto)).rejects.toBeInstanceOf(BadRequestException);
-    });
-
-    it('allows one open proposal at a time', async () => {
-        reqRepo.findOne.mockResolvedValue({ requestNumber: 'HR-2026-0011' });
-        await expect(service.propose('agent-1', 'ticket-1', dto)).rejects.toBeInstanceOf(ConflictException);
-    });
-
-    it('only lets ICT staff propose', async () => {
-        await expect(service.propose('user-1', 'ticket-1', dto)).rejects.toBeInstanceOf(ForbiddenException);
-        expect(commands.createDraft).not.toHaveBeenCalled();
-    });
-
     it('lets the requester see the requests of their own ticket', async () => {
         await expect(service.listForTicket('user-1', 'ticket-1')).resolves.toHaveLength(1);
     });

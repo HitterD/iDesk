@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EFormRequest } from '../entities/eform-request.entity';
+import { EFormFlowMembership } from './eform-flow-membership.service';
 import { TicketEFormLinkService } from './ticket-eform-link.service';
 
 interface EFormEvent { request: EFormRequest; userId?: string }
@@ -8,7 +9,15 @@ interface EFormEvent { request: EFormRequest; userId?: string }
 /** Mirrors every step of a ticket-proposed e-form request onto its IT support ticket (see TicketEFormLinkService). */
 @Injectable()
 export class TicketEFormSyncListener {
-    constructor(private readonly link: TicketEFormLinkService) {}
+    constructor(
+        private readonly link: TicketEFormLinkService,
+        @Optional() private readonly flows?: EFormFlowMembership,
+    ) {}
+
+    /** A request-flow e-form posts its own single message per step; the legacy "granted, ticket closed" card must not follow it. */
+    private async inFlow(request: EFormRequest): Promise<boolean> {
+        return Boolean(await this.flows?.has(request.id));
+    }
 
     @OnEvent('eform.submitted')
     onSubmitted({ request }: EFormEvent) {
@@ -33,12 +42,14 @@ export class TicketEFormSyncListener {
     }
 
     @OnEvent('eform.ict-confirmed')
-    onCredentialsIssued({ request }: EFormEvent) {
+    async onCredentialsIssued({ request }: EFormEvent) {
+        if (await this.inFlow(request)) return;
         return this.link.record(request.id, 'GRANTED');
     }
 
     @OnEvent('eform.fulfilled')
-    onFulfilled({ request }: EFormEvent) {
+    async onFulfilled({ request }: EFormEvent) {
+        if (await this.inFlow(request)) return;
         return this.link.record(request.id, 'GRANTED');
     }
 

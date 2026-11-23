@@ -59,6 +59,34 @@ describe('HardwareRequestQueryService', () => {
         expect(qb.andWhere).toHaveBeenCalledWith('r.status IN (:...statuses)', { statuses: [RequestStatus.SUBMITTED] });
     });
 
+    const EXISTS_SQL = `EXISTS (SELECT 1 FROM hardware_request_items ci WHERE ci."requestId" = r.id AND ci."categorySnapshot"->>'category' IN (:...categories))`;
+
+    it('category filter narrows the list with an EXISTS, not by the selected items join', async () => {
+        await service.list(
+            { id: 'lead-1', role: HardwareRole.ICT_STAFF },
+            { category: ['LAPTOP', 'MONITOR'] as any, page: 1, pageSize: 20 },
+        );
+        expect(qb.andWhere).toHaveBeenCalledWith(EXISTS_SQL, { categories: ['LAPTOP', 'MONITOR'] });
+        const where = qb.andWhere.mock.calls.map((c: any[]) => c[0]).filter((q: string) => q.includes('categorySnapshot'));
+        expect(where.every((q: string) => !q.includes('items.categorySnapshot'))).toBe(true);
+        // the items relation stays selected whole: a request lists all its items
+        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith('r.items', 'items');
+    });
+
+    it('category filter accepts a comma list', async () => {
+        await service.list(
+            { id: 'lead-1', role: HardwareRole.ICT_STAFF },
+            { category: 'LAPTOP,MONITOR' as any, page: 1, pageSize: 20 },
+        );
+        expect(qb.andWhere).toHaveBeenCalledWith(EXISTS_SQL, { categories: ['LAPTOP', 'MONITOR'] });
+    });
+
+    it('no category filter leaves the query alone', async () => {
+        await service.list({ id: 'lead-1', role: HardwareRole.ICT_STAFF }, { page: 1, pageSize: 20 });
+        const calls = qb.andWhere.mock.calls.map((c: any[]) => c[0]);
+        expect(calls.some((s: string) => s.includes('categorySnapshot') && s.includes('IN'))).toBe(false);
+    });
+
     it('getById allows USER only for own request', async () => {
         repo.findOne.mockResolvedValue({ id: 'r1', requesterId: 'user-1' });
         const res = await service.getById({ id: 'user-1', role: HardwareRole.USER }, 'r1');

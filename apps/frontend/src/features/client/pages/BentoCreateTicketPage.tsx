@@ -19,6 +19,7 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import {
     BASE_CATEGORY_OPTIONS,
     REQUEST_CARDS,
+    isRequestType,
     TICKETING_CARDS,
     TICKET_FORM_CONFIG,
     TICKET_TYPES,
@@ -48,6 +49,7 @@ import {
 } from '../components/create-ticket/createTicketValidation';
 import { AddAttributeModal, ClassificationFields, LightboxModal, type AttributeKind } from '../components/create-ticket/ClassificationFields';
 import { useMyTemplateControls } from '../components/create-ticket/MyTemplatesBar';
+import { RequestFormScreen } from '../components/create-request/RequestFormScreen';
 
 interface TicketDraft {
     title: string;
@@ -589,7 +591,7 @@ export const BentoCreateTicketPage: React.FC = () => {
     };
 
     const myTemplates = useMyTemplateControls({
-        ticketType: ticketType === 'none' ? null : ticketType,
+        ticketType: ticketType === 'none' || isRequestType(ticketType) ? null : ticketType,
         form: {
             title: formData.title, description: formData.description, priority: formData.priority,
             category: formData.category || null, device: formData.device || null, software: formData.software || null,
@@ -659,6 +661,13 @@ export const BentoCreateTicketPage: React.FC = () => {
                 )}
             </div>
         );
+    }
+
+    // ==========================================
+    // 2a. REQUEST FORMS (Hardware / E-Form): their own forms, same page
+    // ==========================================
+    if (isRequestType(ticketType)) {
+        return <RequestFormScreen type={ticketType} onBack={handleBack} renewFrom={searchParams.get('renewFrom')} />;
     }
 
     // ==========================================

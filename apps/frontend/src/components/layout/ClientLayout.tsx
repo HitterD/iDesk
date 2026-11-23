@@ -1,11 +1,12 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Ticket, BookOpen, Settings, Video, MonitorSmartphone, FileText, Star, BarChart3, Award } from 'lucide-react';
+import { Ticket, BookOpen, Settings, Video, PenLine, Star, BarChart3, Award } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth, performLogout } from '../../stores/useAuth';
 import { FeatureErrorBoundary } from '../ui/FeatureErrorBoundary';
 import { UserGuidebookModal } from '@/features/client/components/UserGuidebookModal';
 import { useMyPermissions } from '@/hooks/usePermissions';
+import { useApprovals } from '@/features/client/pages/ApprovalsPage';
 import { ClientTopbar, type ClientNavItem } from './ClientTopbar';
 import { ClientBottomNav } from './ClientBottomNav';
 import { CLIENT_ROUTES } from '@/config/routes';
@@ -21,8 +22,6 @@ const CLIENT_PROFILE_PATH = CLIENT_ROUTES.PROFILE;
 // All possible nav items — items with pageKey are filtered by preset pageAccess
 const ALL_NAV_ITEMS: ClientNavItem[] = [
     { path: CLIENT_HOME_PATH, label: 'My Tickets', shortLabel: 'Tiket Saya', icon: Ticket, tone: 'blue' },
-    { path: '/client/hardware-requests', label: 'Hardware Requests', shortLabel: 'Hardware', icon: MonitorSmartphone, tone: 'orange', pageKey: 'hardware_requests' },
-    { path: '/client/eform-access', label: 'E-Form Access', shortLabel: 'E-Form', icon: FileText, tone: 'mint', pageKey: 'eform_access' },
     { path: '/client/zoom-calendar', label: 'Zoom Calendar', shortLabel: 'Zoom', icon: Video, tone: 'sky', pageKey: 'zoom_calendar' },
     { path: '/client/kb', label: 'Help Center', shortLabel: 'Bantuan', icon: BookOpen, tone: 'brown', pageKey: 'knowledge_base' },
     { path: CLIENT_PROFILE_PATH, label: 'Profile', shortLabel: 'Akun', icon: Settings, tone: 'gray' },
@@ -31,6 +30,9 @@ const ALL_NAV_ITEMS: ClientNavItem[] = [
 const CSI_NAV_ITEM: ClientNavItem = { path: CSI_PATHS.client, label: 'Survei CSI', shortLabel: 'Survei CSI', icon: Star, tone: 'teal' };
 const CSI_MY_RESULTS_NAV_ITEM: ClientNavItem = { path: `${CSI_PATHS.client}/hasil-saya`, label: 'Hasil Penilaian Saya', shortLabel: 'Hasil CSI', icon: Award, tone: 'teal' };
 const CSI_REPORT_NAV_ITEM: ClientNavItem = { path: `${CSI_PATHS.client}/report`, label: 'Report CSI Layanan', shortLabel: 'Report CSI', icon: BarChart3, tone: 'teal' };
+
+/** Shown only while at least one request waits for this person's signature (manager or GM of a Hardware / E-Form ticket). */
+const APPROVALS_NAV_ITEM: ClientNavItem = { path: '/client/approvals', label: 'Persetujuan', shortLabel: 'Persetujuan', icon: PenLine, tone: 'orange' };
 
 const ENTRANCE_EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -42,6 +44,8 @@ export const ClientLayout: React.FC = () => {
     const { data: activeSurveys } = useCsiActive();
     const { data: myResults } = useCsiMyResults();
     const hasOwnerReport = useCsiOwnerReportAccess();
+    const { data: approvals } = useApprovals();
+    const waitingApprovals = approvals?.length ?? 0;
 
     useEffect(() => {
         if (justLoggedIn) {
@@ -87,10 +91,14 @@ export const ClientLayout: React.FC = () => {
             : hasOwnerReport
                 ? CSI_REPORT_NAV_ITEM
                 : null;
-    const navItems = csiNavItem
-        ? [...permittedItems.filter(item => item.path !== CLIENT_PROFILE_PATH), csiNavItem,
-            ...permittedItems.filter(item => item.path === CLIENT_PROFILE_PATH)]
+    // Persetujuan sits right after My Tickets, with how many are waiting; nothing waits, nothing shows.
+    const withApprovals = waitingApprovals > 0
+        ? [permittedItems[0], { ...APPROVALS_NAV_ITEM, badge: waitingApprovals }, ...permittedItems.slice(1)]
         : permittedItems;
+    const navItems = csiNavItem
+        ? [...withApprovals.filter(item => item.path !== CLIENT_PROFILE_PATH), csiNavItem,
+            ...withApprovals.filter(item => item.path === CLIENT_PROFILE_PATH)]
+        : withApprovals;
     // The bottom nav only fits a few sections, so a pending survey leads there; the topbar order is unchanged.
     const hasPendingSurvey = pendingSurveyCount > 0;
     const bottomNavItems = hasPendingSurvey

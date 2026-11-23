@@ -30,6 +30,7 @@ describe('MutualSchedulingService', () => {
 
     mockDataSource = {
       transaction: jest.fn(async (cb) => cb({
+        query: jest.fn(async () => []),
         getRepository: (e: any) => {
           if (e === HardwareRequestItem) return itemRepoMock;
           if (e === HardwareRequest) return reqRepoMock;
@@ -163,6 +164,20 @@ describe('MutualSchedulingService', () => {
       expect(result.status).toBe(InstallStatus.CONFIRMED);
       expect(result.scheduledStart!.toISOString()).toBe(slots[1].start);
       expect(mockEmitter.emit).toHaveBeenCalledWith('schedule.confirmed', expect.any(Object));
+    });
+
+    it.each([
+      [RequestStatus.AWAITING_DELIVERY, true],
+      [RequestStatus.INSTALLATION, false],
+    ])('flags enteredInstallation for a pick from %s: %s', async (status, entered) => {
+      mockDataSource._schedRepo.findOne.mockResolvedValue({
+        id: 'sch-1', requestId: 'r1', status: InstallStatus.PROPOSED_AWAITING_USER,
+        proposedSlots: [futureSlot(2)], technicianId: 't1', request: { id: 'r1', status },
+      });
+
+      await service.selectSlot('r1', 'sch-1', { slotIndex: 0 }, { id: 'u1' });
+
+      expect(mockEmitter.emit).toHaveBeenCalledWith('schedule.confirmed', expect.objectContaining({ enteredInstallation: entered }));
     });
 
     it('throws if slotIndex out of range', async () => {

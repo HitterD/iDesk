@@ -75,6 +75,8 @@ export interface ScheduleConfirmedPayload {
   actorId?: string | null;
   scheduledStart: Date;
   scheduledEnd: Date;
+  /** The pick moved the request from AWAITING_DELIVERY to INSTALLATION (delivery is over). */
+  enteredInstallation?: boolean;
 }
 
 export interface ScheduleRescheduleRequestedPayload {

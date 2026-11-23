@@ -20,7 +20,7 @@ describe('HardwareRequestCommandService', () => {
     let service: HardwareRequestCommandService;
     let reqRepo: any;
     let activityRepo: any;
-    let catalog: jest.Mocked<Pick<HardwareCatalogService, 'ensureActive'>>;
+    let catalog: jest.Mocked<Pick<HardwareCatalogService, 'ensureActive' | 'assertRequiredFields'>>;
     let numberer: jest.Mocked<Pick<RequestNumberService, 'generate'>>;
     let dataSource: any;
     let scheduleRepo: any;
@@ -47,10 +47,13 @@ describe('HardwareRequestCommandService', () => {
         };
         catalog = {
             ensureActive: jest.fn().mockResolvedValue(mockCatalogItem as any),
+            assertRequiredFields: jest.fn(),
         };
         numberer = { generate: jest.fn().mockResolvedValue('HR-2026-0001') };
         dataSource = {
+            flowQuery: jest.fn().mockResolvedValue([]),
             transaction: jest.fn(async (cb: any) => cb({
+                query: dataSource.flowQuery,
                 getRepository: (e: any) => (e === HardwareRequest ? reqRepo :
                                            e === HardwareRequestItem ? reqRepo :
                                            e === HardwareRequestActivity ? activityRepo :
@@ -77,6 +80,24 @@ describe('HardwareRequestCommandService', () => {
             ],
         }).compile();
         service = moduleRef.get(HardwareRequestCommandService);
+    });
+
+    it.each(['ACCEPT_AS_IS', 'REPORT_ISSUE'] as const)('rejects legacy %s for a unified request before any writes', async (kind) => {
+        dataSource.flowQuery.mockResolvedValue([{ id: 'flow-1' }]);
+        reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.AWAITING_USER_CONFIRMATION });
+
+        await expect(service.confirmInstallation('req-1', 'user-1', { kind, comments: 'Perangkat belum berfungsi' }))
+            .rejects.toMatchObject({ status: 409 });
+        expect(reqRepo.save).not.toHaveBeenCalled();
+        expect(activityRepo.save).not.toHaveBeenCalled();
+        expect(emitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('allows a legacy request without a flow to complete', async () => {
+        reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.AWAITING_USER_CONFIRMATION });
+
+        await expect(service.confirmInstallation('req-1', 'user-1', { kind: 'ACCEPT_AS_IS' }))
+            .resolves.toMatchObject({ status: RequestStatus.COMPLETED });
     });
 
     it('createDraft creates DRAFT request with items and activity', async () => {
@@ -131,6 +152,53 @@ describe('HardwareRequestCommandService', () => {
                 items: [{ catalogId: 'bad', quantity: 1 }],
             }),
         ).rejects.toThrow();
+    });
+
+    it('createDraft checks the catalog item required fields against what was filled', async () => {
+        catalog.assertRequiredFields.mockImplementationOnce(() => { throw new Error('Isian "Nama software" wajib untuk Lisensi Software'); });
+        await expect(service.createDraft('user-1', 'site-1', 'AGENT' as any, {
+            justification: 'Lisensi untuk tim desain',
+            items: [{ catalogId: 'cat-1', quantity: 1, customFields: { software: '' } }],
+        })).rejects.toThrow('Isian "Nama software" wajib untuk Lisensi Software');
+        expect(catalog.assertRequiredFields).toHaveBeenCalledWith(mockCatalogItem, { software: '' });
+        expect(reqRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('createDraftWith stores a manual item without catalog, one row per unit', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Docking untuk meeting room',
+            items: [{ manualName: 'Docking USB-C', quantity: 2, notes: 'Port HDMI', recipientName: 'Andi', customFields: { recipientName: 'Andi' } }],
+        });
+        const unit = { catalogId: null, quantity: 1, notes: 'Port HDMI', recipientName: 'Andi', categorySnapshot: {
+            code: null, name: 'Docking USB-C', category: ItemCategory.OTHER, specs: {}, customFields: { recipientName: 'Andi' },
+        } };
+        expect(reqRepo.save).toHaveBeenCalledWith(expect.objectContaining({ items: [unit, unit] }));
+        expect(catalog.ensureActive).not.toHaveBeenCalled();
+    });
+
+    it('createDraftWith keeps replacesName on the unit snapshot', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Ganti mouse rusak',
+            items: [{ manualName: 'Mouse baru', quantity: 1, replacesName: 'Mouse lama' }],
+        });
+        const [{ items }] = reqRepo.save.mock.calls[reqRepo.save.mock.calls.length - 1];
+        expect(items[0].categorySnapshot).toMatchObject({ name: 'Mouse baru', replaces: 'Mouse lama' });
+    });
+
+    it('createDraftWith links the ticket and keeps the requester signature on the CREATED activity', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Laptop staf baru',
+            items: [{ catalogId: 'cat-1', quantity: 1 }],
+        }, { sourceTicketId: 't-1', requesterSignature: 'data:image/png;base64,AAA' });
+        expect(reqRepo.save).toHaveBeenCalledWith(expect.objectContaining({ sourceTicketId: 't-1', proposedById: null }));
+        expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+            action: ActivityAction.CREATED,
+            actorId: 'user-1',
+            metadata: { requestNumber: 'HR-2026-0001', sourceTicketId: 't-1', signature: 'data:image/png;base64,AAA' },
+        }));
     });
 
     // From Task 1.14 Update Draft
@@ -234,6 +302,20 @@ describe('HardwareRequestCommandService', () => {
         }));
     });
 
+    it('submitWith keeps SUBMITTED and emits nothing when direct installation is not allowed', async () => {
+        const item1: any = { id: 'it-1', deliveryStatus: 'PENDING' };
+        reqRepo.findOne.mockResolvedValue({
+            id: 'req-2', requesterId: 'user-1', status: RequestStatus.DRAFT, items: [item1],
+            justification: '[PENJADWALAN PEMASANGAN] tetap direview IT',
+        } as any);
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        const res = await service.submitWith(mgr as any, 'user-1', 'req-2', { allowDirectInstallation: false });
+        expect(res.status).toBe(RequestStatus.SUBMITTED);
+        expect(res.approvedAt).toBeUndefined();
+        expect(item1.deliveryStatus).toBe('PENDING');
+        expect(emitter.emit).not.toHaveBeenCalled();
+    });
+
     // From Task 1.16 Cancel
     it('cancel transitions SUBMITTED → CANCELLED (requester only)', async () => {
         const r: any = {
@@ -256,6 +338,39 @@ describe('HardwareRequestCommandService', () => {
         } as any);
         await expect(service.cancel({ id: 'user-1', role: 'USER' }, 'req-1')).rejects.toMatchObject({
             response: expect.objectContaining({ code: 'HR_INVALID_TRANSITION' }),
+        });
+    });
+
+    describe('cancelWith for a request flow (the flow decides who may cancel when)', () => {
+        const mgr = () => ({ query: jest.fn(async () => undefined), getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) });
+        const FLOW_REQUESTER_STATES = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW];
+        const FLOW_IT_STATES = [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW, RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.AWAITING_DELIVERY, RequestStatus.INSTALLATION];
+
+        it.each(FLOW_REQUESTER_STATES)('the requester can withdraw a flow request that is %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status, items: [{}] } as any);
+            const { saved } = await service.cancelWith(mgr() as any, { id: 'user-1', role: 'USER' }, 'req-1', { allowed: FLOW_REQUESTER_STATES });
+            expect(saved.status).toBe(RequestStatus.CANCELLED);
+        });
+
+        it.each(FLOW_IT_STATES)('IT can cancel a flow request that is %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status, items: [{}] } as any);
+            const { saved } = await service.cancelWith(mgr() as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES });
+            expect(saved.status).toBe(RequestStatus.CANCELLED);
+        });
+
+        it('still refuses a state the flow did not allow', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.COMPLETED, items: [{}] } as any);
+            await expect(service.cancelWith(mgr() as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES })).rejects.toThrow();
+        });
+
+        it('cancelling closes the open installation schedules of the request, so nobody can still pick a slot', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', requesterId: 'user-1', status: RequestStatus.INSTALLATION, items: [{}] } as any);
+            const query = jest.fn(async () => undefined);
+            await service.cancelWith({ ...mgr(), query } as any, { id: 'it-1', role: 'ICT_STAFF' }, 'req-1', { allowed: FLOW_IT_STATES });
+            const [sql, params] = query.mock.calls[0] as unknown as [string, unknown[]];
+            expect(sql).toContain('installation_schedules');
+            expect(sql).toContain("'CANCELLED'");
+            expect(params).toEqual(['req-1']);
         });
     });
 
@@ -305,6 +420,20 @@ describe('HardwareRequestCommandService', () => {
                 action: ActivityAction.REJECTED,
                 metadata: expect.objectContaining({ reason: 'Duplicate' }),
             }));
+        });
+
+        it('reject also works on a request IT has not started reviewing (SUBMITTED): IT may refuse it straight away', async () => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', status: RequestStatus.SUBMITTED, items: [{}] } as any);
+            const res = await service.reject('lead-1', 'req-1', { reason: 'Tidak sesuai kebijakan' });
+            expect(res.status).toBe(RequestStatus.REJECTED);
+            expect(activityRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+                action: ActivityAction.REJECTED, fromStatus: RequestStatus.SUBMITTED, toStatus: RequestStatus.REJECTED,
+            }));
+        });
+
+        it.each([RequestStatus.APPROVED, RequestStatus.PROCUREMENT, RequestStatus.INSTALLATION, RequestStatus.COMPLETED])('reject is still refused from %s', async (status) => {
+            reqRepo.findOne.mockResolvedValue({ id: 'req-1', status, items: [{}] } as any);
+            await expect(service.reject('lead-1', 'req-1', { reason: 'x' })).rejects.toThrow();
         });
 
         it('review rejects from non-SUBMITTED', async () => {

@@ -5,6 +5,7 @@ import { NotificationCenterService } from '../../notifications/notification-cent
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { HardwareRequestQueryService } from '../services/hardware-request-query.service';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import {
     HR_EVT, HrSubmitted, HrApproved, HrRejected, HrCancelled,
     HrProcurementDone, HrScheduleProposed, HrScheduleConfirmed, HrScheduleRescheduled,
@@ -27,6 +28,7 @@ export class InAppNotifierListener {
         private readonly notif: NotificationService,
         private readonly notificationCenterService: NotificationCenterService,
         private readonly q: HardwareRequestQueryService,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     private async push(userId: string, payload: {
@@ -118,6 +120,17 @@ export class InAppNotifierListener {
     async onProcurementDone(e: HrProcurementDone) {
         const r = await this.q.findById(e.requestId);
         if (!r) return;
+        // A request-flow request is not "ready to schedule" yet: the goods still have to arrive.
+        if (await this.flows.has(r.id)) {
+            await this.push(e.requesterId, {
+                title: 'Pembelian dicatat',
+                message: `${r.requestNumber} sedang menunggu barang tiba`,
+                type: NotificationType.HARDWARE_REQUEST_PROC_DONE,
+                link: link(r.id),
+                referenceId: `${r.id}_proc_done`,
+            });
+            return;
+        }
         const techs = await this.staffFor(r as any, HW_OPERATORS, [e.actorId, e.requesterId]);
         await this.push(e.requesterId, {
             title: 'Procurement selesai',

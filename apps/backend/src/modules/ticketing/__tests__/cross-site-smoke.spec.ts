@@ -62,6 +62,8 @@ describe('Cross-site smoke: site-locked agents cannot cross sites', () => {
                 findOne: jest.fn(),
                 createQueryBuilder: jest.fn().mockReturnValue(qbSpyProxy),
                 save: jest.fn(async (x: any) => x),
+                // request_flows lookup for approver access: no flow names this user
+                manager: { query: jest.fn().mockResolvedValue([]) },
             } as any;
             const slaConfigRepo = { findOne: jest.fn().mockResolvedValue(null) } as any;
             svc = new TicketQueryService(

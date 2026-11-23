@@ -1,4 +1,7 @@
 import type { BusinessHoursService } from '../../sla-config/business-hours.service';
+import type { Ticket } from '../entities/ticket.entity';
+import { TicketStatus } from '../entities/ticket.entity';
+import type { SlaClockService } from '../services/sla-clock.service';
 
 /** One working day (08:00-17:00) for the requester to confirm or dispute a resolution. */
 export const RESOLUTION_CONFIRMATION_BUSINESS_MINUTES = 540;
@@ -24,4 +27,17 @@ export function formatResolutionDeadline(deadline: Date | string): string {
         dateStyle: 'medium',
         timeStyle: 'short',
     }) + ' WIB';
+}
+
+/**
+ * A RESOLVED ticket goes back to the agent because the requester disputes it (or reports an issue): no longer done,
+ * no confirmation window, and the clock that kept running keeps its original target. The caller saves the ticket.
+ */
+export function reopenAsDispute(ticket: Ticket, slaClock: Pick<SlaClockService, 'resumeOnOriginalTarget'>, now: Date = new Date()): void {
+    ticket.status = TicketStatus.IN_PROGRESS;
+    ticket.disputedAt = now;
+    ticket.resolutionDeadlineAt = null;
+    // The next resolve sets a fresh timestamp.
+    ticket.resolvedAt = null;
+    slaClock.resumeOnOriginalTarget(ticket, now);
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { Site } from '../../sites/entities/site.entity';
 import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service';
 import { buildAppUrl } from '../../../shared/mail/app-url.util';
+import { EFormFlowMembership } from '../ticket-link/eform-flow-membership.service';
 
 /** After the manager the request either waits for the GM (VPN by default, or as ICT set it) or goes to provisioning. */
 const awaitsGm = (request: EFormRequest): boolean => request.status === EFormStatus.PENDING_GM;
@@ -26,6 +27,7 @@ export class EFormNotificationListener {
     private readonly mailDispatch: MailDispatchService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
+    @Optional() private readonly flows?: EFormFlowMembership,
   ) {}
 
   /**
@@ -118,6 +120,8 @@ export class EFormNotificationListener {
   }
   @OnEvent('eform.fulfilled')
   async handleEFormFulfilled(payload: { request: EFormRequest }) {
+    // A request-flow e-form tells its requester once, from the flow ("akses siap dicoba").
+    if (await this.flows?.has(payload.request.id)) return;
     const notes = (payload.request as any).formData?.fulfillmentNotes as string | undefined;
     try {
       await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_FULFILLED, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah ditambahkan pada akun yang sudah ada.' + (notes ? ' Catatan ICT: ' + notes : ''), referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
@@ -129,6 +133,7 @@ export class EFormNotificationListener {
   }
   @OnEvent('eform.ict-confirmed')
   async handleEFormIctConfirmed(payload: { request: EFormRequest }) {
+    if (await this.flows?.has(payload.request.id)) return;
     try {
       await this.notificationCenter.send({ userId: payload.request.requesterId, type: NotificationType.EFORM_CREDENTIALS_READY, title: 'Akses ' + payload.request.formType + ' Aktif', message: 'Akses ' + payload.request.formType + ' Anda telah aktif. Buka halaman detail untuk melihat kredensial.', referenceId: payload.request.id, link: '/eform-access/' + payload.request.id });
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);

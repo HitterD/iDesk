@@ -11,6 +11,7 @@ import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { EventsGateway } from '../../ticketing/presentation/gateways/events.gateway';
 import { WorkloadService } from '../../workload/workload.service';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import { SiteActor } from '../../../shared/core/utils/site-scope.util';
 
 type InstallCompletedEvent = HrInstallCompleted & { status?: RequestStatus };
@@ -32,6 +33,7 @@ export class HardwareTicketStatusSyncListener {
         private readonly dataSource: DataSource,
         private readonly eventsGateway: EventsGateway,
         private readonly workloadService: WorkloadService,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     @OnEvent(HR_EVT.INSTALL_COMPLETED)
@@ -49,6 +51,8 @@ export class HardwareTicketStatusSyncListener {
 
     private async sync(requestId: string, target: TicketStatus, note: (requestNumber: string) => string): Promise<void> {
         try {
+            // A request-flow ticket is moved by the flow itself (the requester's check closes it).
+            if (await this.flows.has(requestId)) return;
             // Same lookup the reschedule flow uses: the newest schedule that points at a ticket.
             const linked = await this.schedRepo.findOne({
                 where: { requestId, ticketId: Not(IsNull()) },

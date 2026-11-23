@@ -56,4 +56,29 @@ describe('HardwareAssetService', () => {
         const ok = await svc.allAssetsCollected(items as any);
         expect(ok).toBe(true);
     });
+
+    describe('createAssetsWith', () => {
+        const unique = (detail: string) => Object.assign(new Error('duplicate key'), { code: '23505', detail });
+        const run = (saveError: unknown) => {
+            const repo = {
+                find: jest.fn(async () => []), create: jest.fn((v: object) => v),
+                save: jest.fn(async () => { throw saveError; }),
+            };
+            const mgr = { getRepository: (e: unknown) => (e === HardwareAsset ? repo : { findOne: async () => ({ id: 'r1', requesterId: 'u1', siteId: 's1', recipientId: null }) }) };
+            return svc.createAssetsWith(mgr as never, 'r1', [{ itemId: 'i1', barcode: 'AST-0001' }, { itemId: 'i2', barcode: 'AST-0002' }], 'it-1');
+        };
+
+        it('names the code from the database detail when a race loses', async () => {
+            await expect(run(unique('Key (barcode)=(AST-0002) already exists.'))).rejects.toThrow('Kode aset AST-0002 sudah dipakai');
+        });
+
+        it('falls back to the first code of the payload when the detail cannot be read', async () => {
+            await expect(run(unique(''))).rejects.toThrow('Kode aset AST-0001 sudah dipakai');
+            await expect(run(unique('something odd'))).rejects.toThrow('Kode aset AST-0001 sudah dipakai');
+        });
+
+        it('rethrows other database errors', async () => {
+            await expect(run(new Error('boom'))).rejects.toThrow('boom');
+        });
+    });
 });

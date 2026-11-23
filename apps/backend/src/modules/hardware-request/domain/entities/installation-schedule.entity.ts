@@ -33,6 +33,8 @@ export class InstallationSchedule {
 
     @Column({ type: 'text', nullable: true }) locationDetail: string | null;
     @Column({ type: 'text', nullable: true }) rescheduleReason: string | null;
+    /** IT's note to the requester, written with the proposed slots. */
+    @Column({ type: 'text', nullable: true }) note: string | null;
 
     @Column({ type: 'timestamptz', nullable: true }) startedAt: Date | null;
     @Column({ type: 'timestamptz', nullable: true }) completedAt: Date | null;

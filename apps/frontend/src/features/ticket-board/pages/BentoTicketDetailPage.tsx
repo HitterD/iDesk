@@ -10,6 +10,8 @@ import { TicketDetail, Agent, SlaAdjustmentReasonCategory } from '../components/
 import { isTerminalStatus } from '../components/ticket-detail/constants';
 import { ImageLightbox } from '../components/ticket-detail/ImageLightbox';
 import { TicketHeader } from '../components/ticket-detail/TicketHeader';
+import { RequestFlowPanel } from '../components/request-flow/RequestFlowPanel';
+import { useRequestFlow } from '../components/request-flow/useRequestFlow';
 import { TicketNotesAction } from '../components/ticket-detail/notes/TicketNotesAction';
 import { TicketChat, type TicketChatHandle } from '../components/ticket-detail/TicketChat';
 import { usePinActions } from '../components/ticket-detail/usePinActions';
@@ -37,6 +39,18 @@ import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } fr
 import { ReassignConfirmDialog } from '../components/ReassignConfirmDialog';
 import { StatusChangeCancelledError } from '../components/ticket-detail/statusChangeCancelled';
 import type { CancelTicketPayload } from '../components/ticket-detail/CancelTicketDialog';
+
+/** Opens the latest document PDF of a request ticket in a new tab. */
+async function downloadRequestPdf(ticketId: string, version: number): Promise<void> {
+    try {
+        const response = await api.get(`/request-flow/${ticketId}/document.pdf`, { params: { v: version }, responseType: 'blob' });
+        const url = URL.createObjectURL(response.data as Blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+        toast.error('Gagal mengunduh dokumen');
+    }
+}
 
 export const BentoTicketDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -101,6 +115,10 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
         // Socket is the primary channel; poll only while it's down so replies still arrive.
         refetchInterval: isConnected ? false : TICKET_OFFLINE_POLL_MS,
     });
+
+    // A Hardware / E-Form ticket is driven by its request flow; ordinary tickets never load it.
+    const isRequestTicket = ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const isAdmin = user?.role === 'ADMIN';
     const resolvedTicketType = useMemo(() => {
@@ -426,7 +444,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
             <TicketHeader
                 ticket={ticket}
                 notesAction={ticket.viewerAccess === 'handler' && user?.id ? <TicketNotesAction ticketId={ticket.id} userId={user.id} /> : undefined}
-                onCancel={canAct ? handleCancelTicket : undefined}
+                onCancel={canAct && !isRequestTicket ? handleCancelTicket : undefined}
                 isCancelling={cancelMutation.isPending}
                 onResolve={canAct ? handleResolveTicket : undefined}
                 isResolving={isResolving}
@@ -435,6 +453,8 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
+                flow={requestFlow ? { kind: requestFlow.kind, phase: requestFlow.phase, phaseLabel: requestFlow.phaseLabel, paused: ['appr_mgr', 'appr_gm', 'procure', 'delivery'].includes(requestFlow.phase) } : undefined}
+                onDownloadPdf={requestFlow ? () => void downloadRequestPdf(ticket.id, requestFlow.documentVersion) : undefined}
                 resolveOpen={resolveOpen}
                 onResolveOpenChange={setResolveOpen}
                 tabs={(
@@ -450,6 +470,10 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
                     />
                 )}
             />
+
+            {isRequestTicket && (
+                <RequestFlowPanel ticketId={ticket.id} ticketNumber={ticket.ticketNumber ?? ticket.id} requesterId={ticket.user?.id} requesterName={ticket.user?.fullName ?? undefined} />
+            )}
 
             {/* Critical Priority Banner Alert for Agents */}
             {ticket.priority === 'CRITICAL' && (

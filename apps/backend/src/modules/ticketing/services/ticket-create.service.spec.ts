@@ -167,4 +167,34 @@ describe('TicketCreateService', () => {
             expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ siteId: 'site-krw' }));
         });
     });
+    describe('createTicketWithin (request tickets)', () => {
+        const REQUEST_DTO = { title: 'Laptop staf baru', description: 'Dua staf QC baru', priority: TicketPriority.MEDIUM, ticketType: TicketType.HARDWARE_REQUEST };
+
+        it('lets the caller write its records in the ticket transaction instead of the opening message', async () => {
+            const requester = { id: 'user-1', role: UserRole.USER, siteId: 'site-krw', isActive: true };
+            const { service, ticketRepo, messageRepo } = buildService({ 'user-1': requester });
+            const manager = {
+                save: jest.fn(async (entity: any) => ({ id: 't-1', ...entity })),
+                query: jest.fn().mockResolvedValue([{ maxSeq: null }]),
+            };
+            ticketRepo.manager.transaction = jest.fn((cb: any) => cb(manager));
+            const fill = jest.fn(async () => undefined);
+
+            const ticket = await service.createTicketWithin('user-1', REQUEST_DTO, fill);
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ ticketType: TicketType.HARDWARE_REQUEST, siteId: 'site-krw' }));
+            expect(fill).toHaveBeenCalledWith(manager, expect.objectContaining({ id: 't-1', ticketNumber: expect.any(String) }), requester);
+            expect(messageRepo.create).not.toHaveBeenCalled();
+            expect(ticket.id).toBe('t-1');
+        });
+
+        it('fails the whole creation when the caller fails', async () => {
+            const { service, ticketRepo } = buildService({ 'user-1': { id: 'user-1', role: UserRole.USER, siteId: 'site-krw', isActive: true } });
+            const manager = { save: jest.fn(async (entity: any) => ({ id: 't-1', ...entity })), query: jest.fn().mockResolvedValue([{ maxSeq: null }]) };
+            ticketRepo.manager.transaction = jest.fn((cb: any) => cb(manager));
+
+            await expect(service.createTicketWithin('user-1', REQUEST_DTO, async () => { throw new BadRequestException('Isian wajib'); }))
+                .rejects.toThrow('Isian wajib');
+        });
+    });
 });

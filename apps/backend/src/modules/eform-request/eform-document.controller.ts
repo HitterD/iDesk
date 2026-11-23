@@ -1,3 +1,4 @@
+import { NotInEformFlowGuard } from './ticket-link/not-in-eform-flow.guard';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Request, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -32,6 +33,8 @@ export class EFormDocumentController {
   ) {}
 
   @Patch(':id/gm-step')
+
+  @UseGuards(NotInEformFlowGuard)
   @Roles(...ICT_ROLES)
   @ApiOperation({ summary: 'ICT turns the GM approval on or off and picks the GM' })
   setGmStep(@Request() req: any, @Param('id', ParseUUIDPipe) id: string, @Body() dto: SetGmStepDto) {
@@ -39,6 +42,8 @@ export class EFormDocumentController {
   }
 
   @Patch(':id/gm-approve')
+
+  @UseGuards(NotInEformFlowGuard)
   @ApiOperation({ summary: 'The chosen GM approves or rejects in iDesk' })
   approveByGm(@Request() req: any, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ApproveManagerDto) {
     return this.gm.approveByGm(id, req.user.userId, req.user.fullName || req.user.username || 'Unknown', dto);
@@ -52,6 +57,8 @@ export class EFormDocumentController {
   }
 
   @Post(':id/gm-approval')
+
+  @UseGuards(NotInEformFlowGuard)
   // No @Roles: the service lets IT and the requester (paper route only) through and refuses everyone else.
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'ICT or the requester uploads the form signed by the GM (PDF)' })

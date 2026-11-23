@@ -6,6 +6,7 @@ import { MailDispatchService } from '../../../shared/mail/mail-dispatch.service'
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { Site } from '../../sites/entities/site.entity';
+import { EFormFlowMembership } from '../ticket-link/eform-flow-membership.service';
 
 describe('EFormNotificationListener', () => {
     let listener: EFormNotificationListener;
@@ -20,6 +21,7 @@ describe('EFormNotificationListener', () => {
         findOne: jest.fn(),
         find: jest.fn(),
     };
+    const flows = { has: jest.fn(async (_id: string) => false) };
     const siteRepo = {
         findOne: jest.fn().mockResolvedValue({ id: 'site-1', code: 'SPJ', name: 'Sepanjang' }),
     };
@@ -32,11 +34,13 @@ describe('EFormNotificationListener', () => {
                 { provide: MailDispatchService, useValue: mailDispatch },
                 { provide: getRepositoryToken(User), useValue: userRepo },
                 { provide: getRepositoryToken(Site), useValue: siteRepo },
+                { provide: EFormFlowMembership, useValue: flows },
             ],
         }).compile();
 
         listener = mod.get(EFormNotificationListener);
         jest.clearAllMocks();
+        flows.has.mockImplementation(async () => false);
     });
 
     const managerApproved = async (formType: string, status: string) => {
@@ -120,5 +124,14 @@ describe('EFormNotificationListener', () => {
         await managerApproved('WEBSITE', 'PENDING_ICT');
         expect(notificationCenter.findStaffAtSite).toHaveBeenCalledWith([UserRole.AGENT_OPERATIONAL_SUPPORT], 'site-1');
         expect(userRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('a request-flow e-form gets no legacy fulfilled / credentials-ready notice (the flow tells the requester once)', async () => {
+        flows.has.mockImplementation(async () => true);
+        const request = { id: 'ef-1', formType: 'VPN', requesterId: 'u1', requesterName: 'Budi' } as any;
+        await listener.handleEFormFulfilled({ request });
+        await listener.handleEFormIctConfirmed({ request });
+        expect(notificationCenter.send).not.toHaveBeenCalled();
+        expect(mailDispatch.send).not.toHaveBeenCalled();
     });
 });
