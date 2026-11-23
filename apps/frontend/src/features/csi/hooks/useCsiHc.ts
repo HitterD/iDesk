@@ -197,7 +197,7 @@ export function useSetCsiPeriodPics(scope: CsiScopeParam, periodId: string) {
 }
 export function useCsiHcRecap(scope: CsiScopeParam, periodId: string) {
     const refetchInterval = useCsiPollingFallback();
-    return useQuery({ queryKey: recapKey(scope, periodId), queryFn: () => CsiHcApi.hcRecap(scope, periodId), enabled: !!periodId, refetchInterval });
+    return useQuery({ queryKey: recapKey(scope, periodId), queryFn: () => CsiHcApi.hcRecap(scope, periodId), enabled: !!periodId, refetchInterval, staleTime: 0, refetchOnMount: 'always' });
 }
 
 const ratersKey = (scope: CsiScopeParam, id: string) => ['csi', scope, 'hc-raters', id] as const;
