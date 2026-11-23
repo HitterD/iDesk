@@ -113,6 +113,8 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
     const items = view.hardware?.items ?? [];
     const flowItems = items.map((i) => ({ id: i.id, name: i.name, recipient: i.recipient, deliveryStatus: i.deliveryStatus, procurementDecision: i.procurementDecision, quantity: 1 }));
     const basket: BasketLine[] = basketFromItems(items);
+    // After an issue IT comes back: the units that already have an asset keep it and need no new code.
+    const installedIds = new Set((view.hardware?.assets ?? []).map((asset) => asset.itemId));
     const schedule = view.hardware?.schedule ?? null;
     const arrivedItems = items.filter((i) => i.deliveryStatus === 'ARRIVED') as unknown as HardwareRequestItem[];
     const scheduleRow = schedule ? ({
@@ -153,7 +155,7 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
             {dialog === 'arrived' && <ArrivalDialog open onClose={close} items={items} onSubmit={(payload) => send(flowCalls.arrivals(ticketId, payload))} />}
             {dialog === 'installDone' && (
                 <InstallDoneDialog open onClose={close} signerName={user?.fullName ?? ''}
-                    items={flowItems.filter((i) => i.deliveryStatus === 'ARRIVED')} onSubmit={(payload) => send(flowCalls.installDone(ticketId, payload))} />
+                    items={flowItems.filter((i) => i.deliveryStatus === 'ARRIVED' && !installedIds.has(i.id))} onSubmit={(payload) => send(flowCalls.installDone(ticketId, payload))} />
             )}
             {dialog === 'fulfill' && (
                 <FulfillDialog open onClose={close} signerName={user?.fullName ?? ''} formType={view.eform?.formType ?? ''}

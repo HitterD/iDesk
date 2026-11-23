@@ -91,6 +91,18 @@ describe('RequestFlowPanel', () => {
         expect(screen.queryByLabelText('Kode aset Mouse')).not.toBeInTheDocument();
     });
 
+    it('a redo after an issue asks a code only for units that have no asset yet', async () => {
+        const item = (id: string, name: string) => ({ id, name, quantity: 1, note: null, recipient: 'Leony', catalogId: null, fields: {}, deliveryStatus: 'ARRIVED', procurementDecision: 'APPROVED', vendor: null, actualCost: null, invoiceNumber: null, invoiceDate: null });
+        const schedule = { id: 's-2', slots: [{ start: '2026-11-25T02:00:00Z', end: '2026-11-25T03:00:00Z' }], chosen: 0, technicianName: 'Yudi', status: 'IN_PROGRESS', resched: 0, note: null, technicianId: 'it-1' };
+        renderPanel(view('install', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: {
+            requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: ['Leony'], schedule,
+            items: [item('i-1', 'Laptop'), item('i-2', 'Mouse')], assets: [{ code: 'AST-0001', itemId: 'i-1' }],
+        } }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Selesaikan pemasangan' }));
+        expect(await screen.findByLabelText('Kode aset Mouse')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Kode aset Laptop')).not.toBeInTheDocument();
+    });
+
     it('the purchase dialog lists only the units nobody decided yet (a migrated request may have some decided already)', async () => {
         const item = (id: string, name: string, procurementDecision: string | null) => ({ id, name, quantity: 1, note: null, recipient: '', catalogId: null, fields: {}, deliveryStatus: 'PENDING', procurementDecision, vendor: null, actualCost: null, invoiceNumber: null, invoiceDate: null });
         renderPanel(view('procure', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: {
