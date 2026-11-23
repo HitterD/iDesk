@@ -185,6 +185,11 @@ async function createParent(manager: EntityManager, plan: Plan, now: Date): Prom
     return true;
 }
 
+/** A request that cannot move on any more: nothing is left to do on it. */
+function isOver(plan: Plan): boolean {
+    return plan.status === TicketStatus.CLOSED || plan.status === TicketStatus.CANCELLED;
+}
+
 function requestsPerTicket(plans: Plan[]): Map<string, number> {
     const counts = new Map<string, number>();
     for (const { row } of plans) {
@@ -209,14 +214,21 @@ export async function backfillRequestFlows(manager: EntityManager, now: Date = n
     for (const plan of plans) {
         const { row } = plan;
         if (hasFlow.has(row.id) || NOT_STARTED.includes(row.status)) continue;
-        if (!row.sourceTicketId) {
-            if (await createParent(manager, plan, now)) result.created += 1;
-            else result.skipped += 1;
-        } else if (perTicket.get(row.sourceTicketId) === 1 && row.sourceTicketExists) {
-            await insertFlow(manager, row.sourceTicketId, plan);
+        const alone = row.sourceTicketId && perTicket.get(row.sourceTicketId) === 1 && row.sourceTicketExists;
+        if (alone) {
+            await insertFlow(manager, row.sourceTicketId!, plan);
             result.linked += 1;
-        } else if (!legacySkipped.has(row.sourceTicketId)) {
-            legacySkipped.add(row.sourceTicketId);
+        } else if (row.sourceTicketId && isOver(plan)) {
+            // Over already: it stays as history on the ticket it came from (it keeps its old cards).
+            if (!legacySkipped.has(row.sourceTicketId)) {
+                legacySkipped.add(row.sourceTicketId);
+                result.skipped += 1;
+            }
+        } else if (await createParent(manager, plan, now)) {
+            // Still running but with no ticket of its own to continue on (none, a deleted one, or one shared with
+            // other requests): it gets its own ticket, otherwise nobody could review, sign or install it any more.
+            result.created += 1;
+        } else {
             result.skipped += 1;
         }
     }

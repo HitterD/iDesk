@@ -182,7 +182,7 @@ describe('backfillRequestFlows', () => {
         expect(db.tickets.map((t) => t.ticketNumber)).toEqual(['051026-QC-0001', '051026-QC-0002', '051026-QC-0003']);
     });
 
-    it('keeps legacy linked tickets as SERVICE', async () => {
+    it('a ticket that raised several requests keeps its type, and each request still running gets a ticket of its own', async () => {
         const { db, manager } = fakeDb();
         db.tickets.push({ id: 'legacy', ticketNumber: '011026-QC-0001', ticketType: TicketType.SERVICE });
         db.hardware.push(hardware({ sourceTicketId: 'legacy' }));
@@ -190,18 +190,32 @@ describe('backfillRequestFlows', () => {
 
         const result = await backfillRequestFlows(manager);
 
-        expect(result).toEqual({ created: 0, linked: 0, skipped: 1 });
-        expect(db.tickets).toHaveLength(1);
+        expect(result).toEqual({ created: 2, linked: 0, skipped: 0 });
         expect(db.tickets[0].ticketType).toBe(TicketType.SERVICE);
-        expect(db.flows).toEqual([]);
+        expect(db.flows.map((f) => f.ticketId)).not.toContain('legacy');
+        expect(db.flows).toHaveLength(2);
     });
 
-    it('skips a legacy request whose source ticket no longer exists', async () => {
+    it('requests that are already over stay on the old ticket (nothing to continue, only history)', async () => {
+        const { db, manager } = fakeDb();
+        db.tickets.push({ id: 'legacy', ticketNumber: '011026-QC-0001', ticketType: TicketType.SERVICE });
+        db.hardware.push(hardware({ sourceTicketId: 'legacy', status: RequestStatus.COMPLETED }));
+        db.eform.push(eform({ sourceTicketId: 'legacy', status: EFormStatus.CONFIRMED }));
+
+        const result = await backfillRequestFlows(manager);
+
+        expect(result).toEqual({ created: 0, linked: 0, skipped: 1 });
+        expect(db.flows).toEqual([]);
+        expect(db.tickets).toHaveLength(1);
+    });
+
+    it('a request whose source ticket no longer exists is filed under a ticket of its own, so it can still be handled', async () => {
         const { db, manager } = fakeDb();
         db.hardware.push(hardware({ sourceTicketId: 'gone', sourceTicketExists: false }));
 
-        expect(await backfillRequestFlows(manager)).toEqual({ created: 0, linked: 0, skipped: 1 });
-        expect(db.flows).toEqual([]);
+        expect(await backfillRequestFlows(manager)).toEqual({ created: 1, linked: 0, skipped: 0 });
+        expect(db.flows).toHaveLength(1);
+        expect(db.hardware[0].sourceTicketId).toBe(db.tickets[0].id);
     });
 
     it('treats a soft-deleted source ticket as missing', () => {
