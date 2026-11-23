@@ -1,3 +1,4 @@
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 import { Test } from '@nestjs/testing';
 import { InstallationController } from './installation.controller';
 import { InstallationScheduleService } from '../services/installation-schedule.service';
@@ -38,6 +39,7 @@ describe('InstallationController', () => {
                 { provide: MutualSchedulingService, useValue: mutualSchedSvc },
                 { provide: DeliveryTrackingService, useValue: deliverySvc },
                 { provide: HardwareRequestQueryService, useValue: querySvc },
+                { provide: RequestFlowMembership, useValue: { has: async () => false } },
             ],
         })
         .overrideGuard(HardwareRoleGuard).useValue({ canActivate: () => true })

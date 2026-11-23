@@ -1,3 +1,4 @@
+import { NotInEformFlowGuard } from './ticket-link/not-in-eform-flow.guard';
 import { Controller, Post, Get, Patch, Body, Param, Request, UseGuards, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -112,12 +113,16 @@ export class EFormRequestController {
   }
 
   @Patch(':id/manager-approve')
+
+  @UseGuards(NotInEformFlowGuard)
   @ApiOperation({ summary: 'Manager approves or rejects request' })
   async approveByManager(@Request() req: any, @Param('id') id: string, @Body() dto: ApproveManagerDto) {
     return this.eformRequestService.approveByManager(id, req.user.userId, req.user.fullName || req.user.username || 'Unknown', dto);
   }
 
   @Post(':id/credentials')
+
+  @UseGuards(NotInEformFlowGuard)
   @ApiOperation({ summary: 'ICT submits credentials (ADMIN/AGENT_ADMIN only)' })
   async submitCredentials(@Request() req: any, @Param('id') id: string, @Body() dto: SubmitCredentialDto) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
@@ -132,6 +137,8 @@ export class EFormRequestController {
   }
 
   @Post(':id/fulfill')
+
+  @UseGuards(NotInEformFlowGuard)
   @ApiOperation({ summary: 'ICT marks access granted without issuing credentials' })
   async fulfillRequest(@Request() req: any, @Param('id') id: string, @Body() dto: FulfillRequestDto) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };
@@ -139,6 +146,8 @@ export class EFormRequestController {
   }
 
   @Patch(':id/reject')
+
+  @UseGuards(NotInEformFlowGuard)
   @ApiOperation({ summary: 'Reject request (assigned approver or ICT)' })
   async rejectRequest(@Request() req: any, @Param('id') id: string, @Body() dto: { reason: string }) {
     const actor: SiteActor = { role: req.user.role, siteId: req.user.siteId ?? null };

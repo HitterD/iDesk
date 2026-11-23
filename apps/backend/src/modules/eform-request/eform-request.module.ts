@@ -1,3 +1,4 @@
+import { NotInEformFlowGuard } from './ticket-link/not-in-eform-flow.guard';
 import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -62,6 +63,7 @@ import { EFormFlowMembership } from './ticket-link/eform-flow-membership.service
     TicketEFormLinkService,
     TicketEFormSyncListener,
     EFormFlowMembership,
+    NotInEformFlowGuard,
   ],
   exports: [EFormRequestService, EFormGmService, EFormPdfService, SynologyNasBrowseService, EFormCredentialService],
 })

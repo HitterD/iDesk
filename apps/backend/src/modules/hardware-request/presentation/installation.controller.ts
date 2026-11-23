@@ -18,6 +18,7 @@ import { ScheduleProposeDto } from '../dto/schedule-propose.dto';
 import { SelectSlotDto } from '../dto/select-slot.dto';
 import { RequestRescheduleDto } from '../dto/request-reschedule.dto';
 import { ApiTags } from '@nestjs/swagger';
+import { NotInRequestFlowGuard } from '../guards/not-in-request-flow.guard';
 import { UserRole } from '../../users/enums/user-role.enum';
 
 @ApiTags('hardware-requests/installation')
@@ -43,6 +44,8 @@ export class InstallationController {
     }
 
     @Post(':id/schedule')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.USER, HardwareRole.ICT_STAFF)
     async propose(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ScheduleInstallDto, @Req() req: any) {
         const data = await this.scheduleSvc.propose(id, dto, this.getActingUser(req) as any);
@@ -50,6 +53,8 @@ export class InstallationController {
     }
 
     @Post(':id/schedule/confirm')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.USER, HardwareRole.ICT_STAFF)
     async confirm(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
         const data = await this.scheduleSvc.confirm(id, this.getActingUser(req) as any);
@@ -57,6 +62,8 @@ export class InstallationController {
     }
 
     @Post(':id/schedule/reschedule')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.USER, HardwareRole.ICT_STAFF)
     async reschedule(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RescheduleInstallDto, @Req() req: any) {
         const data = await this.scheduleSvc.reschedule(id, dto, this.getActingUser(req) as any);
@@ -71,6 +78,8 @@ export class InstallationController {
     }
 
     @Post(':id/items/:itemId/barcode')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async scan(
         @Param('id', ParseUUIDPipe) id: string,
@@ -83,6 +92,8 @@ export class InstallationController {
     }
 
     @Post(':id/install/complete')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async complete(
         @Param('id', ParseUUIDPipe) id: string,
@@ -138,6 +149,8 @@ export class InstallationController {
     }
 
     @Patch(':id/items/:itemId/delivery')
+
+    @UseGuards(NotInRequestFlowGuard)
     @HttpCode(200)
     @HardwareRoles(HardwareRole.ICT_STAFF)
     async updateItemDelivery(

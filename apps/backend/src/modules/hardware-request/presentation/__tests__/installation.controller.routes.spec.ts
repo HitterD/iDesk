@@ -1,3 +1,4 @@
+import { RequestFlowMembership } from '../../services/request-flow-membership.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
@@ -50,6 +51,7 @@ describe('InstallationController routes (route order)', () => {
                 { provide: HardwareRequestCommandService, useValue: {} },
                 { provide: HardwareRequestQueryService, useValue: { getById: jest.fn().mockRejectedValue(new Error('NOT THIS')) } },
                 { provide: HardwareCatalogService, useValue: {} },
+                { provide: RequestFlowMembership, useValue: { has: async () => false } },
                 { provide: HardwareCommentService, useValue: {} },
                 { provide: HardwareActivityService, useValue: {} },
                 { provide: HardwareDashboardService, useValue: {} },
