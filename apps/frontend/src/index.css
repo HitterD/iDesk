@@ -2140,3 +2140,12 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .dark .req-dialog__ok { background: hsl(142 35% 15%); color: hsl(142 60% 75%); }
 .req-dialog__steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .req-dialog__steps li { display: grid; gap: 6px; }
+.req-dialog__unit { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-radius: 12px; }
+.req-dialog__seg { display: inline-flex; gap: 4px; padding: 3px; border-radius: 10px; background: hsl(var(--muted)); width: fit-content; }
+.req-dialog__seg button { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 650; }
+.req-dialog__seg button.is-on { background: hsl(var(--card)); box-shadow: 0 1px 2px rgb(0 0 0 / .15); }
+.req-dialog__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.req-dialog__check { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid hsl(var(--border)); border-radius: 10px; }
+.req-dialog__cred { display: grid; grid-template-columns: 90px 1fr auto auto; align-items: center; gap: 8px; }
+.req-dialog__cred span { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.req-dialog__cred b { font-family: ui-monospace, monospace; word-break: break-all; }
