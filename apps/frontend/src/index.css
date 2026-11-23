@@ -2189,3 +2189,5 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .req-revs b { display: block; font-size: 13px; }
 .req-revs small { color: hsl(var(--muted-foreground)); font-size: 11.5px; }
 .req-revs__v { width: 34px; height: 22px; display: grid; place-items: center; border-radius: 7px; background: hsl(var(--muted)); font-size: 11.5px; font-weight: 700; }
+.req-panel { display: flex; flex-direction: column; min-height: 0; }
+.req-panel__cards { display: grid; gap: 12px; padding: 12px; }

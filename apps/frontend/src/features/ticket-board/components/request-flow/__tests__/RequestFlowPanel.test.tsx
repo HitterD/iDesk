@@ -1,0 +1,79 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import api from '@/lib/api';
+import type { FlowPhase, RequestFlowView, ViewerRoleInFlow } from '../flowTypes';
+import { RequestFlowPanel } from '../RequestFlowPanel';
+
+vi.mock('@/lib/api', () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn() } }));
+vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'it-1', role: 'AGENT_OPERATIONAL_SUPPORT', fullName: 'RM Bagastyo' } }) }));
+vi.mock('@/components/ui/SignaturePad', () => ({
+    SignaturePad: ({ onSave }: { onSave: (dataUrl: string) => void }) => <button type="button" onClick={() => onSave('data:image/png;base64,AAAA')}>Simpan tanda tangan</button>,
+}));
+vi.mock('@/features/request-center/components/eform/ManagerSelector', () => ({ ManagerSelector: () => <div>pilih orang</div> }));
+
+afterEach(cleanup);
+
+const TID = '0b6d3c4e-1111-4222-8333-444455556677';
+
+function view(phase: FlowPhase, role: ViewerRoleInFlow, over: Partial<RequestFlowView> = {}): RequestFlowView {
+    return {
+        kind: 'EFORM', phase, phaseLabel: '', route: 'MANAGER', managerId: 'm', gmId: null, hardwareSource: null, returnedReason: null,
+        rescheduleCount: 0, documentVersion: 2, viewerRoleInFlow: role,
+        revisions: [{ version: 2, kind: 'DIG', label: 'TTD', actorName: 'Leony', createdAt: '2026-11-22T01:00:00.000Z' }],
+        eform: { formType: 'VPN', documentNumber: 'F/1', startDate: '2026-11-01', endDate: '2026-12-31', fields: {}, hasCredentials: true, requiresGm: false },
+        ...over,
+    };
+}
+
+function renderPanel(flow: RequestFlowView) {
+    vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url.startsWith('/request-flow/') ? flow : [] }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={client}><RequestFlowPanel ticketId={TID} ticketNumber="221126-QC-0035" /></QueryClientProvider>);
+}
+
+describe('RequestFlowPanel', () => {
+    beforeEach(() => { vi.mocked(api.get).mockReset(); vi.mocked(api.post).mockReset(); vi.mocked(api.post).mockResolvedValue({ data: {} }); });
+
+    it('shows the next-step bar and the progress of the request', async () => {
+        renderPanel(view('review', 'ICT'));
+        expect(await screen.findByRole('button', { name: 'Tinjau sekarang' })).toBeInTheDocument();
+        expect(screen.getByText(/Tahap 2\/4/)).toBeInTheDocument();
+    });
+
+    it('the primary button opens its dialog and sends the call to the right endpoint', async () => {
+        renderPanel(view('review', 'ICT'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Tinjau sekarang' }));
+        fireEvent.click(await screen.findByRole('radio', { name: /Tanpa persetujuan/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Langsung proses' }));
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/review`, { route: 'NONE' }));
+    });
+
+    it('a requester confirming sends OK straight away, with no dialog', async () => {
+        renderPanel(view('confirm', 'REQUESTER'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Ya, berhasil' }));
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/confirm`, { result: 'OK' }));
+    });
+
+    it('"Ada kendala" asks what is wrong first', async () => {
+        renderPanel(view('confirm', 'REQUESTER'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Ada kendala' }));
+        fireEvent.change(await screen.findByLabelText('Apa kendalanya?'), { target: { value: 'Tidak bisa login' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Kirim ke IT' }));
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/confirm`, { result: 'ISSUE', note: 'Tidak bisa login' }));
+    });
+
+    it('IT reminding an approver sends it directly', async () => {
+        renderPanel(view('appr_mgr', 'ICT'));
+        fireEvent.click(await screen.findByRole('button', { name: 'Ingatkan' }));
+        await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/remind`, {}));
+    });
+
+    it('shows the items card for hardware and the access card for an e-form', async () => {
+        renderPanel(view('review', 'ICT'));
+        expect(await screen.findByRole('region', { name: 'Akses' })).toBeInTheDocument();
+        cleanup();
+        renderPanel(view('review', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] } }));
+        expect(await screen.findByRole('region', { name: 'Barang' })).toBeInTheDocument();
+    });
+});
