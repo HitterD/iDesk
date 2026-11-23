@@ -35,6 +35,11 @@ interface RequestFlowPanelProps {
     ticketNumber: string;
     requesterId?: string;
     requesterName?: string;
+    /**
+     * Where this instance sits (mockup ticket-unify): `bar` = the next-step bar above the conversation (it also owns the
+     * dialogs), `rail` = the progress / items / document cards in the right inspector. Omitted = both, stacked.
+     */
+    slot?: 'bar' | 'rail';
 }
 
 type Dialog =
@@ -59,7 +64,7 @@ const DIALOG_ACTS: Record<string, Dialog> = {
 };
 
 /** Hardware / E-Form ticket: the next-step bar, the progress, the items or access, the document, and every dialog behind a step. */
-export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requesterName = 'Pemohon' }: RequestFlowPanelProps) {
+export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requesterName = 'Pemohon', slot }: RequestFlowPanelProps) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
@@ -76,8 +81,10 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
         queryFn: async () => ((await api.get('/hardware-requests/catalog', { params: { includeInactive: 'false' } })).data?.data ?? []) as CatalogEntry[],
     });
 
-    if (isLoading) return <div className="req-card" aria-busy="true">Memuat…</div>;
-    if (isError || !view) return <div className="req-card" role="alert">Gagal memuat alur permintaan. Muat ulang halaman.</div>;
+    const showBar = slot !== 'rail';
+    const showCards = slot !== 'bar';
+    if (isLoading) return slot === 'bar' ? null : <div className="req-card" aria-busy="true">Memuat…</div>;
+    if (isError || !view) return slot === 'rail' ? null : <div className="req-card" role="alert">Gagal memuat alur permintaan. Muat ulang halaman.</div>;
 
     const send = (call: FlowCall) => action.mutateAsync(call);
     const close = () => setDialog(null);
@@ -123,14 +130,16 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
     } as unknown as InstallationSchedule) : null;
 
     return (
-        <div className="req-panel">
-            <NextStepBar view={view} onAct={onAct} />
-            <div className="req-panel__cards">
-                <ProgressCard view={view} />
-                {view.hardware && <RequestItemsCard items={view.hardware.items} assets={view.hardware.assets} />}
-                {view.eform && <AccessCard eform={view.eform} onEditNumber={isIt ? () => setDialog('docNumber') : undefined} />}
-                <div id="request-document"><DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)} /></div>
-            </div>
+        <div className={`req-panel${slot ? ` req-panel--${slot}` : ''}`}>
+            {showBar && <NextStepBar view={view} onAct={onAct} />}
+            {showCards && (
+                <div className="req-panel__cards">
+                    <ProgressCard view={view} />
+                    {view.hardware && <RequestItemsCard items={view.hardware.items} assets={view.hardware.assets} />}
+                    {view.eform && <AccessCard eform={view.eform} onEditNumber={isIt ? () => setDialog('docNumber') : undefined} />}
+                    <div id="request-document"><DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)} /></div>
+                </div>
+            )}
 
             {dialog === 'review' && (
                 <ReviewDialog open onClose={close} isHardware={view.kind === 'HARDWARE'} proposedManagerId={view.managerId} requesterId={requesterId}
