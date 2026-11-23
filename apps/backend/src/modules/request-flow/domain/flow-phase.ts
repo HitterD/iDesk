@@ -37,9 +37,6 @@ export interface PhaseContext {
     returnedReason?: string | null;
 }
 
-/** Enum value Task 7 adds to the e-form statuses; mapped as a string until then. */
-const EFORM_AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION';
-
 const HARDWARE_PHASE: Partial<Record<string, FlowPhase>> = {
     [RequestStatus.SUBMITTED]: 'review',
     [RequestStatus.APPROVED]: 'procure',
@@ -57,7 +54,7 @@ const EFORM_PHASE: Partial<Record<string, FlowPhase>> = {
     [EFormStatus.PENDING_MANAGER]: 'appr_mgr',
     [EFormStatus.PENDING_GM]: 'appr_gm',
     [EFormStatus.PENDING_ICT]: 'fulfill',
-    [EFORM_AWAITING_CONFIRMATION]: 'confirm',
+    [EFormStatus.AWAITING_CONFIRMATION]: 'confirm',
     [EFormStatus.CONFIRMED]: 'done',
     [EFormStatus.REJECTED]: 'rejected',
     [EFormStatus.CANCELLED]: 'rejected',

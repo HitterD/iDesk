@@ -38,8 +38,10 @@ export interface SignResult { step: ApprovalStep; next: ApprovalStep | null; ver
 export interface TellInput {
     actorId: string | null;
     text: string;
-    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'INSTALLED';
+    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'INSTALLED' | 'FULFILLED' | 'CONFIRMED' | 'COMPLETED' | 'ISSUE_REPORTED';
     target?: TicketStatus;
+    /** Only with target IN_PROGRESS: take a RESOLVED ticket back (the requester reported an issue). */
+    reopenResolved?: boolean;
     reason?: string | null;
 }
 
@@ -105,6 +107,7 @@ export class RequestFlowStepper {
             ticketId: ctx.ticket.id,
             actorId: input.actorId,
             target: input.target,
+            ...(input.reopenResolved ? { reopenResolved: true as const } : {}),
             text: input.text,
             event: ctx.hardware
                 ? { ...eventBase, hardwareRequest: { id: ctx.hardware.id, number: ctx.hardware.requestNumber, phase: input.phase as HardwareTicketPhase } }

@@ -25,6 +25,9 @@ const PHASE_TEXT: Record<EFormTicketPhase, (access: string, status: EFormStatus)
     SIGNED: (a) => `Pengajuan ${a} ditandatangani.`,
     RETURNED: (a) => `Pengajuan ${a} dikembalikan ke IT.`,
     REMINDED: (a) => `Pengingat persetujuan ${a} dikirim.`,
+    FULFILLED: (a) => `Akses ${a} diberikan. Menunggu pemohon mencoba.`,
+    CONFIRMED: (a) => `Pemohon mengonfirmasi ${a}. Tiket ditutup.`,
+    ISSUE_REPORTED: (a) => `Pemohon melaporkan kendala pada ${a}. Kembali ke IT.`,
 };
 
 /** Where the ticket goes at each phase; phases not listed leave its status alone. */

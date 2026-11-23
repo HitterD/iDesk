@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, In, Not } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -13,6 +13,7 @@ import { AuditAction } from '../audit/entities/audit-log.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { HandlingSiteService } from '../sites/handling-site.service';
+import { EFormFlowMembership } from './ticket-link/eform-flow-membership.service';
 import { SiteActor, assertSiteAccess, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import {
   ICT_ROLES,
@@ -55,7 +56,13 @@ export class EFormRequestService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly handlingSites: HandlingSiteService,
+    @Optional() private readonly flows?: EFormFlowMembership,
   ) {}
+
+  /** An e-form on a request ticket is given and confirmed on the ticket (POST /request-flow/:ticketId/fulfill), never here. */
+  private async assertNotInFlow(requestId: string): Promise<void> {
+    if (await this.flows?.has(requestId)) throw new BadRequestException('Pengajuan ini diproses lewat tiketnya');
+  }
 
   async getVpnTerms() {
     return this.settingsService.getSetting<string>('eform.vpn.terms', `
@@ -216,6 +223,7 @@ export class EFormRequestService {
     if (request.status !== EFormStatus.PENDING_ICT) {
       throw new BadRequestException('Invalid state');
     }
+    await this.assertNotInFlow(requestId);
 
     request.formData = {
       ...(request.formData ?? {}),
@@ -309,6 +317,7 @@ export class EFormRequestService {
       throw new ForbiddenException('Not authorized to submit credentials');
     }
     if (request.status !== EFormStatus.PENDING_ICT) throw new BadRequestException('Invalid state');
+    await this.assertNotInFlow(requestId);
 
     const encUser = this.credentialService.encrypt(dto.username);
     const encPass = this.credentialService.encrypt(dto.password);
@@ -351,6 +360,14 @@ export class EFormRequestService {
 
     const username = this.credentialService.decrypt(credential.encryptedUsername, credential.iv, credential.authTag);
     const password = this.credentialService.decrypt(credential.encryptedPassword, credential.passwordIv, credential.passwordAuthTag);
+
+    this.auditService.logAsync({
+      userId,
+      action: AuditAction.CREDENTIALS_VIEWED,
+      entityType: 'EFormRequest',
+      entityId: requestId,
+      description: 'Viewed E-Form credentials',
+    });
 
     return {
       username,
@@ -522,9 +539,9 @@ export class EFormRequestService {
     }
 
     let credentialData: any = null;
-    const isICT = [UserRole.ADMIN, UserRole.AGENT_ADMIN].includes(actor.role);
+    const isICT = CREDENTIAL_READER_ROLES.includes(actor.role);
 
-    // Kredensial rahasia (username & password VPN) hanya diekspos ke ICT dan Pemohon
+    // Kredensial rahasia (username & password VPN) hanya diekspos ke ICT (aturan pembaca yang sama dengan endpoint kredensial) dan Pemohon
     if (isICT || isRequester) {
       const rawCred = await this.eformCredentialRepository.findOne({
         where: { eformRequestId: id },

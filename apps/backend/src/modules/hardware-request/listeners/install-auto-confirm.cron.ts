@@ -5,6 +5,7 @@ import { Repository, LessThan } from 'typeorm';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { RequestStatus } from '../domain/enums/request-status.enum';
 import { HardwareRequestCommandService } from '../services/hardware-request-command.service';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -15,6 +16,7 @@ export class InstallAutoConfirmCron {
     constructor(
         @InjectRepository(HardwareRequest) private readonly repo: Repository<HardwareRequest>,
         private readonly cmdSvc: HardwareRequestCommandService,
+        private readonly flows: RequestFlowMembership,
     ) {}
 
     @Cron('*/5 * * * *', { timeZone: 'Asia/Jakarta', name: 'hr-install-auto-confirm' })
@@ -34,6 +36,8 @@ export class InstallAutoConfirmCron {
         let fail = 0;
         for (const r of rows) {
             try {
+                // A request-flow request follows its ticket: the ticket's own confirmation window (540 business minutes) closes it.
+                if (await this.flows.has(r.id)) continue;
                 await this.cmdSvc.autoConfirmInstallation(r.id);
                 ok += 1;
             } catch (err) {

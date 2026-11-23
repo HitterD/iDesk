@@ -17,7 +17,7 @@ export interface TicketActivityChange {
 /** Steps of an e-form access request proposed from a ticket, as the ticket shows them. */
 export type EFormTicketPhase =
     | 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED'
-    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED';
+    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'FULFILLED' | 'CONFIRMED' | 'ISSUE_REPORTED';
 
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'

@@ -12,6 +12,15 @@ describe('RequestFlowController roles', () => {
         expect(rolesOf('installDone')).not.toContain(UserRole.MANAGER);
     });
 
+    it.each(['fulfill', 'documentNumber'] as const)('%s is processor-only', (method) => {
+        expect(rolesOf(method)).toEqual([...REQUEST_PROCESSOR_ROLES]);
+    });
+
+    it('confirm and credentials are open to every signed-in role; the service decides', () => {
+        expect(rolesOf('confirm')).toEqual(Object.values(UserRole));
+        expect(rolesOf('credentials')).toEqual(Object.values(UserRole));
+    });
+
     it.each(['editItems', 'procure', 'arrivals', 'review'] as const)('%s stays processor-only too', (method) => {
         expect(rolesOf(method)).toEqual([...REQUEST_PROCESSOR_ROLES]);
     });

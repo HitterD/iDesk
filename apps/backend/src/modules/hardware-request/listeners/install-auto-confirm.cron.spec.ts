@@ -4,11 +4,13 @@ import { InstallAutoConfirmCron } from './install-auto-confirm.cron';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { HardwareRequestCommandService } from '../services/hardware-request-command.service';
 import { RequestStatus } from '../domain/enums/request-status.enum';
+import { RequestFlowMembership } from '../services/request-flow-membership.service';
 
 describe('InstallAutoConfirmCron', () => {
     let cron: InstallAutoConfirmCron;
     const repo = { find: jest.fn() };
     const cmdSvc = { autoConfirmInstallation: jest.fn() };
+    const flows = { has: jest.fn(async (_id: string) => false) };
 
     beforeEach(async () => {
         const mod = await Test.createTestingModule({
@@ -16,10 +18,12 @@ describe('InstallAutoConfirmCron', () => {
                 InstallAutoConfirmCron,
                 { provide: getRepositoryToken(HardwareRequest), useValue: repo },
                 { provide: HardwareRequestCommandService, useValue: cmdSvc },
+                { provide: RequestFlowMembership, useValue: flows },
             ],
         }).compile();
         cron = mod.get(InstallAutoConfirmCron);
         jest.clearAllMocks();
+        flows.has.mockImplementation(async () => false);
     });
 
     it('does nothing when no requests are awaiting user confirmation after TTL', async () => {
@@ -48,5 +52,16 @@ describe('InstallAutoConfirmCron', () => {
         await cron.run();
 
         expect(cmdSvc.autoConfirmInstallation).toHaveBeenCalledTimes(2);
+    });
+
+    it('leaves request-flow requests to the ticket auto-close (its 540 business-minute window decides)', async () => {
+        repo.find.mockResolvedValue([{ id: 'flow-req' }, { id: 'legacy-req' }]);
+        flows.has.mockImplementation(async (id: string) => id === 'flow-req');
+        cmdSvc.autoConfirmInstallation.mockResolvedValue({});
+
+        await cron.run();
+
+        expect(cmdSvc.autoConfirmInstallation).toHaveBeenCalledTimes(1);
+        expect(cmdSvc.autoConfirmInstallation).toHaveBeenCalledWith('legacy-req');
     });
 });

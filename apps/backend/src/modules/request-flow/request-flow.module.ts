@@ -17,6 +17,10 @@ import { RequestFlowService } from './services/request-flow.service';
 import { RequestItemsService } from './services/request-items.service';
 import { RequestInstallFlowService } from './services/request-install-flow.service';
 import { RequestProcurementFlowService } from './services/request-procurement-flow.service';
+import { RequestConfirmFlowService } from './services/request-confirm-flow.service';
+import { RequestDocumentNumberService } from './services/request-document-number.service';
+import { RequestFlowFinalizer } from './services/request-flow-finalizer';
+import { RequestFulfillFlowService } from './services/request-fulfill-flow.service';
 import { NotificationModule } from '../notifications/notification.module';
 
 @Module({
@@ -31,6 +35,7 @@ import { NotificationModule } from '../notifications/notification.module';
     providers: [
         RequestFlowService, RequestFlowReviewService, RequestFlowReader, RequestFlowQueryService, RequestFlowStepper, RequestFlowNotifier, RequestDocumentService,
         RequestItemsService, RequestProcurementFlowService, RequestInstallFlowService,
+        RequestFulfillFlowService, RequestConfirmFlowService, RequestDocumentNumberService, RequestFlowFinalizer,
     ],
 })
 export class RequestFlowModule {}

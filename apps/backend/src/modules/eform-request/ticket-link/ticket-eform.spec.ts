@@ -131,6 +131,19 @@ describe('TicketEFormSyncListener', () => {
     });
 });
 
+describe('TicketEFormSyncListener for a request-flow e-form', () => {
+    const link = { record: jest.fn() };
+    const flows = { has: jest.fn(async () => true) };
+    const listener = new TicketEFormSyncListener(link as any, flows as any);
+    const request = { id: EFORM_ID } as any;
+
+    it('posts no legacy GRANTED card (the flow posts its own message)', async () => {
+        await listener.onCredentialsIssued({ request });
+        await listener.onFulfilled({ request });
+        expect(link.record).not.toHaveBeenCalled();
+    });
+});
+
 describe('EFormRequestService.createRequest completing a proposal', () => {
     let service: EFormRequestService;
     let repo: any;

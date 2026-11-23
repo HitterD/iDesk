@@ -40,12 +40,12 @@ describe('TicketHardwareSyncListener', () => {
         expect(link.record.mock.calls.map((c) => c[1])).toEqual(['INSTALLED', 'COMPLETED']);
     });
 
-    it('a request flow gets no INSTALLED card (the flow posts its own single message), but its completion still closes the ticket', async () => {
+    it('a request flow gets no INSTALLED, COMPLETED or ISSUE_REPORTED card (the flow posts its own single message)', async () => {
         flows.has.mockResolvedValue(true);
         await listener.onInstallCompleted({ ...base, actorId: 'agent-1', status: RequestStatus.AWAITING_USER_CONFIRMATION });
-        expect(link.record).not.toHaveBeenCalled();
         await listener.onInstallCompleted({ ...base, actorId: 'user-1', status: RequestStatus.COMPLETED });
-        expect(link.record).toHaveBeenCalledWith('req-1', 'COMPLETED', { actorId: 'user-1' });
+        await listener.onIssueReported({ ...base, actorId: 'user-1', comments: 'Monitor tidak menyala' });
+        expect(link.record).not.toHaveBeenCalled();
     });
 
     it('carries the confirmed installation time', async () => {

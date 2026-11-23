@@ -18,10 +18,10 @@ export const ICT_ROLES: UserRole[] = [
 ];
 
 /**
- * Who may read stored credentials — ICT plus MANAGER, whose oversight access
- * predates this constant and is preserved deliberately.
+ * Who besides the requester may read stored credentials (and see them on the printed form): ICT only, within their
+ * site. MANAGER and plain AGENT are excluded; one list for the endpoint and the PDF.
  */
-export const CREDENTIAL_READER_ROLES: UserRole[] = [...ICT_ROLES, UserRole.MANAGER];
+export const CREDENTIAL_READER_ROLES: UserRole[] = [...ICT_ROLES];
 
 /**
  * Who may propose access from an IT support ticket: ICT plus the ticket's IT support agents. A proposal is only a

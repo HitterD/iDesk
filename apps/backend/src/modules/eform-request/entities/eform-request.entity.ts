@@ -20,6 +20,8 @@ export enum EFormStatus {
   /** Approved by the manager; IT collects the GM's wet signature on the printed form and uploads the signed PDF. */
   PENDING_GM = 'PENDING_GM',
   PENDING_ICT = 'PENDING_ICT',
+  /** IT gave the access; the requester tries it and answers OK or issue (or the ticket closes by itself). */
+  AWAITING_CONFIRMATION = 'AWAITING_CONFIRMATION',
   CONFIRMED = 'CONFIRMED',
   REJECTED = 'REJECTED',
   /** A proposal from a ticket that the requester declined or IT withdrew before it was signed. */

@@ -79,6 +79,10 @@ export enum AuditAction {
     EFORM_FULFILL = 'EFORM_FULFILL',
     EFORM_DOCUMENT_NUMBER_UPDATE = 'EFORM_DOCUMENT_NUMBER_UPDATE',
     EFORM_GM_STEP_UPDATE = 'EFORM_GM_STEP_UPDATE',
+    /** Someone opened the decrypted credentials of an e-form (the row never holds the secrets). */
+    CREDENTIALS_VIEWED = 'CREDENTIALS_VIEWED',
+    /** IT answered OK or issue on a request ticket in the requester's place. */
+    REQUEST_CONFIRMED_ON_BEHALF = 'REQUEST_CONFIRMED_ON_BEHALF',
 
     // === ICT BUDGET / HARDWARE REQUEST ===
     ICT_BUDGET_CREATE = 'ICT_BUDGET_CREATE',

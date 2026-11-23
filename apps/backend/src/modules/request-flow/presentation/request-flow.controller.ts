@@ -1,5 +1,5 @@
 import {
-    Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Post, Put, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors,
+    Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Put, Query, Request, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -13,6 +13,9 @@ import { UserRole } from '../../users/enums/user-role.enum';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import { ApproveDto } from '../dto/approve.dto';
 import { ArrivalsDto } from '../dto/arrivals.dto';
+import { ConfirmDto } from '../dto/confirm.dto';
+import { DocumentNumberDto } from '../dto/document-number.dto';
+import { FulfillDto } from '../dto/fulfill.dto';
 import { CreateEformTicketDto } from '../dto/create-eform-ticket.dto';
 import { CreateHardwareTicketDto } from '../dto/create-hardware-ticket.dto';
 import { EditItemsDto } from '../dto/edit-items.dto';
@@ -24,6 +27,9 @@ import { RequestFlowQueryService, type RequestFlowView } from '../services/reque
 import { RequestDocumentService } from '../services/request-document.service';
 import { RequestItemsService } from '../services/request-items.service';
 import { RequestInstallFlowService } from '../services/request-install-flow.service';
+import { RequestConfirmFlowService } from '../services/request-confirm-flow.service';
+import { RequestDocumentNumberService } from '../services/request-document-number.service';
+import { RequestFulfillFlowService } from '../services/request-fulfill-flow.service';
 import { RequestProcurementFlowService } from '../services/request-procurement-flow.service';
 import { FlowActor, REQUEST_SCANS_DIR, scanFileFilter, RequestFlowReviewService } from '../services/request-flow-review.service';
 import { CreatedRequestTicket, RequestFlowService } from '../services/request-flow.service';
@@ -54,6 +60,9 @@ export class RequestFlowController {
         private readonly items: RequestItemsService,
         private readonly procurement: RequestProcurementFlowService,
         private readonly installs: RequestInstallFlowService,
+        private readonly fulfilments: RequestFulfillFlowService,
+        private readonly confirmations: RequestConfirmFlowService,
+        private readonly numbers: RequestDocumentNumberService,
     ) {}
 
     @Post('hardware')
@@ -132,6 +141,38 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'IT reports the installation: one asset code per unit and the technician signature' })
     installDone(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: InstallDoneDto) {
         return this.installs.installDone(actorOf(req), ticketId, dto);
+    }
+
+    @Post(':ticketId/fulfill')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT gives the requested e-form access, with or without credentials, and signs' })
+    fulfill(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: FulfillDto) {
+        return this.fulfilments.fulfill(actorOf(req), ticketId, dto);
+    }
+
+    // Every signed-in role passes the guard; the service allows the requester, or IT of the site on their behalf.
+    @Post(':ticketId/confirm')
+    @HttpCode(200)
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'The requester (or IT on their behalf) confirms the work, or reports an issue' })
+    confirm(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: ConfirmDto) {
+        return this.confirmations.confirm(actorOf(req), ticketId, dto);
+    }
+
+    // Every signed-in role passes the guard; the service allows only the requester and ICT of the site.
+    @Get(':ticketId/credentials')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'The decrypted credentials of an e-form (requester or ICT); every read is audited' })
+    credentials(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
+        return this.fulfilments.credentials(actorOf(req), ticketId);
+    }
+
+    @Patch(':ticketId/document-number')
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT edits the document number (e-form number or hardware request number)' })
+    documentNumber(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: DocumentNumberDto) {
+        return this.numbers.update(actorOf(req), ticketId, dto.value);
     }
 
     @Get(':ticketId/document.pdf')

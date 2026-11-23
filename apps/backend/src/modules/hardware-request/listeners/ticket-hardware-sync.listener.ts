@@ -99,7 +99,9 @@ export class TicketHardwareSyncListener {
     }
 
     @OnEvent(HR_EVT.INSTALL_ISSUE_REPORTED)
-    onIssueReported(e: HrInstallIssueReported) {
+    async onIssueReported(e: HrInstallIssueReported) {
+        // A request-flow ticket got its message from the flow itself (and was reopened there).
+        if (await this.flows.has(e.requestId)) return;
         return this.link.record(e.requestId, 'ISSUE_REPORTED', { actorId: e.actorId, reason: e.comments });
     }
 
@@ -107,8 +109,8 @@ export class TicketHardwareSyncListener {
     async onInstallCompleted(e: InstallCompletedEvent) {
         // Fires when ICT marks the job done (requester still to confirm) and again once the request is COMPLETED.
         const completed = e.status === RequestStatus.COMPLETED;
-        // A request-flow ticket already got its "installation done" message from the flow itself.
-        if (!completed && await this.flows.has(e.requestId)) return;
+        // A request-flow ticket already got its "installation done" and "confirmed" messages from the flow itself.
+        if (await this.flows.has(e.requestId)) return;
         return this.link.record(e.requestId, completed ? 'COMPLETED' : 'INSTALLED', { actorId: e.actorId });
     }
 }

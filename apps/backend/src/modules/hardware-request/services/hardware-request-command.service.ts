@@ -683,54 +683,65 @@ export class HardwareRequestCommandService {
     }
 
     async confirmInstallation(requestId: string, userId: string, payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
-            const requestRepo = mgr.getRepository(HardwareRequest);
-            const activityRepo = mgr.getRepository(HardwareRequestActivity);
+        const { saved, announce } = await this.dataSource.transaction((mgr) => this.confirmInstallationWith(mgr, requestId, userId, payload, false));
+        announce();
+        return saved;
+    }
 
-            const req = await requestRepo.findOne({
-                where: { id: requestId },
-                lock: { mode: 'pessimistic_write' },
-            });
-            if (!req) throw new HardwareRequestNotFoundError(requestId);
+    /**
+     * The requester's answer to a finished installation, inside the caller's transaction. `onBehalf`: IT answers for the
+     * requester (request-flow tickets), so the requester check is skipped and the activity says so. Nothing is emitted
+     * here: the caller runs `announce` once the transaction has committed.
+     */
+    async confirmInstallationWith(
+        mgr: EntityManager, requestId: string, userId: string,
+        payload: { kind: 'ACCEPT_AS_IS' | 'REPORT_ISSUE', comments?: string }, onBehalf = false,
+    ): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        const requestRepo = mgr.getRepository(HardwareRequest);
+        const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
-            if (req.requesterId !== userId) {
-                throw new PermissionDeniedError('confirm installation for this request');
-            }
+        const req = await requestRepo.findOne({ where: { id: requestId }, lock: { mode: 'pessimistic_write' } });
+        if (!req) throw new HardwareRequestNotFoundError(requestId);
 
-            if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
-                throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
-            }
+        if (!onBehalf && req.requesterId !== userId) {
+            throw new PermissionDeniedError('confirm installation for this request');
+        }
 
-            req.userConfirmedAt = new Date();
-            req.userConfirmationKind = payload.kind;
+        if (req.status !== RequestStatus.AWAITING_USER_CONFIRMATION) {
+            throw new InvalidStateTransitionError(req.status, RequestStatus.COMPLETED);
+        }
 
-            const fromStatus = req.status;
-            let toStatus: RequestStatus;
+        req.userConfirmedAt = new Date();
+        req.userConfirmationKind = payload.kind;
 
-            if (payload.kind === 'ACCEPT_AS_IS') {
-                toStatus = RequestStatus.COMPLETED;
-                req.completedAt = new Date();
-            } else {
-                toStatus = RequestStatus.INSTALLATION;
-            }
+        const fromStatus = req.status;
+        let toStatus: RequestStatus;
 
-            req.status = toStatus;
-            const saved = await requestRepo.save(req);
+        if (payload.kind === 'ACCEPT_AS_IS') {
+            toStatus = RequestStatus.COMPLETED;
+            req.completedAt = new Date();
+        } else {
+            toStatus = RequestStatus.INSTALLATION;
+        }
 
+        req.status = toStatus;
+        const saved = await requestRepo.save(req);
+
+        await activityRepo.save(activityRepo.create({
+            requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
+            metadata: { kind: payload.kind, comments: payload.comments, ...(onBehalf ? { onBehalf: true } : {}) },
+            fromStatus: fromStatus, toStatus: toStatus,
+        }));
+
+        if (payload.comments) {
             await activityRepo.save(activityRepo.create({
-                requestId: req.id, actorId: userId, action: ActivityAction.USER_CONFIRMED,
-                metadata: { kind: payload.kind, comments: payload.comments },
-                fromStatus: fromStatus, toStatus: toStatus,
+                requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
+                metadata: { text: payload.comments },
+                fromStatus: toStatus, toStatus: toStatus,
             }));
+        }
 
-            if (payload.comments) {
-                await activityRepo.save(activityRepo.create({
-                    requestId: req.id, actorId: userId, action: ActivityAction.COMMENTED,
-                    metadata: { text: payload.comments },
-                    fromStatus: toStatus, toStatus: toStatus,
-                }));
-            }
-
+        const announce = (): void => {
             if (toStatus === RequestStatus.INSTALLATION) {
                 this.emitter.emit(HR_EVT.INSTALL_ISSUE_REPORTED, {
                     requestId: req.id,
@@ -740,7 +751,6 @@ export class HardwareRequestCommandService {
                     comments: payload.comments?.trim() || null,
                 });
             }
-
             if (toStatus === RequestStatus.COMPLETED) {
                 this.emitter.emit(HR_EVT.INSTALL_COMPLETED, {
                     requestId: req.id,
@@ -751,8 +761,7 @@ export class HardwareRequestCommandService {
                     status: RequestStatus.COMPLETED,
                 });
             }
-
-            return saved;
-        });
+        };
+        return { saved, announce };
     }
 }
