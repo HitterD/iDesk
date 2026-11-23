@@ -149,7 +149,7 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
                         return api.post(`/request-flow/${ticketId}/paper-sign`, form).then(refresh);
                     }} />
             )}
-            {dialog === 'procure' && <ProcurementDialog open onClose={close} items={items} onSubmit={(payload) => send(flowCalls.procure(ticketId, payload))} />}
+            {dialog === 'procure' && <ProcurementDialog open onClose={close} items={items.filter((i) => !i.procurementDecision)} onSubmit={(payload) => send(flowCalls.procure(ticketId, payload))} />}
             {dialog === 'arrived' && <ArrivalDialog open onClose={close} items={items} onSubmit={(payload) => send(flowCalls.arrivals(ticketId, payload))} />}
             {dialog === 'installDone' && (
                 <InstallDoneDialog open onClose={close} signerName={user?.fullName ?? ''}

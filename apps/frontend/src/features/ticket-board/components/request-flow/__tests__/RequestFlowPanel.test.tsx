@@ -91,6 +91,18 @@ describe('RequestFlowPanel', () => {
         expect(screen.queryByLabelText('Kode aset Mouse')).not.toBeInTheDocument();
     });
 
+    it('the purchase dialog lists only the units nobody decided yet (a migrated request may have some decided already)', async () => {
+        const item = (id: string, name: string, procurementDecision: string | null) => ({ id, name, quantity: 1, note: null, recipient: '', catalogId: null, fields: {}, deliveryStatus: 'PENDING', procurementDecision, vendor: null, actualCost: null, invoiceNumber: null, invoiceDate: null });
+        renderPanel(view('procure', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: {
+            requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], schedule: null, assets: [],
+            items: [item('i-1', 'Laptop', 'APPROVED'), item('i-2', 'Mouse', null)],
+        } }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Catat pembelian' }));
+        const groups = await screen.findAllByRole('group');
+        expect(groups).toHaveLength(1);
+        expect(groups[0]).toHaveAccessibleName(/Mouse/);
+    });
+
     it('shows the items card for hardware and the access card for an e-form', async () => {
         renderPanel(view('review', 'ICT'));
         expect(await screen.findByRole('region', { name: 'Akses' })).toBeInTheDocument();
