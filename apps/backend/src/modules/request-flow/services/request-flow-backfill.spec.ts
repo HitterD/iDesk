@@ -87,6 +87,27 @@ describe('backfillRequestFlows', () => {
         expect(db.tickets[0]).toEqual(expect.objectContaining({ status: TicketStatus.RESOLVED, doneAt: null, resolvedAt: db.hardware[0].doneAt }));
     });
 
+    it('a finished request becomes a CLOSED ticket that also has a resolution time, so completion reports still count it', async () => {
+        const { db, manager } = fakeDb();
+        db.hardware.push(hardware({ status: RequestStatus.COMPLETED }));
+        db.eform.push(eform({ status: EFormStatus.CONFIRMED }));
+
+        await backfillRequestFlows(manager);
+
+        for (const [index, source] of [db.hardware[0], db.eform[0]].entries()) {
+            expect(db.tickets[index]).toEqual(expect.objectContaining({ status: TicketStatus.CLOSED, doneAt: source.doneAt, resolvedAt: source.doneAt }));
+        }
+    });
+
+    it('a rejected or cancelled request has no resolution time (nothing was resolved)', async () => {
+        const { db, manager } = fakeDb();
+        db.hardware.push(hardware({ status: RequestStatus.REJECTED }));
+
+        await backfillRequestFlows(manager);
+
+        expect(db.tickets[0]).toEqual(expect.objectContaining({ status: TicketStatus.CANCELLED, resolvedAt: null }));
+    });
+
     it('repairs a ticket made earlier that is still IN_PROGRESS while the hardware waits for the requester', async () => {
         const { db, manager } = fakeDb();
         db.hardware.push(hardware({ status: RequestStatus.AWAITING_USER_CONFIRMATION, sourceTicketId: 'ticket-old' }));

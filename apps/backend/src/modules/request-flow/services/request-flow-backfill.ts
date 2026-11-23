@@ -174,7 +174,8 @@ async function createParent(manager: EntityManager, plan: Plan, now: Date): Prom
     const division = departmentDivision({ code: row.deptCode, name: row.deptName }, DIVISION_FALLBACK);
     const ticketNumber = await generateNextTicketNumber(manager, division, new Date(row.createdAt));
     const closedAt = plan.status === TicketStatus.CLOSED ? row.doneAt ?? now : null;
-    const resolvedAt = plan.status === TicketStatus.RESOLVED ? row.doneAt ?? now : null;
+    // A closed ticket was resolved first: completion reports read `resolvedAt`, so it must not stay empty.
+    const resolvedAt = plan.status === TicketStatus.RESOLVED || plan.status === TicketStatus.CLOSED ? row.doneAt ?? now : null;
     const [ticket]: { id: string }[] = await manager.query(BACKFILL_SQL.insertTicket, [
         ticketNumber, plan.title, plan.description, plan.status, ticketTypeOf(plan.kind), HandlingTeam.OPS_SUPPORT,
         row.requesterId, siteId, row.createdAt, closedAt, resolvedAt,

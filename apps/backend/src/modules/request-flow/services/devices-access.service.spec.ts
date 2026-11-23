@@ -149,5 +149,7 @@ describe('DevicesAccessService.summary', () => {
         const { service, query } = setup([['SUMMARY_ROWS', rows]]);
         await expect(service.summary(IT)).resolves.toMatchObject({ activeHardware: 9, inProcurement: 3, waitingInstall: 4, doneThisMonth: 12 });
         expect(query.mock.calls[0][1]).toContain('site-1');
+        // The month starts at midnight in Jakarta, whatever zone the database session uses.
+        expect(String(query.mock.calls[0][0])).toContain("date_trunc('month', now() AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'Asia/Jakarta'");
     });
 });

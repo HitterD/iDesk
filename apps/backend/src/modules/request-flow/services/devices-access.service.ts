@@ -197,7 +197,7 @@ export class DevicesAccessService {
         if (siteId === undefined) return empty;
         const rows: Array<{ status: string; count: string; doneThisMonth: string }> = await this.dataSource.query(`/* SUMMARY_ROWS */
             SELECT h."status"::text AS "status", COUNT(*) AS "count",
-                SUM(CASE WHEN h."status"::text IN ('COMPLETED', 'CLOSED') AND h."completedAt" >= date_trunc('month', now()) THEN 1 ELSE 0 END) AS "doneThisMonth"
+                SUM(CASE WHEN h."status"::text IN ('COMPLETED', 'CLOSED') AND h."completedAt" >= date_trunc('month', now() AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'Asia/Jakarta' THEN 1 ELSE 0 END) AS "doneThisMonth"
             FROM hardware_requests h
             JOIN request_flows f ON f."hardwareRequestId" = h."id"
             JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
