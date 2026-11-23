@@ -51,6 +51,28 @@ describe('DevicesAccessService.access', () => {
     });
 });
 
+describe('DevicesAccessService.myAccess', () => {
+    const MINE: FlowActor = { userId: 'req-1', role: UserRole.USER, siteId: 'site-9', fullName: 'Leony' };
+
+    it('lists the active accesses of the signed-in requester with their end date and group, nearest end first', async () => {
+        const rows = [
+            { id: 'ef-1', ticketId: 't-1', formType: 'VPN', endDate: '2027-02-01', startDate: '2026-02-01' },
+            { id: 'ef-2', ticketId: 't-2', formType: 'EMAIL', endDate: null, startDate: '2026-01-01' },
+            { id: 'ef-3', ticketId: 't-3', formType: 'FLASHDISK', endDate: '2026-11-27', startDate: '2026-11-01' },
+        ];
+        const { service, query } = setup([['MY_ACCESS_ROWS', rows]]);
+        const result = await service.myAccess(MINE);
+        expect(query.mock.calls[0][1]).toEqual(['req-1']);
+        expect(result.map((r) => [r.eformId, r.group, r.daysLeft])).toEqual([['ef-3', 'soon', 4], ['ef-1', 'active', 70], ['ef-2', 'permanent', null]]);
+    });
+
+    it('is open to every role: it only returns the accesses of the person asking', async () => {
+        const { service, query } = setup([['MY_ACCESS_ROWS', []]]);
+        await expect(service.myAccess({ ...MINE, role: UserRole.USER })).resolves.toEqual([]);
+        expect(query.mock.calls[0][1]).not.toContain('site-9');
+    });
+});
+
 describe('DevicesAccessService.remind and revoke', () => {
     it('remind sends the requester an expiry notice and audits it', async () => {
         const { service, notifications, audit } = setup([['ACCESS_ROWS', [accessRow()]]]);

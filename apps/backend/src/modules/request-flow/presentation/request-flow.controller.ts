@@ -93,6 +93,14 @@ export class RequestFlowController {
         return this.center.approvals(actorOf(req));
     }
 
+    // Every signed-in role: the service only ever returns the caller's own accesses.
+    @Get('my-access')
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'My active accesses (the "Akses aktif" cards): end date, days left, renewable' })
+    myAccess(@Request() req: { user: AuthenticatedUser }) {
+        return this.center.myAccess(actorOf(req));
+    }
+
     @Get('center/schedule')
     @Roles(...REQUEST_PROCESSOR_ROLES)
     @ApiOperation({ summary: 'Installations of one week and the technician load (weekStart = YYYY-MM-DD)' })

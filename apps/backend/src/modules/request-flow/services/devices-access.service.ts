@@ -90,6 +90,26 @@ export class DevicesAccessService {
         return { group, counts, items: items.filter((i) => i.group === group).sort(byEndDate) };
     }
 
+    /** The signed-in requester's own finished accesses, nearest end first (permanent ones last). Never anyone else's. */
+    async myAccess(actor: FlowActor): Promise<AccessItem[]> {
+        const rows: Array<Pick<AccessRow, 'id' | 'ticketId' | 'formType' | 'startDate' | 'endDate'>> = await this.dataSource.query(`/* MY_ACCESS_ROWS */
+            SELECT e."id", f."ticketId", e."formType"::text AS "formType",
+                e."formData"->>'dariTanggal' AS "startDate", NULLIF(e."formData"->>'sampaiTanggal', '') AS "endDate"
+            FROM eform_requests e
+            JOIN request_flows f ON f."eformRequestId" = e."id"
+            JOIN tickets t ON t."id" = f."ticketId" AND t."deletedAt" IS NULL
+            WHERE e."requesterId"::text = $1 AND e."status"::text = 'CONFIRMED'`, [actor.userId]);
+        const today = this.now();
+        return rows
+            .map((row): AccessItem => ({
+                eformId: row.id, ticketId: row.ticketId, kind: row.formType, requesterName: actor.fullName, department: '',
+                startDate: row.startDate, endDate: row.endDate || null,
+                group: accessGroupOf(row.endDate, today), daysLeft: row.endDate ? daysLeft(row.endDate, today) : null,
+            }))
+            .filter((item) => item.group !== 'expired')
+            .sort(byEndDate);
+    }
+
     /** Tells the requester their access is about to end (or has ended). */
     async remind(actor: FlowActor, eformId: string): Promise<{ sent: true }> {
         const row = await this.findAccess(actor, eformId);
