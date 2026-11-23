@@ -191,6 +191,70 @@ describe('TicketQueryService', () => {
     });
 });
 
+describe('TicketQueryService request kind filter', () => {
+    function build() {
+        const qb: any = {
+            leftJoinAndSelect: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), andWhere: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(), skip: jest.fn().mockReturnThis(), take: jest.fn().mockReturnThis(),
+            getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+        };
+        return { qb, service: new TicketQueryService({ createQueryBuilder: jest.fn(() => qb) } as any, {} as any, {} as any) as any };
+    }
+
+    it.each([
+        ['HARDWARE', 'ticket.ticketType = :requestType', { requestType: 'HARDWARE_REQUEST' }],
+        ['EFORM', 'ticket.ticketType = :requestType', { requestType: 'EFORM_REQUEST' }],
+    ])('requestKind %s returns only that kind of request ticket', async (requestKind, sql, params) => {
+        const { qb, service } = build();
+        await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', { requestKind });
+        expect(qb.andWhere).toHaveBeenCalledWith(sql, params);
+    });
+
+    it('requestKind IT leaves out both request kinds', async () => {
+        const { qb, service } = build();
+        await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', { requestKind: 'IT' });
+        expect(qb.andWhere).toHaveBeenCalledWith('(ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...requestTypes))', { requestTypes: ['HARDWARE_REQUEST', 'EFORM_REQUEST'] });
+    });
+
+    it('no requestKind adds no request-type predicate', async () => {
+        const { qb, service } = build();
+        await service.findAllPaginated('u-1', UserRole.AGENT, 'site-1', {});
+        const sqls = qb.andWhere.mock.calls.map(([sql]: [string]) => sql);
+        expect(sqls.some((q: string) => q.includes('requestType'))).toBe(false);
+    });
+
+    it('a requester sees own request tickets in My Tickets (they are not excluded)', async () => {
+        const { qb, service } = build();
+        await service.findAllPaginated('u-1', UserRole.USER, 'site-1', {});
+        const params = qb.andWhere.mock.calls.map(([, p]: [string, any]) => JSON.stringify(p ?? {})).join('|');
+        expect(params).not.toContain('HARDWARE_REQUEST');
+        expect(params).not.toContain('EFORM_REQUEST');
+    });
+
+    it('puts the request kind and phase on each ticket of the page', async () => {
+        const { qb, service } = build();
+        const manager = { query: jest.fn(async () => [{ ticketId: 't-1', kind: 'EFORM', status: 'PENDING_MANAGER', route: 'MANAGER', returnedReason: null, managerId: 'mgr-1', gmId: null, requesterId: 'r', managerSigned: false, gmSigned: false, hasOpenSchedule: false }]) };
+        service.ticketRepo.manager = manager;
+        qb.getManyAndCount.mockResolvedValue([[{ id: 't-1', ticketType: 'EFORM_REQUEST' }, { id: 't-2', ticketType: 'SERVICE' }], 2]);
+        const page = await service.findAllPaginated('mgr-1', UserRole.MANAGER, 'site-1', {});
+        expect(page.data[0]).toMatchObject({ requestKind: 'EFORM', flowPhase: 'appr_mgr', flowPhaseLabel: 'Menunggu Atasan', flowPaused: true, needsMyAction: true });
+        expect(page.data[1]).toMatchObject({ requestKind: null, flowPhase: null, needsMyAction: false });
+    });
+
+    it('stats follow the type filter', async () => {
+        const qb: any = new Proxy({} as any, {
+            get(target, prop: string) {
+                if (prop === 'getRawOne') return jest.fn().mockResolvedValue({ total: '2' });
+                target[prop] ??= jest.fn(() => qb);
+                return target[prop];
+            },
+        });
+        const service = new TicketQueryService({ createQueryBuilder: jest.fn(() => qb) } as any, {} as any, {} as any) as any;
+        await service.getQueueStats('it-support', 'a-1', UserRole.AGENT, 'site-1', { requestKind: 'HARDWARE' });
+        expect(qb.andWhere).toHaveBeenCalledWith('ticket.ticketType = :requestType', { requestType: 'HARDWARE_REQUEST' });
+    });
+});
+
 describe('TicketQueryService dashboard stats', () => {
     function createStatsQueryBuilder() {
         return {

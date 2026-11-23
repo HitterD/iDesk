@@ -16,6 +16,7 @@ import { wibDateSql, wibStartOfMonth, wibStartOfToday, wibStartOfWeek } from '..
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { presentThread } from '../utils/message-presenter.util';
 import { loadMentionNames } from '../utils/mention-names.util';
+import { loadFlowListFields } from '../../request-flow/services/request-flow-list-fields';
 import { applyTeamFilter, type ReportTeam } from '../../reports/utils/report-team-scope.util';
 
 const AGENT_ROLES_NON_ORACLE = [UserRole.AGENT_OPERATIONAL_SUPPORT, UserRole.AGENT, UserRole.AGENT_ADMIN] as const;
@@ -37,6 +38,18 @@ export function canSpanAllTeams(role: UserRole): boolean {
 }
 
 /** Team filter (one team, or ALL_DEV for every developer team): the same rule the reports use. */
+export type RequestKindFilter = 'IT' | 'HARDWARE' | 'EFORM';
+const REQUEST_TICKET_TYPES = ['HARDWARE_REQUEST', 'EFORM_REQUEST'];
+
+/** The "Tipe" filter of the ticket list: ordinary IT tickets, or one kind of request ticket. */
+function applyRequestKindFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, kind?: RequestKindFilter): void {
+    if (kind === 'HARDWARE' || kind === 'EFORM') {
+        qb.andWhere('ticket.ticketType = :requestType', { requestType: `${kind}_REQUEST` });
+    } else if (kind === 'IT') {
+        qb.andWhere('(ticket.ticketType IS NULL OR ticket.ticketType NOT IN (:...requestTypes))', { requestTypes: REQUEST_TICKET_TYPES });
+    }
+}
+
 function applyHandlingTeamFilter(qb: import('typeorm').SelectQueryBuilder<Ticket>, team?: ReportTeam): void {
     applyTeamFilter(qb, 'ticket', team);
 }
@@ -87,6 +100,7 @@ export interface DevQueueOptions {
     createdByMe?: boolean;
     assignedToMe?: boolean;
     handlingTeam?: ReportTeam;
+    requestKind?: RequestKindFilter;
 }
 
 type DevQueuePage = { data: Ticket[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } };
@@ -335,6 +349,7 @@ export class TicketQueryService {
             overdue?: boolean;
             allTeams?: boolean; // ADMIN/MANAGER: span every team instead of the IT Support queue only
             handlingTeam?: ReportTeam;
+            requestKind?: RequestKindFilter;
         } = {}
     ) {
         const {
@@ -358,6 +373,7 @@ export class TicketQueryService {
             overdue,
             allTeams,
             handlingTeam,
+            requestKind,
         } = options;
 
         const qb = this.ticketRepo
@@ -409,6 +425,8 @@ export class TicketQueryService {
                 });
             }
         }
+
+        applyRequestKindFilter(qb, requestKind);
 
         // Status filter
         applyStatusFilter(qb, status);
@@ -516,8 +534,10 @@ export class TicketQueryService {
         }
 
         const sla = await this.slaSnapshotFor(data);
+        const flowFields = await loadFlowListFields(this.ticketRepo.manager, data, { userId, role });
         const enrichedTickets = data.map((ticket) => ({
           ...ticket,
+          ...flowFields.get(ticket.id),
           slaTarget: ensureSlaTarget(ticket, sla),
           ictBudgetRequestId: hwScheduleMap.get(ticket.id) || null,
           // In "created by me" the caller reads as the requester side.
@@ -665,6 +685,8 @@ export class TicketQueryService {
             : queue === 'all'
                 ? this.allTeamsQueueQb(role, userSiteId, options)
                 : this.devQueueQb(queue, userId, role, userSiteId, options);
+
+        applyRequestKindFilter(qb, options.requestKind);
 
         const raw = qb
             .select('COUNT(*)', 'total')
