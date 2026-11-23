@@ -122,4 +122,27 @@ describe('RequestFlowPanel', () => {
         renderPanel(view('review', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] } }));
         expect(await screen.findByRole('region', { name: 'Barang' })).toBeInTheDocument();
     });
+
+describe('RequestFlowPanel slots (mockup: next-step bar above the chat, cards in the right inspector)', () => {
+    const renderSlot = (flow: RequestFlowView, slot: 'bar' | 'rail') => {
+        vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url.startsWith('/request-flow/') ? flow : [] }));
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        return render(<QueryClientProvider client={client}><RequestFlowPanel ticketId={TID} ticketNumber="221126-QC-0035" slot={slot} /></QueryClientProvider>);
+    };
+    beforeEach(() => { vi.mocked(api.get).mockReset(); });
+
+    it('the bar slot shows only the next-step bar: no progress or document cards that would push the chat away', async () => {
+        renderSlot(view('review', 'ICT'), 'bar');
+        expect(await screen.findByRole('button', { name: 'Tinjau sekarang' })).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Progres' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Akses' })).not.toBeInTheDocument();
+    });
+
+    it('the rail slot shows the cards (progress, items or access, document) and no next-step bar', async () => {
+        renderSlot(view('review', 'ICT'), 'rail');
+        expect(await screen.findByRole('region', { name: 'Progres' })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: 'Akses' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Tinjau sekarang' })).not.toBeInTheDocument();
+    });
+});
 });

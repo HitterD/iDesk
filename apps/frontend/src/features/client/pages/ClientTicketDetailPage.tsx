@@ -198,6 +198,8 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
         setIsSidebarOpen(prev => !prev);
     };
 
+    const requestPanelProps = { ticketId: ticket.id, ticketNumber: ticket.ticketNumber ?? ticket.id, requesterId: ticket.user?.id, requesterName: ticket.user?.fullName ?? undefined };
+
     return (
         <div key={id} className="flex h-full w-full flex-col overflow-hidden text-slate-900 dark:text-slate-200">
           <div className="ticket-detail">
@@ -225,9 +227,8 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 )}
             />
 
-                {isRequestTicket && (
-                    <RequestFlowPanel ticketId={ticket.id} ticketNumber={ticket.ticketNumber ?? ticket.id} requesterId={ticket.user?.id} requesterName={ticket.user?.fullName ?? undefined} />
-                )}
+                {/* Mockup ticket-unify: only the next-step bar sits above the conversation; the cards live in the inspector. */}
+                {isRequestTicket && <RequestFlowPanel slot="bar" {...requestPanelProps} />}
 
                 {/* Conversation / Activity / Mobile Details */}
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
@@ -256,6 +257,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                             />
                         ) : mainTab === 'details' ? (
                             <div className="chat-stream flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-4 space-y-3 pb-20">
+                                {isRequestTicket && <RequestFlowPanel slot="rail" {...requestPanelProps} />}
                                 <ClientTicketInspector ticket={ticket} />
                                 {!isClosed && (
                                     <div className="ticket-panel">
@@ -277,6 +279,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 {/* Desktop inspector panels (>= lg only) */}
                 {isSidebarOpen && (
                     <aside className="ticket-detail-inspector hidden lg:flex custom-scrollbar" aria-label="Info tiket">
+                        {isRequestTicket && <RequestFlowPanel slot="rail" {...requestPanelProps} />}
                         <ClientTicketInspector ticket={ticket} />
                     </aside>
                 )}
