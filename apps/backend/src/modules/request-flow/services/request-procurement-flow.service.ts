@@ -13,6 +13,7 @@ import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import type { ArrivalsDto } from '../dto/arrivals.dto';
 import type { ProcureDto } from '../dto/procure.dto';
+import { RequestDocumentService } from './request-document.service';
 import { RequestFlowReader, type FlowContext } from './request-flow-reader';
 import type { FlowActor } from './request-flow-review.service';
 import { RequestFlowStepper } from './request-flow-stepper';
@@ -40,6 +41,7 @@ export class RequestProcurementFlowService {
         private readonly procurement: ProcurementDecisionService,
         private readonly stepper: RequestFlowStepper,
         private readonly hardwareLink: TicketHardwareLinkService,
+        private readonly documents: RequestDocumentService,
     ) {}
 
     async procure(actor: FlowActor, ticketId: string, dto: ProcureDto): Promise<{ status: string }> {
@@ -48,6 +50,10 @@ export class RequestProcurementFlowService {
             const ctx = await this.loadHardware(ticketId, manager, actor);
             if (ctx.hardware!.status !== RequestStatus.PROCUREMENT) throw new ConflictException(MESSAGES.notProcurement);
             const outcome = await this.procurement.recordWith(manager, ctx.hardware!.id, actor.userId, { lines: dto.lines, note: dto.note });
+            // Nothing bought: the request is over, so its document is final and locked like any refused request.
+            if (outcome.approvedItems === 0) {
+                await this.documents.bump(ctx.flow.id, 'FIN', `Pembelian dibatalkan oleh ${actor.fullName} · terkunci`, actor.userId, manager);
+            }
             return { ctx, outcome };
         });
 

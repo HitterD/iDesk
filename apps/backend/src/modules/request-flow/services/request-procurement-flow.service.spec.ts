@@ -39,8 +39,9 @@ function setup(ctx: FlowContext) {
     const procurement = { recordWith: jest.fn(async () => outcome), announce: jest.fn() };
     const stepper = { tell: jest.fn(async () => undefined) };
     const hardwareLink = { resumeForInstallation: jest.fn(async (..._args: unknown[]): Promise<boolean> => true) };
-    const service = new RequestProcurementFlowService(dataSource as never, reader as never, procurement as never, stepper as never, hardwareLink as never);
-    return { service, manager, procurement, stepper, hardwareLink, outcome };
+    const documents = { bump: jest.fn(async (..._args: unknown[]) => 2) };
+    const service = new RequestProcurementFlowService(dataSource as never, reader as never, procurement as never, stepper as never, hardwareLink as never, documents as never);
+    return { service, manager, procurement, stepper, hardwareLink, outcome, documents };
 }
 
 const LINES = [{ itemIds: ['a', 'b'], decision: 'APPROVED' as const, vendor: 'CV Sinar', unitCost: 12400000 }];
@@ -56,6 +57,20 @@ describe('RequestProcurementFlowService.procure', () => {
         expect(stepper.tell).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
             actorId: 'it-1', text: expect.stringContaining('Pembelian dicatat: 2 dari 2 barang'),
         }));
+    });
+
+    it('when nothing is bought the request is over: the final document is locked in the same transaction', async () => {
+        const { service, manager, documents, outcome, procurement } = setup(context(RequestStatus.PROCUREMENT, [unit('a')]));
+        Object.assign(outcome, { request: { id: 'hr-1', status: RequestStatus.REJECTED, requesterId: 'req-1' }, approvedItems: 0, rejectedItems: 1 });
+        procurement.recordWith.mockResolvedValueOnce(outcome as never);
+        await service.procure(IT, TID, { lines: [{ itemIds: ['a'], decision: 'REJECTED' }], note: 'Vendor tidak menyediakan' } as never);
+        expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', expect.stringContaining('terkunci'), 'it-1', manager);
+    });
+
+    it('a purchase that goes ahead does not lock the document', async () => {
+        const { service, documents } = setup(context(RequestStatus.PROCUREMENT, [unit('a'), unit('b')]));
+        await service.procure(IT, TID, { lines: LINES } as never);
+        expect(documents.bump).not.toHaveBeenCalled();
     });
 
     it('does not tell the ticket twice when everything was rejected (the rejection listener does)', async () => {
