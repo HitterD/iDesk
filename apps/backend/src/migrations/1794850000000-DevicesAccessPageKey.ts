@@ -4,7 +4,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export const MIGRATE_PRESETS_SQL = `
     UPDATE "permission_presets"
     SET "pageAccess" = ("pageAccess" - 'hardware_requests' - 'eform_access') || '{"devices_access": true}'::jsonb
-    WHERE "role" <> 'USER'
+    WHERE "targetRole" <> 'USER'
       AND "pageAccess" ?| ARRAY['hardware_requests', 'eform_access']
       AND (("pageAccess"->>'hardware_requests') = 'true' OR ("pageAccess"->>'eform_access') = 'true')
 `;

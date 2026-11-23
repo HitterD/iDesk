@@ -9,7 +9,7 @@ describe('DevicesAccessPageKey1794850000000', () => {
 
     it('a preset that gave Hardware Requests or E-Form Access (true) now gives Perangkat & Akses, for non-USER presets only', () => {
         expect(MIGRATE_PRESETS_SQL).toContain(`"pageAccess" = ("pageAccess" - 'hardware_requests' - 'eform_access') || '{"devices_access": true}'::jsonb`);
-        expect(MIGRATE_PRESETS_SQL).toContain(`"role" <> 'USER'`);
+        expect(MIGRATE_PRESETS_SQL).toContain(`"targetRole" <> 'USER'`);
         expect(MIGRATE_PRESETS_SQL).toContain(`("pageAccess"->>'hardware_requests') = 'true'`);
         expect(MIGRATE_PRESETS_SQL).toContain(`("pageAccess"->>'eform_access') = 'true'`);
     });

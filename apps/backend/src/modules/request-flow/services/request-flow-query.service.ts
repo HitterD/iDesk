@@ -89,6 +89,7 @@ const NOT_ALLOWED = 'Tidak berhak membuka permintaan ini';
 const AGREED_SCHEDULE: readonly InstallStatus[] = [InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS, InstallStatus.DONE];
 /** Superseded or withdrawn: never the schedule the request is at. */
 const DEAD_SCHEDULE: readonly InstallStatus[] = [InstallStatus.RESCHEDULED, InstallStatus.CANCELLED];
+const AWAITING_PICK: readonly InstallStatus[] = [InstallStatus.PROPOSED, InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.RESCHEDULE_REQUESTED];
 
 const isoDay = (value: Date | string | null): string | null => (value ? new Date(value).toISOString().slice(0, 10) : null);
 
@@ -168,9 +169,11 @@ export class RequestFlowQueryService {
     private scheduleView(row: InstallationSchedule, people: Map<string, string>): ScheduleView {
         const slots = row.proposedSlots ?? [];
         const start = row.scheduledStart ? new Date(row.scheduledStart).getTime() : null;
-        const index = start === null ? -1 : slots.findIndex((slot) => new Date(slot.start).getTime() === start);
+        // While the requester (or IT) still has to pick, the row's start is only a placeholder, not a choice.
+        const picked = !AWAITING_PICK.includes(row.status);
+        const index = start === null || !picked ? -1 : slots.findIndex((slot) => new Date(slot.start).getTime() === start);
         // A schedule IT set directly (no proposed slots) is its own single slot.
-        const direct = start !== null && row.scheduledEnd && slots.length === 0;
+        const direct = picked && start !== null && row.scheduledEnd && slots.length === 0;
         return {
             id: row.id,
             slots: direct ? [{ start: new Date(row.scheduledStart!).toISOString(), end: new Date(row.scheduledEnd!).toISOString() }] : slots,

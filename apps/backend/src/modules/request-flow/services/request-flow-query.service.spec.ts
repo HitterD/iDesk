@@ -127,6 +127,20 @@ describe('RequestFlowQueryService.view', () => {
         await expect(service.view(viewer('req-1'), TID)).resolves.toMatchObject({ phase: 'schedule', phaseLabel: 'Menunggu pemohon pilih jadwal' });
     });
 
+    it.each([InstallStatus.PROPOSED, InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.RESCHEDULE_REQUESTED])(
+        'has no chosen slot while %s, even though the row carries a placeholder start equal to the first slot',
+        async (status) => {
+            const slots = [{ start: '2026-11-25T02:00:00.000Z', end: '2026-11-25T03:00:00.000Z' }, { start: '2026-11-26T02:00:00.000Z', end: '2026-11-26T03:00:00.000Z' }];
+            const ctx = context('HARDWARE', { hardware: { ...context('HARDWARE').hardware!, status: RequestStatus.INSTALLATION } as never });
+            const { service } = setup(ctx, { schedules: [{
+                id: 's-1', status, proposedSlots: slots, scheduledStart: new Date(slots[0].start), scheduledEnd: new Date(slots[0].end),
+                technicianId: 'tech-1', rescheduleCount: 0, createdAt: new Date(),
+            }] });
+            const view = await service.view(viewer('req-1'), TID);
+            expect(view.hardware!.schedule!.chosen).toBeNull();
+        },
+    );
+
     it('projects the e-form summary and whether credentials exist, never the credentials', async () => {
         const { service } = setup(context('EFORM', {}, { route: 'MANAGER_GM', gmId: 'gm-1' }), { credentials: 1 });
         const view = await service.view(viewer('req-1'), TID);

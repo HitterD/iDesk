@@ -251,4 +251,9 @@ describe('backfillRequestFlows', () => {
         expect(db.tickets[0].title).toBe('Akses VPN — #3F2A9C1B');
         expect(db.tickets[0].description).toBe('Akses VPN — #3F2A9C1B');
     });
+
+    it('joins departments with both sides as text (users.departmentId is uuid in Postgres)', () => {
+        expect(BACKFILL_SQL.selectHardware).toContain('d."id"::text = u."departmentId"::text');
+        expect(BACKFILL_SQL.selectEform).toContain('d."id"::text = u."departmentId"::text');
+    });
 });
