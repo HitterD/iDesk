@@ -61,6 +61,15 @@ describe('wipe-scope constants', () => {
             );
         });
 
+        it.each([
+            [WipeDomain.HARDWARE, 'hardware_requests', '"hardwareRequestId" IS NOT NULL'],
+            [WipeDomain.EFORM, 'eform_requests', '"eformRequestId" IS NOT NULL'],
+        ])('deletes the %s request_flows rows before %s (FK without ON DELETE)', (domain, parent, where) => {
+            const plan = buildWipePlan([domain]);
+            expect(orderOf(plan, 'request_flows')).toBeLessThan(orderOf(plan, parent));
+            expect(plan.find((spec) => spec.table === 'request_flows')?.where).toBe(where);
+        });
+
         it('deletes access_requests and lost_item_reports before tickets (FK without ON DELETE)', () => {
             const plan = buildWipePlan([WipeDomain.TICKETING]);
             expect(orderOf(plan, 'access_requests')).toBeLessThan(orderOf(plan, 'tickets'));

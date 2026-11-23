@@ -177,6 +177,16 @@ describe('HardwareRequestCommandService', () => {
         expect(catalog.ensureActive).not.toHaveBeenCalled();
     });
 
+    it('createDraftWith keeps replacesName on the unit snapshot', async () => {
+        const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
+        await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {
+            justification: 'Ganti mouse rusak',
+            items: [{ manualName: 'Mouse baru', quantity: 1, replacesName: 'Mouse lama' }],
+        });
+        const [{ items }] = reqRepo.save.mock.calls[reqRepo.save.mock.calls.length - 1];
+        expect(items[0].categorySnapshot).toMatchObject({ name: 'Mouse baru', replaces: 'Mouse lama' });
+    });
+
     it('createDraftWith links the ticket and keeps the requester signature on the CREATED activity', async () => {
         const mgr = { getRepository: (e: any) => (e === HardwareRequestActivity ? activityRepo : reqRepo) };
         await service.createDraftWith(mgr as any, 'user-1', 'site-1', 'USER' as any, {

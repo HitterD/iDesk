@@ -40,6 +40,8 @@ export interface DraftItemInput {
     notes?: string;
     /** Who this item is for (stored on each unit's own column). */
     recipientName?: string;
+    /** The item this one replaces (a swap); kept on the unit's snapshot. */
+    replacesName?: string;
 }
 
 export type DraftInput = Omit<CreateRequestDto, 'items'> & { items: DraftItemInput[] };
@@ -159,6 +161,7 @@ export class HardwareRequestCommandService {
             } else {
                 throw new BadRequestException('Barang harus dari katalog atau ditulis manual');
             }
+            if (i.replacesName) snapshot = { ...snapshot, replaces: i.replacesName } as typeof snapshot;
             for (let qty = 0; qty < i.quantity; qty++) {
                 rows.push({ catalogId, quantity: 1, notes: i.notes ?? null, recipientName: i.recipientName ?? null, categorySnapshot: snapshot });
             }

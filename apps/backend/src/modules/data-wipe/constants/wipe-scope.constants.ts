@@ -134,12 +134,24 @@ export const DOMAIN_TABLE_SPECS: Record<WipeDomain, WipeTableSpec[]> = {
         { table: 'hardware_request_comments', label: 'Komentar Hardware Request' },
         { table: 'hardware_request_activities', label: 'Aktivitas Hardware Request' },
         { table: 'hardware_request_items', label: 'Item Hardware Request' },
+        {
+            table: 'request_flows',
+            label: 'Alur Permintaan Hardware (revisi dokumen ikut terhapus)',
+            where: '"hardwareRequestId" IS NOT NULL',
+            reason: 'FK tanpa ON DELETE ke hardware_requests',
+        },
         { table: 'hardware_requests', label: 'Hardware Request' },
     ],
     [WipeDomain.EFORM]: [
         { table: 'eform_credentials', label: 'Kredensial E-Form (terenkripsi)' },
         { table: 'eform_signatures', label: 'Tanda Tangan E-Form' },
         { table: 'eform_approvals', label: 'Persetujuan E-Form' },
+        {
+            table: 'request_flows',
+            label: 'Alur Permintaan E-Form (revisi dokumen ikut terhapus)',
+            where: '"eformRequestId" IS NOT NULL',
+            reason: 'FK tanpa ON DELETE ke eform_requests',
+        },
         { table: 'eform_requests', label: 'Pengajuan E-Form' },
     ],
     [WipeDomain.TICKETING]: [

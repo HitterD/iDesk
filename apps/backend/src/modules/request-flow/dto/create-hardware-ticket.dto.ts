@@ -86,6 +86,13 @@ export class HardwareTicketItemDto {
     @IsString()
     @Length(1, HARDWARE_TICKET_LIMITS.nameMax)
     recipientName?: string;
+
+    /** The item this one replaces (a swap); kept on the unit's snapshot. */
+    @IsOptional()
+    @Transform(trim)
+    @IsString()
+    @Length(1, HARDWARE_TICKET_LIMITS.nameMax)
+    replacesName?: string;
 }
 
 export class CreateHardwareTicketDto {

@@ -140,6 +140,7 @@ function toDraftItem(item: HardwareTicketItemDto) {
         quantity: item.quantity,
         notes: item.note,
         recipientName: item.recipientName,
+        replacesName: item.replacesName,
         customFields: { ...(item.fields ?? {}), ...(item.recipientName ? { recipientName: item.recipientName } : {}) },
     };
 }
