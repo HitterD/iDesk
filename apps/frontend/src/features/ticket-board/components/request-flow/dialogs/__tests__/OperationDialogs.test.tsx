@@ -53,6 +53,25 @@ describe('ProcurementDialog', () => {
     });
 });
 
+describe('ProcurementDialog: cancelling every unit', () => {
+    it('asks for a reason of 5+ characters (the backend refuses otherwise) and sends it as the note', async () => {
+        const onSubmit = vi.fn(async () => undefined);
+        render(<ProcurementDialog open onClose={vi.fn()} items={items} onSubmit={onSubmit} />);
+        const send = screen.getByRole('button', { name: 'Simpan keputusan' });
+        expect(screen.queryByLabelText('Alasan pembatalan')).not.toBeInTheDocument();
+        screen.getAllByRole('group').forEach((row) => fireEvent.click(within(row).getByRole('radio', { name: 'Batal' })));
+        expect(send).toBeDisabled();
+        fireEvent.change(screen.getByLabelText('Alasan pembatalan'), { target: { value: 'ok' } });
+        expect(send).toBeDisabled();
+        fireEvent.change(screen.getByLabelText('Alasan pembatalan'), { target: { value: 'Vendor tidak menyediakan' } });
+        expect(send).toBeEnabled();
+        fireEvent.click(send);
+        await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({
+            lines: [{ itemIds: ['i-1', 'i-2'], decision: 'REJECTED' }], note: 'Vendor tidak menyediakan',
+        }));
+    });
+});
+
 describe('ArrivalDialog', () => {
     it('lists only the bought units still on the way and sends the ticked ones', async () => {
         const onSubmit = vi.fn(async () => undefined);

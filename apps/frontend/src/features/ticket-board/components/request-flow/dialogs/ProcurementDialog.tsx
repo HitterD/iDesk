@@ -32,23 +32,30 @@ export function procureLines(units: UnitDecision[]): Line[] {
 const complete = (unit: UnitDecision): boolean =>
     unit.decision === 'REJECTED' || (unit.decision === 'APPROVED' && unit.vendor.trim() !== '' && unit.unitCost !== '' && Number(unit.unitCost) >= 0);
 
+/** The backend wants a reason when nothing is bought. */
+const REJECT_NOTE_MIN = 5;
+
 interface ProcurementDialogProps {
     open: boolean;
     onClose: () => void;
     items: ProcureItem[];
-    onSubmit: (payload: { lines: Line[] }) => Promise<unknown>;
+    onSubmit: (payload: { lines: Line[]; note?: string }) => Promise<unknown>;
 }
 
 /** Procurement decision per unit: Beli (vendor and price) or Batal. IT can swap an unavailable item before this. */
 export function ProcurementDialog({ open, onClose, items, onSubmit }: ProcurementDialogProps) {
     const [units, setUnits] = useState<UnitDecision[]>(() =>
         items.map((item) => ({ id: item.id, decision: null, vendor: '', unitCost: '', invoiceNumber: '', invoiceDate: '' })));
+    const [note, setNote] = useState('');
+    const allCancelled = units.length > 0 && units.every((u) => u.decision === 'REJECTED');
+    const reason = note.trim();
     const patch = (id: string, change: Partial<UnitDecision>) => setUnits((current) => current.map((u) => (u.id === id ? { ...u, ...change } : u)));
 
     return (
         <FlowDialog
             open={open} onClose={onClose} title="Catat pembelian barang" intro="Tiap unit: dibeli (isi vendor & harga) atau dibatalkan."
-            submitLabel="Simpan keputusan" canSubmit={units.length > 0 && units.every(complete)} onSubmit={() => onSubmit({ lines: procureLines(units) })}
+            submitLabel="Simpan keputusan" canSubmit={units.length > 0 && units.every(complete) && (!allCancelled || reason.length >= REJECT_NOTE_MIN)}
+            onSubmit={() => onSubmit({ lines: procureLines(units), ...(allCancelled ? { note: reason } : {}) })}
         >
             {items.map((item) => {
                 const unit = units.find((u) => u.id === item.id)!;
@@ -77,6 +84,13 @@ export function ProcurementDialog({ open, onClose, items, onSubmit }: Procuremen
                     </div>
                 );
             })}
+            {allCancelled && (
+                <label className="req-dialog__field">
+                    <span>Alasan pembatalan</span>
+                    <textarea aria-label="Alasan pembatalan" value={note} onChange={(e) => setNote(e.target.value)} />
+                    {reason.length < REJECT_NOTE_MIN && <small className="req-dialog__hint">Minimal {REJECT_NOTE_MIN} karakter</small>}
+                </label>
+            )}
         </FlowDialog>
     );
 }

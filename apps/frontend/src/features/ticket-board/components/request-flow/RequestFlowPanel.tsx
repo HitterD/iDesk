@@ -158,7 +158,7 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
             {dialog === 'arrived' && <ArrivalDialog open onClose={close} items={items} onSubmit={(payload) => send(flowCalls.arrivals(ticketId, payload))} />}
             {dialog === 'installDone' && (
                 <InstallDoneDialog open onClose={close} signerName={user?.fullName ?? ''}
-                    items={flowItems.map((i) => ({ ...i }))} onSubmit={(payload) => send(flowCalls.installDone(ticketId, payload))} />
+                    items={flowItems.filter((i) => i.deliveryStatus === 'ARRIVED')} onSubmit={(payload) => send(flowCalls.installDone(ticketId, payload))} />
             )}
             {dialog === 'fulfill' && (
                 <FulfillDialog open onClose={close} signerName={user?.fullName ?? ''} formType={view.eform?.formType ?? ''}

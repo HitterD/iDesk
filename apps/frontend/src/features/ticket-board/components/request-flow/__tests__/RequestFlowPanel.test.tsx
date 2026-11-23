@@ -79,6 +79,18 @@ describe('RequestFlowPanel', () => {
         await waitFor(() => expect(api.post).toHaveBeenCalledWith(`/request-flow/${TID}/remind`, {}));
     });
 
+    it('the install report asks an asset code only for the units that arrived', async () => {
+        const item = (id: string, name: string, deliveryStatus: string) => ({ id, name, quantity: 1, note: null, recipient: 'Leony', deliveryStatus, procurementDecision: null, vendor: null, actualCost: null, invoiceNumber: null, invoiceDate: null });
+        const schedule = { id: 's-1', slots: [{ start: '2026-11-25T02:00:00Z', end: '2026-11-25T03:00:00Z' }], chosen: 0, technicianName: 'Yudi', status: 'IN_PROGRESS', resched: 0, note: null };
+        renderPanel(view('install', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: {
+            requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: ['Leony'], schedule, assets: [],
+            items: [item('i-1', 'Laptop', 'ARRIVED'), item('i-2', 'Mouse', 'PENDING')],
+        } }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Selesaikan pemasangan' }));
+        expect(await screen.findByLabelText('Kode aset Laptop')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Kode aset Mouse')).not.toBeInTheDocument();
+    });
+
     it('shows the items card for hardware and the access card for an e-form', async () => {
         renderPanel(view('review', 'ICT'));
         expect(await screen.findByRole('region', { name: 'Akses' })).toBeInTheDocument();
