@@ -25,6 +25,11 @@ describe('RequestFlowController roles', () => {
         expect(rolesOf(method)).toEqual([...REQUEST_PROCESSOR_ROLES]);
     });
 
+    it('reject is for IT only; cancel is open to every role and the service decides (requester or IT)', () => {
+        expect(rolesOf('rejectByIt')).toEqual([...REQUEST_PROCESSOR_ROLES]);
+        expect(rolesOf('cancel')).toEqual(Object.values(UserRole));
+    });
+
     it('approvals is open to every signed-in role; only the flow approvers get rows', () => {
         expect(rolesOf('approvals')).toEqual(Object.values(UserRole));
     });

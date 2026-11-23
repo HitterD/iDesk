@@ -45,6 +45,8 @@ describe('flowCalls', () => {
         expect(flowCalls.fulfill(TID, { mode: 'NO_CREDENTIALS', signatureData: 's' })).toMatchObject({ url: `/request-flow/${TID}/fulfill` });
         expect(flowCalls.confirm(TID, { result: 'OK' })).toMatchObject({ url: `/request-flow/${TID}/confirm` });
         expect(flowCalls.documentNumber(TID, 'F/1')).toMatchObject({ method: 'patch', body: { value: 'F/1' } });
+        expect(flowCalls.rejectByIt(TID, 'Alasan')).toMatchObject({ url: `/request-flow/${TID}/reject`, body: { reason: 'Alasan' } });
+        expect(flowCalls.cancel(TID)).toMatchObject({ url: `/request-flow/${TID}/cancel` });
         expect(flowCalls.remind(TID)).toMatchObject({ url: `/request-flow/${TID}/remind` });
     });
 

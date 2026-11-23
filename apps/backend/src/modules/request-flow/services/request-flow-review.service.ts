@@ -56,6 +56,8 @@ const MESSAGES = {
     gmSigned: 'GM sudah menandatangani; GM tidak bisa diganti',
     wrongPhase: 'Permintaan ini tidak sedang menunggu tinjauan IT',
     notApproval: 'Permintaan ini tidak sedang menunggu persetujuan',
+    cancelDenied: 'Hanya pemohon atau tim IT yang dapat membatalkan permintaan ini',
+    cancelLate: 'Permintaan sudah diproses IT dan tidak bisa dibatalkan pemohon. Hubungi IT.',
     notYourTurn: 'Bukan giliran Anda untuk menyetujui permintaan ini',
     managerRequired: 'Pilih atasan penyetuju',
     gmRequired: 'Pilih GM penyetuju',
@@ -148,6 +150,51 @@ export class RequestFlowReviewService {
         });
         await this.afterDecision(actor, dto, outcome);
         return { version: outcome.version };
+    }
+
+    /** IT refuses a request still in review (nothing was approved or bought yet); the reason goes to the requester. */
+    async rejectByIt(actor: FlowActor, ticketId: string, reason: string): Promise<void> {
+        this.assertIct(actor);
+        this.assertTicketId(ticketId);
+        const text = reason?.trim() ?? '';
+        if (text.length < REASON_MIN) throw new BadRequestException(MESSAGES.reasonRequired);
+        const outcome = await this.dataSource.transaction(async (manager) => {
+            const ctx = await this.reader.load(ticketId, manager, true);
+            assertSiteAccess(actor, ctx.ticket.siteId);
+            if (ctx.phase !== 'review') throw new ConflictException(MESSAGES.wrongPhase);
+            return { ctx, ...(await this.refuse(manager, ctx, actor, text)) };
+        });
+        await this.afterDecision(actor, { decision: 'REJECT', note: text } as ApproveDto, outcome);
+    }
+
+    /**
+     * Withdraws a request: the requester while it is still in review or waiting for a signature, IT any time before it
+     * is installed. The request is cancelled, the final document locks and the ticket is cancelled in the same commit.
+     */
+    async cancel(actor: FlowActor, ticketId: string): Promise<void> {
+        this.assertTicketId(ticketId);
+        const done = await this.dataSource.transaction(async (manager) => {
+            const ctx = await this.reader.load(ticketId, manager, true);
+            const isIt = REQUEST_PROCESSOR_ROLES.includes(actor.role);
+            if (isIt) assertSiteAccess(actor, ctx.ticket.siteId);
+            else if (actor.userId !== ctx.requesterId) throw new ForbiddenException(MESSAGES.cancelDenied);
+            if (!isIt && ctx.phase === 'other') throw new ConflictException(MESSAGES.cancelLate);
+
+            let announce: () => void = () => undefined;
+            if (ctx.hardware) {
+                announce = (await this.hardware.cancelWith(manager, { id: actor.userId, role: isIt ? 'ICT_STAFF' : 'USER' }, ctx.hardware.id)).announce;
+            } else {
+                await manager.update(EFormRequest, { id: ctx.eform!.id }, { status: EFormStatus.CANCELLED, currentApproverId: null, resolvedAt: new Date() });
+                await manager.update(EFormApproval, { eformRequestId: ctx.eform!.id, action: 'PENDING' }, { action: 'REJECTED', actionAt: new Date(), notes: 'Dibatalkan' });
+            }
+            await this.documents.bump(ctx.flow.id, 'FIN', `Dibatalkan oleh ${actor.fullName} · terkunci`, actor.userId, manager);
+            const publish = await this.stepper.tellWithin(manager, ctx, {
+                actorId: actor.userId, phase: 'WITHDRAWN', target: TicketStatus.CANCELLED, text: `${actor.fullName} membatalkan permintaan ini`,
+            });
+            return { announce, publish };
+        });
+        done.announce();
+        await done.publish();
     }
 
     /**

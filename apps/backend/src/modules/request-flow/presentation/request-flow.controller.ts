@@ -22,6 +22,7 @@ import { EditItemsDto } from '../dto/edit-items.dto';
 import { InstallDoneDto } from '../dto/install-done.dto';
 import { PaperSignDto } from '../dto/paper-sign.dto';
 import { ProcureDto } from '../dto/procure.dto';
+import { RejectDto } from '../dto/reject.dto';
 import { ReviewDto } from '../dto/review.dto';
 import { ACCESS_GROUPS, type AccessGroup } from '../domain/access-groups';
 import { DevicesAccessService } from '../services/devices-access.service';
@@ -160,6 +161,23 @@ export class RequestFlowController {
     @ApiOperation({ summary: 'IT reminds the current approver (once per hour)' })
     remind(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
         return this.reviews.remind(actorOf(req), ticketId);
+    }
+
+    @Post(':ticketId/reject')
+    @HttpCode(200)
+    @Roles(...REQUEST_PROCESSOR_ROLES)
+    @ApiOperation({ summary: 'IT refuses a request that is still in review, with a reason' })
+    rejectByIt(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string, @Body() dto: RejectDto) {
+        return this.reviews.rejectByIt(actorOf(req), ticketId, dto.reason);
+    }
+
+    // Every signed-in role passes the guard; the service allows the requester (early phases) or IT of the site.
+    @Post(':ticketId/cancel')
+    @HttpCode(200)
+    @Roles(...REQUESTER_ROLES)
+    @ApiOperation({ summary: 'Withdraw a request: the requester while in review or approval, IT before the install' })
+    cancel(@Request() req: { user: AuthenticatedUser }, @Param('ticketId', ParseUUIDPipe) ticketId: string) {
+        return this.reviews.cancel(actorOf(req), ticketId);
     }
 
     @Put(':ticketId/items')

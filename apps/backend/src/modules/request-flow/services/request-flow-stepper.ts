@@ -38,7 +38,7 @@ export interface SignResult { step: ApprovalStep; next: ApprovalStep | null; ver
 export interface TellInput {
     actorId: string | null;
     text: string;
-    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'INSTALLED' | 'FULFILLED' | 'CONFIRMED' | 'COMPLETED' | 'ISSUE_REPORTED';
+    phase: 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'WITHDRAWN' | 'INSTALLED' | 'FULFILLED' | 'CONFIRMED' | 'COMPLETED' | 'ISSUE_REPORTED';
     target?: TicketStatus;
     /** Only with target IN_PROGRESS: take a RESOLVED ticket back (the requester reported an issue). */
     reopenResolved?: boolean;

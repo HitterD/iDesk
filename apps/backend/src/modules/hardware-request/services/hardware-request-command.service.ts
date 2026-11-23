@@ -299,7 +299,14 @@ export class HardwareRequestCommandService {
     }
 
     async cancel(actor: { id: string, role: string }, requestId: string): Promise<HardwareRequest> {
-        return this.dataSource.transaction(async (mgr) => {
+        const { saved, announce } = await this.dataSource.transaction((mgr) => this.cancelWith(mgr, actor, requestId));
+        announce();
+        return saved;
+    }
+
+    /** The cancellation inside the caller's transaction; the caller runs `announce` once it has committed. */
+    async cancelWith(mgr: EntityManager, actor: { id: string, role: string }, requestId: string): Promise<{ saved: HardwareRequest; announce: () => void }> {
+        {
             const requestRepo = mgr.getRepository(HardwareRequest);
             const activityRepo = mgr.getRepository(HardwareRequestActivity);
 
@@ -335,7 +342,7 @@ export class HardwareRequestCommandService {
                 metadata: {},
             }));
 
-            this.emitter.emit(HR_EVT.CANCELLED, {
+            const announce = () => this.emitter.emit(HR_EVT.CANCELLED, {
                 requestId: saved.id,
                 actorId: actor.id,
                 occurredAt: new Date(),
@@ -343,8 +350,8 @@ export class HardwareRequestCommandService {
                 fromStatus: fromStatus,
             });
 
-            return saved;
-        });
+            return { saved, announce };
+        }
     }
 
     async close(userId: string, requestId: string): Promise<HardwareRequest> {

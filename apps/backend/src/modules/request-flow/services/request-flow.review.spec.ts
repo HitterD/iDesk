@@ -58,9 +58,10 @@ function setup(ctx: FlowContext) {
         reviewWith: jest.fn(async () => ({})),
         approveAndStartWith: jest.fn(async () => ({})),
         rejectWith: jest.fn(async () => ({})),
+        cancelWith: jest.fn(async () => ({ saved: {}, announce: jest.fn() })),
     };
     const documents = { bump: jest.fn(async () => 2), attachScan: jest.fn(async () => undefined) };
-    const linked = { record: jest.fn(async () => undefined) };
+    const linked = { record: jest.fn(async () => undefined), recordWithin: jest.fn(async () => async () => undefined) };
     const notifier = { askApprover: jest.fn(async () => undefined), tellRequester: jest.fn(async () => undefined), tellUser: jest.fn(async () => undefined) };
     const emitter = { emit: jest.fn() };
     const userRepo = {
@@ -356,5 +357,58 @@ describe('ticket SLA hold follows the flow phase', () => {
         const { service, linked } = setup(context({ flow: { route: 'MANAGER', managerId: 'mgr-1' }, phase: 'approval', step: 'MANAGER', approverId: 'mgr-1' }));
         await service.decide(MGR, TID, { decision: 'RETURN', note: 'Ganti barangnya' });
         expect(lastTarget(linked)).toBe(TicketStatus.IN_PROGRESS);
+    });
+});
+
+describe('RequestFlowReviewService.rejectByIt', () => {
+    it('IT refuses a request in review with a reason; hardware is rejected and the final document locks', async () => {
+        const { service, hardware, documents, emitter } = setup(context({}, 'HARDWARE'));
+        await service.rejectByIt(IT, TID, 'Barang tidak sesuai kebijakan');
+        expect(hardware.rejectWith).toHaveBeenCalledWith(expect.anything(), 'it-1', 'hr-1', { reason: 'Barang tidak sesuai kebijakan' });
+        expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', expect.stringContaining('Ditolak'), 'it-1', expect.anything());
+        expect(emitter.emit).toHaveBeenCalled();
+    });
+
+    it('an e-form in review becomes REJECTED', async () => {
+        const { service, manager } = setup(context({}, 'EFORM'));
+        await service.rejectByIt(IT, TID, 'Akses tidak diperlukan');
+        expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.REJECTED, rejectionReason: 'Akses tidak diperlukan' }));
+    });
+
+    it('needs a reason of 5+ characters, IT, and a request that is still in review', async () => {
+        await expect(setup(context({}, 'EFORM')).service.rejectByIt(IT, TID, 'no')).rejects.toBeInstanceOf(BadRequestException);
+        await expect(setup(context({}, 'EFORM')).service.rejectByIt({ ...IT, role: UserRole.USER }, TID, 'Alasan jelas')).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(setup(context({ phase: 'approval' }, 'EFORM')).service.rejectByIt(IT, TID, 'Alasan jelas')).rejects.toBeInstanceOf(ConflictException);
+    });
+});
+
+describe('RequestFlowReviewService.cancel', () => {
+    const REQ: FlowActor = { userId: 'req-1', role: UserRole.USER, siteId: 'site-9', fullName: 'Leony' };
+
+    it('the requester withdraws a request that is still in review or waiting for a signature', async () => {
+        for (const phase of ['review', 'approval'] as const) {
+            const { service, hardware, documents, linked } = setup(context({ phase }, 'HARDWARE'));
+            await service.cancel(REQ, TID);
+            expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'req-1', role: 'USER' }, 'hr-1');
+            expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', expect.stringContaining('Dibatalkan'), 'req-1', expect.anything());
+            expect(linked.recordWithin).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ target: 'CANCELLED' }));
+        }
+    });
+
+    it('an e-form is set to CANCELLED', async () => {
+        const { service, manager } = setup(context({ phase: 'review' }, 'EFORM'));
+        await service.cancel(REQ, TID);
+        expect(manager.update).toHaveBeenCalledWith(EFormRequest, { id: 'ef-1' }, expect.objectContaining({ status: EFormStatus.CANCELLED }));
+    });
+
+    it('the requester cannot withdraw once IT is processing it; IT still can before the install', async () => {
+        await expect(setup(context({ phase: 'other' }, 'HARDWARE')).service.cancel(REQ, TID)).rejects.toBeInstanceOf(ConflictException);
+        const { service, hardware } = setup(context({ phase: 'other' }, 'HARDWARE'));
+        await service.cancel(IT, TID);
+        expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'it-1', role: 'ICT_STAFF' }, 'hr-1');
+    });
+
+    it('someone who is not the requester or IT is refused', async () => {
+        await expect(setup(context({ phase: 'review' }, 'EFORM')).service.cancel({ ...REQ, userId: 'other' }, TID)).rejects.toBeInstanceOf(ForbiddenException);
     });
 });
