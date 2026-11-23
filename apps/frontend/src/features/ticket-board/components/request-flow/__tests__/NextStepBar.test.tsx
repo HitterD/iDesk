@@ -10,7 +10,7 @@ function view(phase: FlowPhase, role: ViewerRoleInFlow): RequestFlowView {
     return {
         kind: 'HARDWARE', phase, phaseLabel: '', route: 'MANAGER', managerId: 'm', gmId: null, hardwareSource: 'NON_BUDGET', returnedReason: null,
         rescheduleCount: 0, documentVersion: 1, revisions: [], viewerRoleInFlow: role,
-        hardware: { requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] },
+        hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] },
     };
 }
 

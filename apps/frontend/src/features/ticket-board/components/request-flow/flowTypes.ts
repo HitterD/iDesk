@@ -14,6 +14,7 @@ export interface FlowItem {
 }
 
 export interface FlowSchedule {
+    id: string;
     slots: { start: string; end: string }[];
     /** Index into `slots` the requester chose; null while none is chosen. */
     chosen: number | null;
@@ -39,6 +40,8 @@ export interface RequestFlowView {
     revisions: FlowRevision[];
     viewerRoleInFlow: ViewerRoleInFlow;
     hardware?: {
+        /** The hardware request id: scheduling and install endpoints are keyed by it. */
+        requestId: string;
         requestNumber: string; division: string; recipients: string[]; items: FlowItem[];
         schedule: FlowSchedule | null; assets: { code: string; itemId: string }[];
     };

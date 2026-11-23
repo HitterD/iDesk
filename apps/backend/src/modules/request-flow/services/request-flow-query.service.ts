@@ -33,6 +33,7 @@ export interface ItemView {
 }
 
 export interface ScheduleView {
+    id: string;
     slots: { start: string; end: string }[];
     /** Index into `slots` of the slot the requester chose; null while none is chosen. */
     chosen: number | null;
@@ -57,6 +58,8 @@ export interface RequestFlowView {
     revisions: { version: number; kind: RequestDocumentRevisionKind; label: string; actorName: string; createdAt: string }[];
     viewerRoleInFlow: ViewerRoleInFlow;
     hardware?: {
+        /** The hardware request's id: the scheduling and install endpoints are keyed by it. */
+        requestId: string;
         requestNumber: string;
         division: string;
         recipients: string[];
@@ -169,6 +172,7 @@ export class RequestFlowQueryService {
         // A schedule IT set directly (no proposed slots) is its own single slot.
         const direct = start !== null && row.scheduledEnd && slots.length === 0;
         return {
+            id: row.id,
             slots: direct ? [{ start: new Date(row.scheduledStart!).toISOString(), end: new Date(row.scheduledEnd!).toISOString() }] : slots,
             chosen: direct ? 0 : index >= 0 ? index : null,
             technicianName: people.get(row.technicianId) ?? null,
@@ -192,6 +196,7 @@ export class RequestFlowQueryService {
             ? await this.dataSource.manager.find(HardwareAsset, { where: { itemId: In(items.map((i) => i.id)) }, select: ['id', 'barcode', 'itemId'] })
             : [];
         return {
+            requestId: hardware.id,
             requestNumber: hardware.requestNumber,
             division: hardware.division ?? '',
             recipients: (hardware.recipientName ?? '').split(RECIPIENT_SEPARATOR).filter(Boolean),

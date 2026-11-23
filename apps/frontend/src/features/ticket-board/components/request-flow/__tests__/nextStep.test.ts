@@ -3,8 +3,8 @@ import type { FlowPhase, FlowSchedule, RequestFlowView, ViewerRoleInFlow } from 
 import { nextStep } from '../nextStep';
 
 const SLOTS = [{ start: '2026-11-24T02:00:00Z', end: '2026-11-24T04:00:00Z' }, { start: '2026-11-25T02:00:00Z', end: '2026-11-25T04:00:00Z' }];
-const schedule = (over: Partial<FlowSchedule> = {}): FlowSchedule => ({ slots: SLOTS, chosen: null, technicianName: 'Yudi', status: 'PROPOSED_AWAITING_USER', resched: 0, note: null, ...over });
-const hw = (sched: FlowSchedule | null = null) => ({ requestNumber: 'HR-1', division: 'QC', recipients: ['Leony'], items: [], schedule: sched, assets: [] });
+const schedule = (over: Partial<FlowSchedule> = {}): FlowSchedule => ({ id: 's-1', slots: SLOTS, chosen: null, technicianName: 'Yudi', status: 'PROPOSED_AWAITING_USER', resched: 0, note: null, ...over });
+const hw = (sched: FlowSchedule | null = null) => ({ requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: ['Leony'], items: [], schedule: sched, assets: [] });
 
 function view(over: Partial<RequestFlowView> & { phase: FlowPhase }): RequestFlowView {
     return {

@@ -6,7 +6,7 @@ function v(over: Partial<RequestFlowView> & { phase: FlowPhase }): RequestFlowVi
     return {
         kind: 'HARDWARE', phaseLabel: '', route: 'MANAGER', managerId: 'm', gmId: null, hardwareSource: 'NON_BUDGET', returnedReason: null,
         rescheduleCount: 0, documentVersion: 1, revisions: [], viewerRoleInFlow: 'ICT',
-        hardware: { requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] }, ...over,
+        hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] }, ...over,
     };
 }
 

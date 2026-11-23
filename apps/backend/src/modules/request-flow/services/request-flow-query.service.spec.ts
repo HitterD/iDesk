@@ -111,6 +111,9 @@ describe('RequestFlowQueryService.view', () => {
             assets: [{ code: 'AST-1', itemId: 'it-1' }],
             schedule: { slots, chosen: 1, technicianName: 'Teknisi A', status: 'CONFIRMED', resched: 2, note: 'Bawa kabel LAN' },
         });
+        // The dialogs call the hardware endpoints, which are keyed by the hardware request and the schedule.
+        expect(view.hardware!.requestId).toBe('hr-1');
+        expect(view.hardware!.schedule!.id).toBe('s-1');
         expect(view.hardware!.items[0]).toMatchObject({ id: 'it-1', name: 'Laptop', quantity: 1, deliveryStatus: 'ARRIVED', vendor: null, actualCost: null });
         expect(JSON.stringify(view)).not.toContain('SECRET');
     });
