@@ -61,6 +61,24 @@ describe('RequestFlowQueryService.view', () => {
         expect(view.hardware!.items.map((i) => i.recipient)).toEqual(['Budi', 'Citra']);
     });
 
+    it('exposes what the item editor needs to keep a line as it was: catalog id and the extra fields, without the recipient', async () => {
+        const base = context('HARDWARE');
+        const ctx = context('HARDWARE', { hardware: { ...base.hardware!, items: [{
+            ...base.hardware!.items[0], catalogId: 'cat-1',
+            categorySnapshot: { name: 'Lisensi', customFields: { software: 'Office', seats: 3, recipientName: 'Budi' } },
+        }] } as never });
+        const { service } = setup(ctx);
+        const [item] = (await service.view(viewer('it-1', UserRole.AGENT), TID)).hardware!.items;
+        expect(item).toMatchObject({ catalogId: 'cat-1', fields: { software: 'Office', seats: 3 } });
+        expect(item.fields).not.toHaveProperty('recipientName');
+    });
+
+    it('a hand-written item has a null catalog id and no fields', async () => {
+        const { service } = setup(context('HARDWARE'));
+        const [item] = (await service.view(viewer('it-1', UserRole.AGENT), TID)).hardware!.items;
+        expect(item).toMatchObject({ catalogId: null, fields: {} });
+    });
+
     it('view marks the current approver', async () => {
         const { service } = setup(context('HARDWARE'));
         await expect(service.view(viewer('mgr-1'), TID)).resolves.toMatchObject({ viewerRoleInFlow: 'APPROVER_CURRENT', phase: 'appr_mgr', phaseLabel: 'Menunggu Atasan' });

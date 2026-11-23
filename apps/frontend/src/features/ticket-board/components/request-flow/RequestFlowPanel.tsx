@@ -28,7 +28,7 @@ import { PaperSignDialog } from './dialogs/PaperSignDialog';
 import { ProcurementDialog } from './dialogs/ProcurementDialog';
 import { ReviewDialog } from './dialogs/ReviewDialog';
 import { RejectDialog } from './dialogs/RejectDialog';
-import type { BasketLine, CatalogEntry } from './picker/basket';
+import { basketFromItems, type BasketLine, type CatalogEntry } from './picker/basket';
 
 interface RequestFlowPanelProps {
     ticketId: string;
@@ -112,12 +112,7 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
 
     const items = view.hardware?.items ?? [];
     const flowItems = items.map((i) => ({ id: i.id, name: i.name, recipient: i.recipient, deliveryStatus: i.deliveryStatus, procurementDecision: i.procurementDecision, quantity: 1 }));
-    const basket: BasketLine[] = Object.values(items.reduce<Record<string, BasketLine>>((acc, item) => {
-        const key = `${item.name}|${item.recipient}`;
-        const line = acc[key] ?? { catalogId: null, name: item.name, quantity: 0, recipient: item.recipient, fields: {}, requiredFields: [], existingItemIds: [] };
-        acc[key] = { ...line, quantity: line.quantity + 1, existingItemIds: [...(line.existingItemIds ?? []), item.id] };
-        return acc;
-    }, {}));
+    const basket: BasketLine[] = basketFromItems(items);
     const schedule = view.hardware?.schedule ?? null;
     const arrivedItems = items.filter((i) => i.deliveryStatus === 'ARRIVED') as unknown as HardwareRequestItem[];
     const scheduleRow = schedule ? ({

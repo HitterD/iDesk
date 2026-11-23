@@ -9,6 +9,7 @@ export type ViewerRoleInFlow = 'REQUESTER' | 'APPROVER_CURRENT' | 'APPROVER' | '
 
 export interface FlowItem {
     id: string; name: string; quantity: number; note: string | null; recipient: string;
+    catalogId: string | null; fields: Record<string, unknown>;
     deliveryStatus: string; procurementDecision: string | null;
     vendor: string | null; actualCost: string | null; invoiceNumber: string | null; invoiceDate: string | null;
 }

@@ -24,6 +24,9 @@ export interface ItemView {
     quantity: number;
     note: string | null;
     recipient: string;
+    /** Catalog entry the unit came from (null for a hand-written item) and its extra fields: what the item editor keeps. */
+    catalogId: string | null;
+    fields: Record<string, unknown>;
     deliveryStatus: string;
     procurementDecision: string | null;
     vendor: string | null;
@@ -209,6 +212,8 @@ export class RequestFlowQueryService {
                 quantity: item.quantity,
                 note: item.notes,
                 recipient: item.recipientName ?? String(item.categorySnapshot.customFields?.recipientName ?? ''),
+                catalogId: item.catalogId ?? null,
+                fields: fieldsOf(item.categorySnapshot.customFields),
                 deliveryStatus: item.deliveryStatus,
                 procurementDecision: item.procurementDecision,
                 // Vendor, cost and invoice are IT's until Task 6 decides who else sees them.
@@ -241,4 +246,10 @@ export class RequestFlowQueryService {
             requiresGm: ctx.flow.route ? ctx.flow.route === 'MANAGER_GM' : eform.requiresGm,
         };
     }
+}
+
+/** The item's own fields: the recipient is stored beside them for older readers and is not a field. */
+function fieldsOf(customFields: Record<string, unknown> | undefined): Record<string, unknown> {
+    const { recipientName: _recipient, ...rest } = customFields ?? {};
+    return rest;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addCatalog, addManual, basketErrors, replaceLine, setQuantity, toItemLines, type BasketLine, type CatalogEntry } from '../basket';
+import { addCatalog, addManual, basketErrors, basketFromItems, replaceLine, setQuantity, toItemLines, type BasketLine, type CatalogEntry } from '../basket';
 
 const laptop: CatalogEntry = { id: 'c-1', code: 'LAPTOP_STD', name: 'Laptop Standar', category: 'LAPTOP', requiredFields: [] };
 const software: CatalogEntry = {
@@ -60,5 +60,33 @@ describe('basket', () => {
     it('a replacement keeps the name it replaces in the payload', () => {
         const swapped = replaceLine(addCatalog([], software), 0, laptop);
         expect(toItemLines(swapped)[0]).toMatchObject({ catalogId: 'c-1', replacesName: 'Lisensi Software' });
+    });
+});
+
+describe('basketFromItems (the editor starts from the request as it is)', () => {
+    const unit = (id: string, over: Record<string, unknown> = {}) => ({
+        id, name: 'Lisensi Office', recipient: 'Budi', note: 'untuk tim QC', catalogId: 'cat-1', fields: { software: 'Office', seats: 3 }, ...over,
+    });
+
+    it('groups identical units into one line and keeps catalog id, note and fields so saving changes nothing else', () => {
+        const [line, ...rest] = basketFromItems([unit('a'), unit('b')]);
+        expect(rest).toEqual([]);
+        expect(line).toMatchObject({
+            catalogId: 'cat-1', name: 'Lisensi Office', quantity: 2, recipient: 'Budi', note: 'untuk tim QC',
+            fields: { software: 'Office', seats: 3 }, existingItemIds: ['a', 'b'],
+        });
+        expect(toItemLines([line])).toEqual([{
+            catalogId: 'cat-1', quantity: 2, note: 'untuk tim QC', fields: { software: 'Office', seats: 3 }, recipientName: 'Budi', existingItemIds: ['a', 'b'],
+        }]);
+    });
+
+    it('keeps units with different notes or fields on separate lines', () => {
+        expect(basketFromItems([unit('a'), unit('b', { note: 'lain' }), unit('c', { fields: { software: 'Visio' } })])).toHaveLength(3);
+    });
+
+    it('a hand-written item has no catalog id and is sent by name', () => {
+        const [line] = basketFromItems([unit('a', { catalogId: null, fields: {}, note: null })]);
+        expect(line.catalogId).toBeNull();
+        expect(toItemLines([line])[0]).toMatchObject({ manualName: 'Lisensi Office' });
     });
 });

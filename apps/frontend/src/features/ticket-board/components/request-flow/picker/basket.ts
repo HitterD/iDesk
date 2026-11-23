@@ -64,6 +64,27 @@ export function basketErrors(lines: BasketLine[]): string[] {
     return errors;
 }
 
+/** A unit of a request as the view shows it. */
+export interface FlowUnit { id: string; name: string; recipient: string; note: string | null; catalogId: string | null; fields: Record<string, unknown> }
+
+const sameLineKey = (unit: FlowUnit): string =>
+    JSON.stringify([unit.catalogId, unit.name, unit.recipient, unit.note ?? '', unit.fields]);
+
+/** The editor's starting point: units alike in everything the editor can change share a line, and keep what they were. */
+export function basketFromItems(units: FlowUnit[]): BasketLine[] {
+    const lines = new Map<string, BasketLine>();
+    for (const unit of units) {
+        const key = sameLineKey(unit);
+        const line = lines.get(key);
+        if (line) { lines.set(key, { ...line, quantity: line.quantity + 1, existingItemIds: [...(line.existingItemIds ?? []), unit.id] }); continue; }
+        lines.set(key, {
+            catalogId: unit.catalogId, name: unit.name, quantity: 1, recipient: unit.recipient, ...(unit.note ? { note: unit.note } : {}),
+            fields: unit.fields as Record<string, string | number>, requiredFields: [], existingItemIds: [unit.id],
+        });
+    }
+    return [...lines.values()];
+}
+
 /** The item lines the backend takes (create ticket and item edit). */
 export function toItemLines(lines: BasketLine[]): Array<Record<string, unknown>> {
     return lines.map((line) => {
