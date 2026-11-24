@@ -17,14 +17,14 @@ import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../o
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { buildPicAccountMatcher } from '../org/csi-pic-account.util';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
-import { CSI_TEMPLATE_PROCUREMENT_KRW_2026 } from '../org/templates/procurement-krw-2026.data';
+import { CSI_TEMPLATE_PROCUREMENT_SPJ_2026 } from '../org/templates/procurement-krw-2026.data';
 import { hcDirectoryCandidates, masterNameIndex, withCurrentNames } from './csi-template-import.service';
 import { buildBlankTemplate } from '../org/csi-template-blank';
 import { csiTemplateLocation } from '../org/csi-template-locations';
 import { serviceCodesOf } from '../org/csi-services';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
-const BUNDLED: ReadonlyArray<CsiTemplateSeed> = [CSI_TEMPLATE_HC_SMG_2026, CSI_TEMPLATE_PROCUREMENT_KRW_2026];
+const BUNDLED: ReadonlyArray<CsiTemplateSeed> = [CSI_TEMPLATE_HC_SMG_2026, CSI_TEMPLATE_PROCUREMENT_SPJ_2026];
 const bundledFor = (scope: ServiceScope, locationCode: string) =>
     BUNDLED.find((seed) => seed.scope === scope && seed.locationCode === locationCode.toUpperCase());
 const NOT_FOUND_MESSAGE = 'Template tidak ditemukan';
