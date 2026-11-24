@@ -65,17 +65,24 @@ describe('DocumentPane', () => {
     ];
 
     it('lists every version newest first with who did it, and marks the latest', () => {
-        render(<DocumentPane revisions={revisions} onDownload={vi.fn()} />);
+        render(<DocumentPane revisions={revisions} previewUrl={null} onDownload={vi.fn()} />);
         const labels = screen.getAllByTestId('revision-label').map((node) => node.textContent);
         expect(labels).toEqual(['Final', 'TTD Atasan', 'Dibuat']);
-        expect(screen.getByText('Terbaru')).toBeInTheDocument();
+        expect(screen.getByText('Final', { selector: '.req-revs__kind' })).toBeInTheDocument();
+        expect(screen.getAllByRole('listitem')[0]).toHaveClass('is-cur');
     });
 
     it('downloads the latest version only: older ones cannot be rendered any more', () => {
         const onDownload = vi.fn();
-        render(<DocumentPane revisions={revisions} onDownload={onDownload} />);
-        fireEvent.click(screen.getByRole('button', { name: /Unduh dokumen v3/ }));
+        render(<DocumentPane revisions={revisions} previewUrl={null} onDownload={onDownload} />);
+        fireEvent.click(screen.getByRole('button', { name: /Unduh v3/ }));
         expect(onDownload).toHaveBeenCalledWith(3);
-        expect(screen.queryByRole('button', { name: /Unduh dokumen v2/ })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Unduh v2/ })).toBeNull();
+    });
+
+    it('says so when the preview cannot load, instead of an empty frame', () => {
+        render(<DocumentPane revisions={revisions} previewUrl={null} previewError onDownload={vi.fn()} />);
+        expect(screen.getByRole('alert')).toHaveTextContent(/Pratinjau gagal dimuat/);
+        expect(screen.queryByTitle(/Pratinjau dokumen/)).toBeNull();
     });
 });

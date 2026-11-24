@@ -30,7 +30,7 @@ function view(phase: FlowPhase, role: ViewerRoleInFlow, over: Partial<RequestFlo
 }
 
 function renderPanel(flow: RequestFlowView) {
-    vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url.startsWith('/request-flow/') ? flow : [] }));
+    vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url.endsWith('/document.pdf') ? new Blob(['%PDF']) : url.startsWith('/request-flow/') ? flow : [] }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(<QueryClientProvider client={client}><RequestFlowPanel ticketId={TID} ticketNumber="221126-QC-0035" /></QueryClientProvider>);
 }
@@ -134,6 +134,30 @@ describe('RequestFlowPanel', () => {
         renderPanel(view('review', 'ICT', { kind: 'HARDWARE', eform: undefined, hardware: { requestId: 'hr-1', requestNumber: 'HR-1', division: 'QC', recipients: [], items: [], schedule: null, assets: [] } }));
         expect(await screen.findByRole('region', { name: 'Barang' })).toBeInTheDocument();
     });
+
+describe('RequestFlowPanel document', () => {
+    beforeEach(() => { vi.mocked(api.get).mockReset(); Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:doc'), revokeObjectURL: vi.fn() }); });
+
+    it('the Dokumen tab previews the latest PDF in the page, without downloading first', async () => {
+        vi.mocked(api.get).mockImplementation(async (url: string) => ({ data: url.endsWith('/document.pdf') ? new Blob(['%PDF']) : view('appr_gm', 'ICT') }));
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(<QueryClientProvider client={client}><RequestFlowPanel ticketId={TID} ticketNumber="221126-QC-0035" slot="document" /></QueryClientProvider>);
+        const frame = await screen.findByTitle('Pratinjau dokumen v2');
+        expect(frame.getAttribute('src')).toMatch(/^blob:doc#navpanes=0/);
+        expect(api.get).toHaveBeenCalledWith(`/request-flow/${TID}/document.pdf`, { params: { v: 2 }, responseType: 'blob' });
+    });
+
+    it('the rail shows the document as one compact row that opens the Dokumen tab', async () => {
+        const onOpenDocument = vi.fn();
+        vi.mocked(api.get).mockImplementation(async () => ({ data: view('review', 'ICT') }));
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(<QueryClientProvider client={client}><RequestFlowPanel ticketId={TID} ticketNumber="221126-QC-0035" slot="rail" onOpenDocument={onOpenDocument} /></QueryClientProvider>);
+        const row = await screen.findByRole('button', { name: /Dokumen v2/ });
+        expect(row).toHaveTextContent('TTD');
+        fireEvent.click(row);
+        expect(onOpenDocument).toHaveBeenCalled();
+    });
+});
 
 describe('RequestFlowPanel slots (mockup: next-step bar above the chat, cards in the right inspector)', () => {
     const renderSlot = (flow: RequestFlowView, slot: 'bar' | 'rail') => {
