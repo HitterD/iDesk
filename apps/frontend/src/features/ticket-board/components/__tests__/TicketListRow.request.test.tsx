@@ -39,9 +39,18 @@ describe('TicketListRow request tickets', () => {
         expect(screen.getAllByText('Dijeda').length).toBeGreaterThan(0);
     });
 
-    it('marks the row when it is my turn', () => {
-        renderRow({ ...base, requestKind: 'HARDWARE', flowPhase: 'review', flowPhaseLabel: 'Review IT', flowPaused: false, needsMyAction: true });
-        expect(screen.getAllByText('Giliran Anda').length).toBeGreaterThan(0);
+    it('marks the row with the action I must take, named after the step, in the ticket cell', () => {
+        const { container } = renderRow({ ...base, requestKind: 'HARDWARE', flowPhase: 'review', flowPhaseLabel: 'Review IT', flowPaused: false, needsMyAction: true });
+        expect(screen.queryByText('Giliran Anda')).toBeNull();
+        const marks = screen.getAllByText('Tinjau permintaan');
+        expect(marks.length).toBeGreaterThan(0);
+        expect(marks.every((m) => m.closest('.queue-status-cell') === null)).toBe(true);
+        expect(container.querySelector('.queue-title-cell .queue-act-needed')).not.toBeNull();
+    });
+
+    it('no action marker when it is not my turn', () => {
+        renderRow({ ...base, requestKind: 'HARDWARE', flowPhase: 'review', flowPhaseLabel: 'Review IT', flowPaused: false, needsMyAction: false });
+        expect(screen.queryByText('Tinjau permintaan')).toBeNull();
     });
 
     it('an ordinary IT ticket shows no tag, phase or pause', () => {

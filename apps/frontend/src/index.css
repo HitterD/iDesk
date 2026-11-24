@@ -693,8 +693,8 @@ button.hl-kpi-btn:active, .mg-setting button:active, .dash-li button:active, .se
 @container (min-width: 1100px) {
   .queue-grid { display: grid; align-items: center; column-gap: 8px; padding: 0 16px; }
   /* Shared header/row tracks fit the 1100px table, including the final created date. */
-  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 50px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
-  .queue-grid-default { grid-template-columns: 26px minmax(160px, 2.4fr) 104px 150px minmax(110px, 1.1fr) minmax(150px, 1.3fr) 178px 60px; }
+  .queue-grid-sites { grid-template-columns: 26px minmax(160px, 1.8fr) 104px 50px minmax(150px, 1.1fr) minmax(120px, 1.1fr) minmax(150px, 1.2fr) 178px 60px; }
+  .queue-grid-default { grid-template-columns: 26px minmax(160px, 1.8fr) 104px minmax(150px, 1.1fr) minmax(120px, 1.1fr) minmax(150px, 1.2fr) 178px 60px; }
   /* Selection cell bleeds into the row padding and half the column gap: full row height,
      45px wide (14px pad + 26px column + 5px gap), so no near-miss falls through to the row. */
   .queue-grid > .queue-select-cell { min-width: 0; margin: 0 -5px 0 -16px; padding: 0 5px 0 16px; }
@@ -2040,13 +2040,20 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .req-tag--ef { background: hsl(var(--req-ef-bg)); color: hsl(var(--req-ef-ink)); border-color: hsl(var(--req-ef-line)); }
 .req-tag--lg { height: 30px; font-size: 13px; padding: 0 11px 0 8px; border-radius: 9px; }
 .req-tag--lg svg { width: 15px; height: 15px; }
-.queue-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
-.req-phase { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; line-height: 1.3; color: hsl(var(--muted-foreground)); }
-.req-phase__label { font-weight: 600; }
-.req-phase__pause { display: inline-flex; align-items: center; gap: 3px; padding: 0 6px; height: 18px; border-radius: 999px; background: hsl(38 95% 92%); color: hsl(30 90% 30%); font-weight: 700; }
+.queue-status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+
+.req-phase { display: inline-flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 2px; min-width: 0; max-width: 100%; font-size: 11.5px; line-height: 1.35; color: hsl(var(--muted-foreground)); }
+.req-phase__label { font-weight: 600; overflow-wrap: anywhere; }
+/* In the table the status column is narrow: the label keeps its own line and the markers share the next one. */
+.queue-status-cell .req-phase { display: grid; grid-template-columns: auto auto; justify-content: start; }
+.queue-status-cell .req-phase__label { grid-column: 1 / -1; }
+.req-phase__pause { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; font-weight: 600; color: hsl(30 80% 36%); }
 .req-phase__pause svg { width: 10px; height: 10px; }
-.req-phase__turn { padding: 0 7px; height: 18px; display: inline-flex; align-items: center; border-radius: 999px; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); font-weight: 700; }
-.dark .req-phase__pause { background: hsl(38 60% 18%); color: hsl(38 95% 75%); }
+.queue-act-needed { display: inline-flex; align-items: center; gap: 6px; width: fit-content; max-width: 100%; margin-top: 2px; padding: 2px 9px 2px 7px; border-radius: 999px; background: hsl(var(--req-cta) / .16); color: hsl(30 90% 24%); font-size: 11.5px; font-weight: 700; line-height: 1.4; }
+.queue-act-needed i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--req-cta)); }
+.dark .queue-act-needed { color: hsl(38 95% 78%); }
+.queue-mcard-title + .queue-act-needed { margin: 2px 0 4px; }
+.dark .req-phase__pause { color: hsl(38 95% 70%); }
 
 /* ===== Request ticket page: next-step bar, progress card (mockup revisions 3 + 5) ===== */
 :root { --req-cta: 39 92% 52%; --req-cta-ink: 39 100% 12%; --req-navy: 222 50% 38%; --req-navy-bg: 222 60% 96%; }
