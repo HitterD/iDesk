@@ -8,8 +8,8 @@ export const TEMPLATE_ROWS_MAX = 20000;
 export const TEMPLATE_TEXT_MAX = 150;
 export const TEMPLATE_NIK_MAX = 20;
 const HEADER_SCAN_MAX = 10;
-const GROUP_SERVICE: Readonly<Record<string, string>> = { 'HC SERVICES': 'HCS', COMBEN: 'HCC', 'HC DEVELOPMENT': 'HCD' };
-const SERVICE_AREA: Readonly<Record<string, string>> = { HCS: 'HC Services', HCC: 'HC Comben', HCD: 'HC Development' };
+const GROUP_SERVICE: Readonly<Record<string, string>> = { 'HC SERVICES': 'HCS', COMBEN: 'HCC', 'HC DEVELOPMENT': 'HCD', PROCUREMENT: 'PROC' };
+const SERVICE_AREA: Readonly<Record<string, string>> = { HCS: 'HC Services', HCC: 'HC Comben', HCD: 'HC Development', PROC: 'PROCUREMENT' };
 const FUNCTION_SEPARATOR = ' · ';
 
 /** Use cached formula results and rich text, not Excel's object string representation. */

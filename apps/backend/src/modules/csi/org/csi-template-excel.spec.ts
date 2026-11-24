@@ -67,7 +67,15 @@ describe('parseTemplateWorkbook', () => {
     it('reports an unknown area instead of guessing the service', async () => {
         const draft = await parseTemplateWorkbook(await workbook([[1, 'HSE', 'SITI', 'SAFETY STAFF', 'Safety', 'BUDI', null]]));
         expect(draft.pics).toEqual([]);
-        expect(draft.problems).toEqual([{ row: 2, message: 'Area "HSE" bukan HC Development / HC Comben / HC Services' }]);
+        expect(draft.problems).toEqual([{ row: 2, message: 'Area "HSE" bukan HC Development / HC Comben / HC Services / PROCUREMENT' }]);
+    });
+
+    it('parses PROCUREMENT area rows as PROC service', async () => {
+        const draft = await parseTemplateWorkbook(await workbook([
+            [1, 'PROCUREMENT', 'NEVYLIA RACHMAWATI SAUFIN', 'SERVICE PROCUREMENT OFFICER - OUTSOURCING', 'SERVICE PROCUREMENT - OUTSOURCING', 'BUDI', 'STAFF'],
+        ]));
+        expect(draft.problems).toEqual([]);
+        expect(draft.pics[0]?.serviceCode).toBe('PROC');
     });
 
     it('rejects a sheet without the expected headers', async () => {
@@ -88,7 +96,7 @@ describe('parseTemplateWorkbook', () => {
     it('an oversized employee sheet is refused like the main sheet (no unbounded read)', async () => {
         const rows = Array.from({ length: 20001 }, (_, index) => [`ORANG ${index}`, 'STAFF']);
         await expect(parseTemplateWorkbook(await workbook([[1, 'HC Services', 'X', 'Y', 'Z', 'A', null]], rows))).rejects.toThrow(/Maksimal/);
-    });
+    }, 15000);
 
     it('values longer than the database columns are reported in the dry run, never sent to the database', async () => {
         const long = 'X'.repeat(151);

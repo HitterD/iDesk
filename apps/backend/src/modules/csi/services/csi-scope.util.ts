@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { isOrgCsiScope } from '../csi.constants';
 import { CsiPeriod } from '../entities/csi-period.entity';
 
 export function assertPeriodInScope(period: CsiPeriod | null, scope: ServiceScope): CsiPeriod {
@@ -9,8 +10,10 @@ export function assertPeriodInScope(period: CsiPeriod | null, scope: ServiceScop
     return period;
 }
 
-/** HC-only features (service report owners, assignment templates): any other scope is a 400. */
+/** Org-CSI-only features (service report owners, assignment templates, custom teams): ICT is refused with 400. */
 export function assertHcScope(scope: ServiceScope): ServiceScope {
-    if (scope !== ServiceScope.HC) throw new BadRequestException('Fitur ini hanya untuk CSI HC');
+    if (!isOrgCsiScope(scope)) throw new BadRequestException('Fitur ini hanya untuk CSI HC atau Procurement');
     return scope;
 }
+
+export const assertOrgCsiScope = assertHcScope;

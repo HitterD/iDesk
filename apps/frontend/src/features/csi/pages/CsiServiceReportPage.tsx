@@ -11,17 +11,19 @@ import { CSI_CARD, FadeIn } from '../components/CsiSurveyParts';
 import { useCsiMyReportAccess, useCsiMyReportPeriods, useCsiMyServiceReport } from '../hooks/useCsiHc';
 import { serviceLabel } from '../lib/services';
 import type { CsiScopeParam } from '../types';
-import { downloadBlob } from '../lib/csiAdmin';
+import { downloadBlob, orgScopeLabel } from '../lib/csiAdmin';
 import { formatDate } from '../lib/format';
 
 const SELECT = 'h-9 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--idesk-surface))] px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-/** Which units (HC / ICT) the account owns a report in; HC first. */
+/** Which units (HC / Procurement / ICT) the account owns a report in; HC first. */
 function useReportScopes() {
     const hc = useCsiMyReportAccess('hc');
+    const procurement = useCsiMyReportAccess('procurement');
     const ict = useCsiMyReportAccess('ict');
-    const scopes = ([['hc', hc.data], ['ict', ict.data]] as const).filter(([, access]) => (access?.services.length ?? 0) > 0).map(([scope]) => scope);
-    return { scopes, loading: hc.isLoading || ict.isLoading };
+    const scopes = ([['hc', hc.data], ['procurement', procurement.data], ['ict', ict.data]] as const)
+        .filter(([, access]) => (access?.services.length ?? 0) > 0).map(([scope]) => scope);
+    return { scopes, loading: hc.isLoading || procurement.isLoading || ict.isLoading };
 }
 
 /**
@@ -70,7 +72,7 @@ export function CsiServiceReportPage() {
                 <div className="flex flex-wrap items-center gap-2">
                     {owned.scopes.length > 1 && (
                         <select aria-label="Unit" className={SELECT} value={scope} onChange={(event) => switchScope(event.target.value as CsiScopeParam)}>
-                            {owned.scopes.map((code) => <option key={code} value={code}>{code === 'hc' ? 'HC' : 'ICT'}</option>)}
+                            {owned.scopes.map((code) => <option key={code} value={code}>{orgScopeLabel(code)}</option>)}
                         </select>
                     )}
                     {access.periods.length > 0 && (
@@ -89,7 +91,7 @@ export function CsiServiceReportPage() {
                 </div>
             )}
             {access && access.services.length > 0 && !access.periods.length && (
-                <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>{`Belum ada survei ${scope === 'hc' ? 'HC' : 'ICT'} yang terbit.`}</p>
+                <p className={cn(CSI_CARD, 'p-6 text-[14px] text-muted-foreground')}>{`Belum ada survei ${orgScopeLabel(scope)} yang terbit.`}</p>
             )}
             {report.isError && <ErrorState title="Gagal memuat report layanan" message="Silakan coba lagi." onRetry={() => report.refetch()} />}
             {report.data && (

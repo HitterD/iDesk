@@ -4,6 +4,7 @@ import { CsiHcApi } from '../api/csiHc.api';
 import { CsiApi } from '../api/csi.api';
 import type { CreateCsiCustomTeam, CsiScopeParam, CsiTeamMemberInput, UpdateCsiCustomTeam } from '../types';
 import type { AssignRatersToPicsInput, CreateCsiPeriodFromTemplates, CsiTemplateImportOptions, CsiUnitRule, SetCsiPeriodPics, UpdateCsiPic } from '../hcTypes';
+import { isOrgCsiScope } from '../lib/csiAdmin';
 import { useCsiPollingFallback } from './useCsiLiveUpdates';
 
 const keys = queryKeys.csi;
@@ -99,7 +100,10 @@ export function useCsiMyReportAccess(scope: CsiScopeParam) {
 export function useCsiOwnerReportAccess(): boolean {
     const hc = useCsiMyReportAccess('hc');
     const ict = useCsiMyReportAccess('ict');
-    return (!hc.data?.admin && (hc.data?.services?.length ?? 0) > 0) || (!ict.data?.admin && (ict.data?.services?.length ?? 0) > 0);
+    const procurement = useCsiMyReportAccess('procurement');
+    return (!hc.data?.admin && (hc.data?.services?.length ?? 0) > 0)
+        || (!ict.data?.admin && (ict.data?.services?.length ?? 0) > 0)
+        || (!procurement.data?.admin && (procurement.data?.services?.length ?? 0) > 0);
 }
 export function useCsiMyReportPeriods(scope: CsiScopeParam, enabled = true) {
     return useQuery({ queryKey: ['csi', 'me', scope, 'periods'], queryFn: () => CsiHcApi.myReportPeriods(scope), enabled });
@@ -126,7 +130,7 @@ export function useSetCsiReportOwners(scope: CsiScopeParam) {
         },
     });
 }
-export function useCsiPics(scope: CsiScopeParam, includeInactive = false, enabled = scope === 'hc') {
+export function useCsiPics(scope: CsiScopeParam, includeInactive = false, enabled = isOrgCsiScope(scope)) {
     return useQuery({ queryKey: picsKey(scope, includeInactive), queryFn: () => CsiHcApi.pics(scope, includeInactive), enabled });
 }
 export function usePicAccountSuggestions(scope: CsiScopeParam, search: string, siteId?: string | null, enabled = true) {

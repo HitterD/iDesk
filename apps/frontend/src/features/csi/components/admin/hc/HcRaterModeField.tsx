@@ -2,23 +2,28 @@ import { ClipboardList, Hand } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { targetRespondentsInvalid, type PeriodFormState } from '../../../lib/periodForm';
+import type { CsiScopeParam } from '../../../types';
 import { FIELD_LABEL, LockedNote, MUTED_TEXT } from '../AdminParts';
 
 type SetField = <K extends keyof PeriodFormState>(key: K, value: PeriodFormState[K]) => void;
 
-const OPTIONS = [
-    {
-        picks: false, icon: ClipboardList, title: 'Ditentukan HC (disarankan)',
-        hint: 'HC mengatur siapa menilai PIC mana: per unit (divisi/departemen/bagian), per orang, atau lewat impor Excel. Partisipasi = penilai yang ditetapkan.',
-    },
-    {
-        picks: true, icon: Hand, title: 'Responden memilih PIC sendiri',
-        hint: 'Semua karyawan di site boleh mengisi dan mencentang PIC yang pernah melayaninya. Partisipasi dihitung dari target responden di bawah.',
-    },
-] as const;
+function optionsFor(scope: CsiScopeParam) {
+    const label = scope === 'procurement' ? 'Procurement' : 'HC';
+    return [
+        {
+            picks: false, icon: ClipboardList, title: `Ditentukan ${label} (disarankan)`,
+            hint: `${label} mengatur siapa menilai PIC mana: per unit (divisi/departemen/bagian), per orang, atau lewat impor Excel. Partisipasi = penilai yang ditetapkan.`,
+        },
+        {
+            picks: true, icon: Hand, title: 'Responden memilih PIC sendiri',
+            hint: 'Semua karyawan di site boleh mengisi dan mencentang PIC yang pernah melayaninya. Partisipasi dihitung dari target responden di bawah.',
+        },
+    ] as const;
+}
 
-/** HC only: who decides which PICs a respondent rates. "HC decides" is the default; respondent picking is opt-in. */
-export function HcRaterModeField({ form, set, locked }: { form: PeriodFormState; set: SetField; locked: boolean }) {
+/** HC/Procurement only: who decides which PICs a respondent rates. Admin deciding is default; respondent picking is opt-in. */
+export function HcRaterModeField({ scope = 'hc', form, set, locked }: { scope?: CsiScopeParam; form: PeriodFormState; set: SetField; locked: boolean }) {
+    const options = optionsFor(scope);
     const choose = (picks: boolean) => {
         set('respondentPicks', picks);
         // Respondent picking is open to everyone at the site; HC-decided raters are a listed audience.
@@ -32,7 +37,7 @@ export function HcRaterModeField({ form, set, locked }: { form: PeriodFormState;
                 {locked && <LockedNote />}
             </div>
             <div role="radiogroup" aria-label="Siapa menilai PIC mana" className="grid gap-3 md:grid-cols-2">
-                {OPTIONS.map((option) => {
+                {options.map((option) => {
                     const active = form.respondentPicks === option.picks;
                     const Icon = option.icon;
                     return (

@@ -7,9 +7,9 @@ import { CsiAdminPage } from '../CsiAdminPage';
 const access = vi.hoisted(() => ({ role: 'ADMIN', pageAccess: {} as Record<string, boolean> }));
 
 vi.mock('@/stores/useAuth', () => ({ useAuth: () => ({ user: { id: 'a1', role: access.role } }) }));
-const owner = vi.hoisted(() => ({ hc: 0, ict: 0 }));
+const owner = vi.hoisted(() => ({ hc: 0, procurement: 0, ict: 0 }));
 vi.mock('../../hooks/useCsiHc', () => ({
-    useCsiMyReportAccess: (scope: 'hc' | 'ict') => ({ data: { admin: false, services: Array.from({ length: owner[scope] }, () => 'X') }, isLoading: false }),
+    useCsiMyReportAccess: (scope: 'hc' | 'procurement' | 'ict') => ({ data: { admin: false, services: Array.from({ length: owner[scope] }, () => 'X') }, isLoading: false }),
 }));
 vi.mock('@/hooks/usePermissions', () => ({
     useMyPermissions: () => ({ data: { pageAccess: access.pageAccess }, isLoading: false, isError: false }),
@@ -62,7 +62,7 @@ const renderAt = (path: string) => render(
     </MemoryRouter>,
 );
 
-beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; settings.pending = 0; owner.hc = 0; owner.ict = 0; });
+beforeEach(() => { access.role = 'ADMIN'; access.pageAccess = {}; settings.pending = 0; owner.hc = 0; owner.procurement = 0; owner.ict = 0; });
 afterEach(cleanup);
 
 describe('CsiAdminPage', () => {
@@ -218,6 +218,14 @@ describe('CsiAdminPage', () => {
         access.role = 'USER';
         renderAt('/csi/admin/ict');
         expect(screen.getByText('Anda tidak memiliki akses Admin CSI')).toBeInTheDocument();
+    });
+
+    it('PROCUREMENT_ADMIN hanya Procurement, walau preset memberi key HC dan ICT', () => {
+        access.role = 'PROCUREMENT_ADMIN';
+        access.pageAccess = { csi_admin_hc: true, csi_admin_ict: true };
+        renderAt('/csi/admin/hc');
+        expect(screen.getByText('dashboard:procurement')).toBeInTheDocument();
+        expect(screen.queryByText(/Hanya lihat/)).not.toBeInTheDocument();
     });
 
     it('membuka detail periode dari query ?period=', () => {

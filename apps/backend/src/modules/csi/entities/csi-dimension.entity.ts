@@ -8,7 +8,7 @@ export class CsiDimension {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'varchar', length: 10 })
+    @Column({ type: 'varchar', length: 20 })
     scope: ServiceScope;
 
     /** The question text. */

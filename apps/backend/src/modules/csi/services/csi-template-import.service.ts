@@ -15,6 +15,7 @@ import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiTeam } from '../entities/csi-team.entity';
 import { buildNameIndex, normalizeName } from '../org/csi-name-match';
 import { CSI_HC_SERVICES, normalizeBagian, normalizeNik } from '../org/csi-org.constants';
+import { serviceCodesOf } from '../org/csi-services';
 import { normalizeServiceFunction } from '../org/csi-org.service';
 import { CsiTemplateDraft, parseTemplateWorkbook } from '../org/csi-template-excel';
 import { ClassifiedPic, ClassifyContext, PicResolution } from '../org/csi-template-identity';
@@ -62,10 +63,19 @@ type ImportState = {
 export const csiTemplateName = (scope: ServiceScope, code: string) => `CSI ${scope} – ${CSI_TEMPLATE_LOCATION_NAMES[code] ?? code}`;
 
 /**
- * Directory rows that can become HC PICs: HCBP AREA staff and the three HC departments. Names are compared in memory
- * with normalizeName, so the directory's own casing, dots or commas never hide a match.
+ * Directory rows that can become PICs:
+ * - HC: HCBP AREA staff and the three HC departments.
+ * - Procurement: PROCUREMENT division or Procurement departments.
+ * Names are compared in memory with normalizeName, so the directory's own casing, dots or commas never hide a match.
  */
-export function hcDirectoryCandidates(manager: EntityManager): Promise<CsiOrgPerson[]> {
+export function hcDirectoryCandidates(manager: EntityManager, scope: ServiceScope = ServiceScope.HC): Promise<CsiOrgPerson[]> {
+    if (scope === ServiceScope.PROCUREMENT) {
+        return manager.getRepository(CsiOrgPerson).createQueryBuilder('p')
+            .where('UPPER(p."division") = :div OR UPPER(p."department") LIKE :dept', {
+                div: 'PROCUREMENT', dept: '%PROCUREMENT%',
+            })
+            .getMany();
+    }
     return manager.getRepository(CsiOrgPerson).createQueryBuilder('p')
         .where('p."department" ILIKE :hcbp OR UPPER(p."department") IN (:...hc)', {
             hcbp: 'HCBP AREA%', hc: CSI_HC_SERVICES.map((service) => service.department),
@@ -73,11 +83,11 @@ export function hcDirectoryCandidates(manager: EntityManager): Promise<CsiOrgPer
         .getMany();
 }
 
-/** Master-creation context of a location: its site, the HC directory and the active accounts (for the NIK link). */
+/** Master-creation context of a location: its site, the scope directory and the active accounts (for the NIK link). */
 export async function loadMasterContext(manager: EntityManager, scope: ServiceScope, locationCode: string): Promise<CsiMasterContext> {
     const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
     const accounts = await manager.getRepository(User).find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true } });
-    const directory = await hcDirectoryCandidates(manager);
+    const directory = await hcDirectoryCandidates(manager, scope);
     return { scope, site, accounts: lookupOf(accounts), findPerson: identityIndex(directory, (row) => row.nik, (row) => row.fullName) };
 }
 
@@ -229,6 +239,10 @@ export class CsiTemplateImportService {
     }
 
     private async run(manager: EntityManager, scope: ServiceScope, code: string, file: CsiTemplateDraft, options: CsiTemplateImportOptions) {
+        const allowedServices = new Set<string>(serviceCodesOf(scope));
+        if (file.pics.some((pic) => !allowedServices.has(pic.serviceCode))) {
+            throw new BadRequestException(`Area pada file tidak sesuai dengan layanan ${scope}`);
+        }
         const state = await this.load(manager, scope, code);
         const draft = withCurrentNames(file, state.masters);
         const classified = classifyDraft(draft, this.classifyContext(state, normalizeResolutions(options.resolutions)));
@@ -256,7 +270,7 @@ export class CsiTemplateImportService {
         const accounts = await manager.getRepository(User).find({ where: { isActive: true }, select: { id: true, fullName: true, employeeId: true } });
         const site = await manager.getRepository(Site).findOne({ where: { code } });
         const teams = site ? await manager.getRepository(CsiTeam).find({ where: { scope, siteId: site.id, kind: CsiTeamKind.CUSTOM } }) : [];
-        const directory = await hcDirectoryCandidates(manager);
+        const directory = await hcDirectoryCandidates(manager, scope);
         return {
             scope, code, site, template, rows, raters, teams, accounts: lookupOf(accounts), directory,
             masters: await manager.getRepository(CsiPic).find({ where: { scope } }),

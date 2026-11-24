@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useRemoveCsiSubjectMember, useUpdateCsiPeriodRatee, useUpdateCsiSubject, useUploadCsiSubjectPhoto } from '../../../hooks/useCsi';
 import { CSI_PIC_NAME_MIN } from '../../../hcTypes';
+import { isOrgCsiScope } from '../../../lib/csiAdmin';
 import { toneClasses } from '../../../lib/csiTone';
 import type { CsiFormRatee, CsiScopeParam, CsiSubjectGroup, CsiSubjectView, UpdateCsiPeriodRatee, UpdateCsiSubject } from '../../../types';
 import { FlowChromeContext } from '../../respond/FlowChrome';
@@ -98,7 +99,7 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
     const editsName = isTeam || isPic;
     const hasServiceFunction = !isTeam && scope === 'ict';
     /** Team delete is HC-only (the backend endpoint refuses ICT). */
-    const canDeleteTeam = isTeam && !!subject.teamId && scope === 'hc';
+    const canDeleteTeam = isTeam && !!subject.teamId && isOrgCsiScope(scope);
     const ids = { jobTitle: useId(), name: useId(), serviceFunction: useId() };
     const set = (field: keyof typeof draft) => (value: string) => setDraft((prev) => ({ ...prev, [field]: value }));
     const pick = (next: File) => { const error = photoError(next); setFileError(error); setPhoto(error ? null : pickPhoto(next)); };
@@ -131,14 +132,14 @@ function EditForm({ scope, subject, group, onClose }: { scope: CsiScopeParam; su
                 {/* ICT people only: HC people get their fungsi pelayanan from the PIC master (Pengaturan → PIC HC). */}
                 {hasServiceFunction && <TextField id={ids.serviceFunction} label="Fungsi pelayanan" value={draft.serviceFunction} onChange={set('serviceFunction')} />}
                 {editsName && <TextField id={ids.name} label={isTeam ? 'Nama tim' : 'Nama'} value={draft.name} onChange={set('name')} />}
-                {isPic && <p className={MUTED_TEXT}>Nama ikut berubah di template penugasan, PIC HC dan survei yang belum berjalan.</p>}
+                {isPic && <p className={MUTED_TEXT}>{`Nama ikut berubah di template penugasan, ${scope === 'procurement' ? 'PIC Procurement' : 'PIC HC'} dan survei yang belum berjalan.`}</p>}
             </div>
             <SheetFooter onClose={onClose} onSave={save} pending={pending} disabled={(isTeam && !draft.name.trim()) || (isPic && cleanName(draft.name).length < CSI_PIC_NAME_MIN)}
                 extra={canDeleteTeam ? (
                     <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" disabled={pending} onClick={() => setDeleting(true)}>
                         <Trash2 aria-hidden="true" />Hapus tim
                     </Button>
-                ) : !isTeam && subject.userId && scope === 'hc' ? (
+                ) : !isTeam && subject.userId && isOrgCsiScope(scope) ? (
                     <Button variant="subtle" className="mr-auto text-[hsl(var(--ticket-red-ink))]" loading={remove.isPending}
                         onClick={() => remove.mutate(subject.userId!, { onSuccess: onClose })}>
                         <UserMinus aria-hidden="true" />Keluarkan dari daftar

@@ -89,8 +89,9 @@ export function HcPairsPanel({ scope, period }: { scope: CsiScopeParam; period: 
         pics.forEach((pic) => { if (pic.serviceCode && pic.bagian) map[pic.serviceCode] = [...new Set([...(map[pic.serviceCode] ?? []), pic.bagian])].sort(); });
         return map;
     }, [pics]);
+    const adminLabel = scope === 'procurement' ? 'Procurement' : 'HC';
     return (
-        <AdminSection title="Siapa menilai siapa" description="HC menentukan karyawan mana menilai PIC mana. Responden hanya melihat PIC yang ditetapkan untuknya."
+        <AdminSection title="Siapa menilai siapa" description={`${adminLabel} menentukan karyawan mana menilai PIC mana. Responden hanya melihat PIC yang ditetapkan untuknya.`}
             actions={(
                 <div className="flex flex-wrap items-center gap-3">
                     {pics.length > 0 && <TemplatePullButton scope={scope} period={period} />}

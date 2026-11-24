@@ -92,7 +92,7 @@ export function TemplateApplyDialog({ scope, template, open, onOpenChange, onNew
                         setReport(null);
                         previewKeyRef.current = null;
                     }}>
-                        <option value="">Pilih survei HC…</option>
+                        <option value="">Pilih survei…</option>
                         {periods.map((period) => {
                             const state = period.publishStatus && period.status ? CSI_SURVEY_STATE_LABELS[surveyState(period)] : null;
                             return <option key={period.id} value={period.id}>{state ? `${period.title} (${state})` : period.title}</option>;

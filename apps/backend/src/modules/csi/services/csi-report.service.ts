@@ -6,7 +6,7 @@ import { DataSource, FindOptionsRelations, In, LessThan, Repository } from 'type
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { AuditService } from '../../audit/audit.service';
 import { AuditAction } from '../../audit/entities/audit-log.entity';
-import { CSI_RESET_REASON_MIN, isSimulation, CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RESET_REASON_MIN, isOrgCsiScope, isSimulation, CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
 import { CsiPeriodRater } from '../entities/csi-period-rater.entity';
@@ -300,14 +300,14 @@ export class CsiReportService {
         const comments = report.ratees.flatMap((ratee) => ratee.comments.map((comment) => ({
             periodRateeId: ratee.periodRateeId, text: comment.text,
         })));
-        // HC: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
-        const hcRecap = scope === ServiceScope.HC ? await this.executiveHcRecap(scope, periodId, siteId, previous?.id) : null;
+        // HC / Procurement: the per-PIC recap with the same site filter, loaded once (layanan averages for the highlight + recap pages).
+        const hcRecap = isOrgCsiScope(scope) ? await this.executiveHcRecap(scope, periodId, siteId, previous?.id) : null;
         const model = buildReportModel({
             report, scopeLabel: scope, scope, previousBySubject, hasPrevious: !!previous, siteBasis, comments,
             raters: await this.basisRaters(reporters, data.responses),
             serviceAverages: (hcRecap?.services ?? []).filter((row) => row.level === 'service').map((row) => ({ serviceCode: row.serviceCode, average: row.all.average })),
             notes: input.notes ?? '', hcRecap,
-            templateRatersWithoutAccount: scope === ServiceScope.HC ? await this.templateRatersWithoutAccount(scope, sites.map((site) => site.code)) : 0,
+            templateRatersWithoutAccount: isOrgCsiScope(scope) ? await this.templateRatersWithoutAccount(scope, sites.map((site) => site.code)) : 0,
         });
         return { ...model, hcRecap: hcRecap?.services.some((row) => row.level === 'pic' && row.serviceCode) ? hcRecap : null };
     }
@@ -388,8 +388,8 @@ export class CsiReportService {
         const period = await this.findInScope(scope, periodId, { sites: { site: true } });
         const data = narrowResponsesToSite(await this.loadPeriodData(scope, period), siteId);
         const people = data.ratees.filter((ratee) => ratee.kind !== CsiRateeKind.TEAM);
-        // HC custom teams are rated under a layanan like a PIC; ICT site teams keep their own report.
-        const teams = scope === ServiceScope.HC ? data.ratees.filter((ratee) => ratee.kind === CsiRateeKind.TEAM && ratee.serviceCode) : [];
+        // HC / Procurement custom teams are rated under a layanan like a PIC; ICT site teams keep their own report.
+        const teams = isOrgCsiScope(scope) ? data.ratees.filter((ratee) => ratee.kind === CsiRateeKind.TEAM && ratee.serviceCode) : [];
         const ids = new Set([...people, ...teams].map((ratee) => ratee.id));
         const labelOf = new Map(data.dimensions.map((row) => [row.id, row.shortLabel || row.dimensionName]));
         const scored = data.dimensions.filter((row) => ids.has(row.periodRateeId) && row.type !== CsiQuestionType.CHOICE && row.type !== CsiQuestionType.TEXT);
@@ -648,7 +648,7 @@ const isHcRecapSubject = (ratee: CsiPeriodRatee) => ratee.kind !== CsiRateeKind.
  * the recap, PDF page 1, Excel and dashboard. ICT: mean of the response averages, weighted by responses.
  */
 function overallScoreOf(scope: ServiceScope, data: PeriodData): { average: number | null; scoreWeight: number } {
-    if (scope !== ServiceScope.HC) return { average: overallStats(data.items, data.responses.length).average, scoreWeight: data.responses.length };
+    if (!isOrgCsiScope(scope)) return { average: overallStats(data.items, data.responses.length).average, scoreWeight: data.responses.length };
     const ids = new Set(data.ratees.filter(isHcRecapSubject).map((ratee) => ratee.id));
     const { average, ratings } = ratingAverage(data.items.filter((item) => ids.has(item.periodRateeId)));
     return { average, scoreWeight: ratings };
@@ -677,7 +677,7 @@ function narrowToSites(data: PeriodData, filter: SiteScopeFilter, scope: Service
         const site = response.respondent?.siteId ?? null;
         return !!site && filter.respondentSites.has(site);
     });
-    if (scope === ServiceScope.HC) {
+    if (isOrgCsiScope(scope)) {
         return {
             ...data, ratees,
             items: data.items.filter((item) => allowedRateeIds.has(item.periodRateeId)),

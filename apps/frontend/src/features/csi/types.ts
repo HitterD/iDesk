@@ -1,7 +1,7 @@
 import type { ServiceScope } from '@/lib/constants/service-scope';
 import type { CsiScoreBands } from './lib/csiTone';
 
-export type CsiScopeParam = 'ict' | 'hc';
+export type CsiScopeParam = 'ict' | 'hc' | 'procurement';
 export type CsiScope = ServiceScope;
 export type CsiRespondentMode = 'OPEN' | 'LISTED';
 export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';

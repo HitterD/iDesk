@@ -163,6 +163,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     const pendingSurveyCount = activeSurveys?.filter((survey) => !survey.submitted).length ?? 0;
     const hasOwnerReport = useCsiOwnerReportAccess();
     const hcOwner = (useCsiMyReportAccess('hc').data?.services?.length ?? 0) > 0;
+    const procurementOwner = (useCsiMyReportAccess('procurement').data?.services?.length ?? 0) > 0;
     const ictOwner = (useCsiMyReportAccess('ict').data?.services?.length ?? 0) > 0;
 
     // Badge resolution helper for navigation items
@@ -202,6 +203,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
     // Navigation configuration - Core items and groups
     const isManager = user?.role === 'MANAGER';
     const isHcAdmin = user?.role === 'HC_ADMIN';
+    const isProcurementAdmin = user?.role === 'PROCUREMENT_ADMIN';
 
     const NAVIGATION_CONFIG = useMemo(() => [
         // Core items
@@ -303,6 +305,18 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             ]
         },
 
+        // Procurement group: Procurement administration modules (CSI Procurement); the whole sidebar of a PROCUREMENT_ADMIN.
+        {
+            type: 'group',
+            id: 'procurement',
+            label: 'Procurement',
+            icon: Package,
+            tone: 'orange',
+            items: [
+                { key: CSI_ADMIN_PAGE_KEYS.procurement, icon: ClipboardCheck, tone: 'orange', label: 'Admin CSI Procurement', path: csiAdminPath(isManager ? CSI_PATHS.manager : CSI_PATHS.staff, 'procurement') },
+            ]
+        },
+
         // Administration group (Admin role only)
         {
             type: 'group',
@@ -327,6 +341,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
         // CSI admin entries: writers by key/role, read-only viewers (managers, report owners) by canReadCsi.
         if (pageKey === CSI_ADMIN_PAGE_KEYS.ict) return canReadCsi(user?.role, myPermissions?.pageAccess, 'ict', ictOwner);
         if (pageKey === CSI_ADMIN_PAGE_KEYS.hc) return canReadCsi(user?.role, myPermissions?.pageAccess, 'hc', hcOwner);
+        if (pageKey === CSI_ADMIN_PAGE_KEYS.procurement) return canReadCsi(user?.role, myPermissions?.pageAccess, 'procurement', procurementOwner);
 
         // Personal dashboard exists only for agents (the API rejects everyone else)
         if (pageKey === 'my_dashboard' && !isAgentRole(user?.role)) return false;
@@ -349,6 +364,7 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
             AGENT_WEB_DEV: ['my_dashboard', 'web_dev_tickets', 'oracle_k2_tickets', 'mobile_dev_tickets', 'notifications', 'reports'],
             AGENT_MOBILE_DEV: ['my_dashboard', 'mobile_dev_tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'notifications', 'reports'],
             HC_ADMIN: ['notifications'],
+            PROCUREMENT_ADMIN: ['notifications'],
             MANAGER: ['dashboard', 'tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'reports', 'knowledge_base', 'renewal', 'workloads', 'notifications'],
             ADMIN: ['dashboard', 'tickets', 'oracle_k2_tickets', 'web_dev_tickets', 'mobile_dev_tickets', 'hardware_requests', 'eform_access', 'zoom_calendar', 'knowledge_base', 'notifications', 'reports', 'renewal', 'workloads', 'agents', 'automation', 'audit_logs', 'system_health', 'data_wipe', 'settings'],
         };
@@ -382,8 +398,8 @@ export const BentoSidebar: React.FC<BentoSidebarProps> = ({ onNavigate }) => {
                     continue;
                 }
 
-                // HC administrators see only HC pages: no ticket queues (dynamic modules have no page key).
-                if (entry.id === 'request_center' && isHcAdmin) continue;
+                // HC and Procurement administrators see only their scope pages: no ticket queues (dynamic modules have no page key).
+                if (entry.id === 'request_center' && (isHcAdmin || isProcurementAdmin)) continue;
 
                 if (entry.id === 'request_center' && dynamicModules.length > 0) {
                     // Map dynamic ticket modules

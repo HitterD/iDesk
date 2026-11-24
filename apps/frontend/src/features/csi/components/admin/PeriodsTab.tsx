@@ -7,7 +7,7 @@ import { SearchablePicker } from '@/components/ui/searchable-picker';
 import { useActiveSites } from '@/components/site/useActiveSites';
 import { cn } from '@/lib/utils';
 import { useCsiPeriods } from '../../hooks/useCsi';
-import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
+import { CSI_MODE_LABELS, isOrgCsiScope } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import { formatSites } from '../../lib/location';
 import type { CsiPeriodListItem, CsiScopeParam } from '../../types';
@@ -89,8 +89,8 @@ export function PeriodsTab({ scope, onOpen, onCreate, onCreated, onRepeat }: Per
                 )}
                 <span className="flex-1" />
                 <Button variant="soft" onClick={() => setMemoOpen(true)}>Export memo PDF</Button>
-                {/* HC surveys are always built from location templates; ICT keeps the generic wizard. */}
-                {!readOnly && <CreateButton label={WIZARD_COPY.create} onClick={scope === 'hc' ? () => setHcWizardOpen(true) : onCreate} />}
+                {/* HC & Procurement surveys are built from location templates; ICT keeps the generic wizard. */}
+                {!readOnly && <CreateButton label={WIZARD_COPY.create} onClick={isOrgCsiScope(scope) ? () => setHcWizardOpen(true) : onCreate} />}
             </div>
             <section aria-label="Daftar survei" className={cn(ADMIN_PANEL, 'overflow-hidden')}>
                 {isLoading && (

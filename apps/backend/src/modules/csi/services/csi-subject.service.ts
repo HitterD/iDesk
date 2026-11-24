@@ -7,7 +7,7 @@ import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { CSI_JOB_TITLE_MAX, CSI_TAGLINE_MAX, CSI_TEAM_NAME_MAX, UpdateSubjectDto } from '../dto/subject.dto';
-import { CsiRateeKind, CsiTeamKind } from '../csi.constants';
+import { CsiRateeKind, CsiTeamKind, isOrgCsiScope } from '../csi.constants';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
 import { CsiAssignmentTemplate } from '../entities/csi-assignment-template.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -50,8 +50,8 @@ export type CsiSubjectGroup = {
 type SubjectUser = Pick<User, 'id' | 'fullName' | 'siteId' | 'jobTitle' | 'avatarUrl'>;
 const USER_FIELDS = { id: true, fullName: true, siteId: true, jobTitle: true, avatarUrl: true } as const;
 
-/** Administrator roles of a scope: they run the survey, they are not rated by it (HC people are picked by hand). */
-const SCOPE_ADMIN_ROLES: readonly UserRole[] = [UserRole.HC_ADMIN];
+/** Administrator roles of a scope: they run the survey, they are not rated by it (HC/Procurement people are picked by hand). */
+const SCOPE_ADMIN_ROLES: readonly UserRole[] = [UserRole.HC_ADMIN, UserRole.PROCUREMENT_ADMIN];
 
 /** Staff roles mapped to the scope (ROLE_SCOPE is the single source of truth); ADMIN and scope admins are not subjects. */
 const agentRolesOf = (scope: ServiceScope) =>
@@ -161,7 +161,7 @@ export class CsiSubjectService {
      */
     async list(scope: ServiceScope): Promise<CsiSubjectGroup[]> {
         const sites = (await this.sites.find({ where: { isActive: true } })).sort((a, b) => a.code.localeCompare(b.code));
-        if (scope === ServiceScope.HC) return this.hcList(sites);
+        if (isOrgCsiScope(scope)) return this.hcList(sites, scope);
         const people = await this.eligibleUsers(scope);
         const profiles = people.length ? await this.profiles.find({ where: { scope, userId: In(people.map((user) => user.id)) } }) : [];
         const profileByUser = new Map(profiles.map((profile) => [profile.userId, profile]));
@@ -186,7 +186,7 @@ export class CsiSubjectService {
     async viewsFor(scope: ServiceScope, ratees: CsiPeriodRatee[]): Promise<Map<string, CsiRateeView>> {
         const [masters, templateSites] = await Promise.all([
             this.mastersOf(scope, ratees),
-            scope === ServiceScope.HC ? this.templateSitesByPic(ratees) : Promise.resolve(new Map<string, string[]>()),
+            isOrgCsiScope(scope) ? this.templateSitesByPic(ratees, scope) : Promise.resolve(new Map<string, string[]>()),
         ]);
         const siteOf = (ratee: CsiPeriodRatee): string | null => {
             const stored = ratee.siteId ?? masters.get(ratee.id)!.siteId;
@@ -367,9 +367,8 @@ export class CsiSubjectService {
      * linked from the template of that location (template.locationCode = site.code) plus legacy hand-picked members of
      * that site whose account no listed PIC already represents.
      */
-    private async hcList(sites: Site[]): Promise<CsiSubjectGroup[]> {
-        const scope = ServiceScope.HC;
-        const picsBySite = await this.templatePicsBySite(sites);
+    private async hcList(sites: Site[], scope: ServiceScope): Promise<CsiSubjectGroup[]> {
+        const picsBySite = await this.templatePicsBySite(sites, scope);
         const allPics = [...picsBySite.values()].flat();
         const legacy = (await this.eligibleUsers(scope)).filter((user) => !allPics.some((pic) => pic.userId === user.id));
         const accountIds = unique(allPics.flatMap((pic) => (pic.userId ? [pic.userId] : [])));
@@ -399,9 +398,8 @@ export class CsiSubjectService {
         });
     }
 
-    /** Active HC PIC masters linked from each site's template rows (team rows and unlinked names are skipped). */
-    private async templatePicsBySite(sites: Site[]): Promise<Map<string, CsiPic[]>> {
-        const scope = ServiceScope.HC;
+    /** Active PIC masters linked from each site's template rows (team rows and unlinked names are skipped). */
+    private async templatePicsBySite(sites: Site[], scope: ServiceScope): Promise<Map<string, CsiPic[]>> {
         const templates = sites.length ? await this.templates.find({ where: { scope, locationCode: In(sites.map((site) => site.code)) } }) : [];
         const rows = templates.length ? await this.templatePics.find({ where: { templateId: In(templates.map((template) => template.id)) } }) : [];
         const picIds = unique(rows.flatMap((row) => (row.picId ? [row.picId] : [])));
@@ -415,13 +413,13 @@ export class CsiSubjectService {
     }
 
     /** Sorted template site ids (`picId -> siteId[]`) so running surveys follow template moves when `ratee.siteId` is stale. */
-    private async templateSitesByPic(ratees: CsiPeriodRatee[]): Promise<Map<string, string[]>> {
+    private async templateSitesByPic(ratees: CsiPeriodRatee[], scope: ServiceScope): Promise<Map<string, string[]>> {
         const picIds = unique(ratees.flatMap((ratee) => (ratee.kind !== CsiRateeKind.TEAM && ratee.picId ? [ratee.picId] : [])));
         if (!picIds.length) return new Map();
         const rows = await this.templatePics.find({ where: { picId: In(picIds) } });
         const templateIds = unique(rows.map((row) => row.templateId));
         if (!templateIds.length) return new Map();
-        const templates = await this.templates.find({ where: { scope: ServiceScope.HC, id: In(templateIds) } });
+        const templates = await this.templates.find({ where: { scope, id: In(templateIds) } });
         const codes = unique(templates.map((template) => template.locationCode));
         const sites = codes.length ? await this.sites.find({ where: { code: In(codes) } }) : [];
         const siteByCode = new Map(sites.map((site) => [site.code, site.id]));

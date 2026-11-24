@@ -1,6 +1,6 @@
 import {
-    CsiHcService, CsiOrgLocation, locationOfSiteCode, locationOfWorkLocation, normalizeBagian, normalizeNik, serviceOfDepartment,
-    siteCodeOfLocation,
+    CsiHcService, CsiOrgLocation, CsiProcurementService, locationOfSiteCode, locationOfWorkLocation,
+    normalizeBagian, normalizeNik, serviceName, serviceOfDepartment, siteCodeOfLocation,
 } from './csi-org.constants';
 
 describe('CSI org constants', () => {
@@ -42,5 +42,9 @@ describe('CSI org constants', () => {
         expect(normalizeNik(277)).toBe('00000277');
         expect(normalizeNik(' 00004546 ')).toBe('00004546');
         expect(normalizeNik('')).toBeNull();
+    });
+
+    it('resolves Procurement service name', () => {
+        expect(serviceName(CsiProcurementService.PROC)).toBe('Procurement');
     });
 });

@@ -41,8 +41,9 @@ export function HcSurveyWizard({ scope, open, onOpenChange, initialLocation, onC
 }) {
     const { data } = useCsiTemplates(scope);
     const templates = data?.templates ?? [];
+    const scopeLabel = scope === 'procurement' ? 'Procurement' : 'HC';
     const [step, setStep] = useState(STEP_INFO);
-    const [info, setInfo] = useState<SurveyInfo>({ title: `CSI HC ${new Date().getFullYear()}`, startDate: '', endDate: '' });
+    const [info, setInfo] = useState<SurveyInfo>({ title: `CSI ${scopeLabel} ${new Date().getFullYear()}`, startDate: '', endDate: '' });
     const [picked, setPicked] = useState<string[]>(initialLocation ? [initialLocation] : []);
     const [created, setCreated] = useState<CsiTemplateApplyReport | null>(null);
     // Locations without a template cannot be picked; a preselected empty tab simply drops out.
@@ -69,8 +70,8 @@ export function HcSurveyWizard({ scope, open, onOpenChange, initialLocation, onC
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Buat survei HC</DialogTitle>
-                    <DialogDescription>Survei HC dibuat dari template penugasan lokasi yang dipilih.</DialogDescription>
+                    <DialogTitle>{`Buat survei ${scopeLabel}`}</DialogTitle>
+                    <DialogDescription>{`Survei ${scopeLabel} dibuat dari template penugasan lokasi yang dipilih.`}</DialogDescription>
                 </DialogHeader>
                 <StepIndicator step={step} />
                 {step === STEP_INFO && <InfoStep info={info} onChange={setInfo} />}

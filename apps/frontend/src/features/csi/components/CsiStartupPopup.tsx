@@ -52,7 +52,7 @@ function SurveyOptionRow({ survey, userId, single, onOpen }: {
             <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                        <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
+                        <TicketPill tone={survey.scope === 'HC' ? 'teal' : survey.scope === 'PROCUREMENT' ? 'amber' : 'blue'}>{survey.scope}</TicketPill>
                         {survey.partialRemainingCount ? (
                             <TicketPill tone="amber">{`${survey.partialRemainingCount} PIC tambahan`}</TicketPill>
                         ) : null}

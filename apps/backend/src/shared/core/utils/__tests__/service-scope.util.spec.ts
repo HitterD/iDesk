@@ -10,19 +10,25 @@ import {
     scopeOfTicket,
 } from '../service-scope.util';
 
-const STAFF_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.USER && r !== UserRole.ADMIN && r !== UserRole.HC_ADMIN);
+const STAFF_ROLES = Object.values(UserRole).filter(
+    (r) => r !== UserRole.USER && r !== UserRole.ADMIN && r !== UserRole.HC_ADMIN && r !== UserRole.PROCUREMENT_ADMIN,
+);
 
 describe('service-scope.util', () => {
     it('maps every current ICT staff role (agents + manager) to ICT', () => {
         for (const role of STAFF_ROLES) expect(scopeOfRole(role)).toBe(ServiceScope.ICT);
     });
 
-    it('maps HC_ADMIN to HC, so it never sees ICT tickets', () => {
+    it('maps HC_ADMIN to HC and PROCUREMENT_ADMIN to PROCUREMENT, so neither sees ICT tickets', () => {
         expect(scopeOfRole(UserRole.HC_ADMIN)).toBe(ServiceScope.HC);
+        expect(scopeOfRole(UserRole.PROCUREMENT_ADMIN)).toBe(ServiceScope.PROCUREMENT);
         expect(canHandleScope(UserRole.HC_ADMIN, ServiceScope.ICT)).toBe(false);
+        expect(canHandleScope(UserRole.PROCUREMENT_ADMIN, ServiceScope.ICT)).toBe(false);
         const q = { andWhere: jest.fn() };
         applyServiceScopeFilter(q, UserRole.HC_ADMIN);
+        applyServiceScopeFilter(q, UserRole.PROCUREMENT_ADMIN);
         expect(q.andWhere).toHaveBeenCalledWith('1 = 0');
+        expect(q.andWhere).toHaveBeenCalledTimes(2);
     });
 
     it('treats ADMIN as cross-scope and USER as scope-less', () => {

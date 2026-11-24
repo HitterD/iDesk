@@ -65,10 +65,38 @@ describe('CsiAdminGuard', () => {
         expect(request.csiScope).toBe(ServiceScope.HC);
     });
 
-    it('HC_ADMIN administers HC only, never ICT (whatever its preset says)', async () => {
-        withPreset(UserRole.HC_ADMIN, { csi_admin_ict: true });
+    it('HC_ADMIN administers HC only, never ICT or PROCUREMENT (whatever its preset says)', async () => {
+        withPreset(UserRole.HC_ADMIN, { csi_admin_ict: true, csi_admin_procurement: true });
         await expect(guard.canActivate(context('hc').executionContext)).resolves.toBe(true);
         await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(guard.canActivate(context('procurement').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('PROCUREMENT_ADMIN administers PROCUREMENT only, never HC or ICT (whatever its preset says)', async () => {
+        withPreset(UserRole.PROCUREMENT_ADMIN, { csi_admin_hc: true, csi_admin_ict: true });
+        const { request, executionContext } = context('procurement');
+        await expect(guard.canActivate(executionContext)).resolves.toBe(true);
+        expect(request.csiScope).toBe(ServiceScope.PROCUREMENT);
+        expect(request.csiReadOnly).toBe(false);
+        await expect(guard.canActivate(context('hc').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+        await expect(guard.canActivate(context('ict').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows ADMIN for procurement without any page key', async () => {
+        const adminCtx = context('procurement');
+        await expect(guard.canActivate(adminCtx.executionContext)).resolves.toBe(true);
+        expect(adminCtx.request.csiScope).toBe(ServiceScope.PROCUREMENT);
+    });
+
+    it('MANAGER reads/writes procurement only when granted csi_admin_procurement', async () => {
+        withPreset(UserRole.MANAGER, {});
+        await expect(guard.canActivate(context('procurement').executionContext)).rejects.toBeInstanceOf(ForbiddenException);
+
+        entries.clear();
+        withPreset(UserRole.MANAGER, { csi_admin_procurement: true });
+        const mgrCtx = context('procurement', { userId: USER_ID }, 'POST');
+        await expect(guard.canActivate(mgrCtx.executionContext)).resolves.toBe(true);
+        expect(mgrCtx.request.csiReadOnly).toBe(false);
     });
 
     it('MANAGER without the key reads ICT (GET) read-only, but never HC', async () => {

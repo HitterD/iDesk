@@ -1,6 +1,5 @@
 import * as ExcelJS from 'exceljs';
-import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_SIMULATION_BANNER, CsiRateeKind } from '../csi.constants';
+import { CSI_SIMULATION_BANNER, CsiRateeKind, isOrgCsiScope } from '../csi.constants';
 import {
     addHcNestedSheet, addHcQuestionSheet, addHcRespondentSheet, addHcServiceSheet, HC_SHEETS, HcSheetContext,
 } from '../org/csi-hc-report.render';
@@ -30,7 +29,7 @@ const OTHER_SERVICE = 'Lainnya';
 const MET = 'Tercapai';
 const NOT_MET = 'Belum';
 const text = (value: string | null | undefined) => sanitizeCell(value ?? '');
-const isHc = (model: CsiReportModel) => model.scopeLabel === ServiceScope.HC;
+const isHc = (model: CsiReportModel) => isOrgCsiScope(model.scopeLabel);
 /** A bulleted line: the bullet already keeps it from starting a formula, so the text itself is not quoted. */
 const bullet = (line: string) => `•  ${cleanText(line)}`;
 /** "HCD · HC Development"; a group without a layanan (ICT Tim / Orang, HC Lainnya) keeps its own name. */

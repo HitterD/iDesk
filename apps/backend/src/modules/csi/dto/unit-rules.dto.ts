@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsEnum, IsIn, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
-import { CsiHcService, CsiOrgLocation } from '../org/csi-org.constants';
+import { CsiOrgLocation } from '../org/csi-org.constants';
+import { ORG_SERVICE_CODES } from '../org/csi-services';
 
 const TEXT_MAX = 150;
 const RULES_MAX = 200;
@@ -22,7 +23,7 @@ export class CsiUnitRuleDto {
     location?: CsiOrgLocation | null;
 
     @IsString({ message: 'Layanan wajib diisi' })
-    @IsIn(Object.values(CsiHcService), { message: 'Layanan harus salah satu dari HCC, HCD, HCS' })
+    @IsIn(ORG_SERVICE_CODES, { message: 'Layanan harus salah satu dari HCC, HCD, HCS, PROC' })
     serviceCode: string;
 
     @IsOptional() @IsString() @MaxLength(TEXT_MAX)

@@ -12,7 +12,7 @@ import { ADMIN_PANEL, MUTED_TEXT } from '../components/admin/AdminParts';
 import { ScrollToTopButton } from '../components/common/ScrollToTopButton';
 import { WizardRoute } from '../components/wizard/WizardRoute';
 import { HcSurveyWizard } from '../components/admin/hc/templates/HcSurveyWizard';
-import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam } from '../lib/csiAdmin';
+import { csiAdminPath, CSI_SCOPE_OF, isCsiScopeParam, isOrgCsiScope } from '../lib/csiAdmin';
 import { scrollContainerOf } from '../lib/scrollWithin';
 import { useAdminRoute, type AdminRoute } from '../lib/useAdminRoute';
 import { useCsiAdminAccess } from '../lib/useCsiAdminAccess';
@@ -36,8 +36,8 @@ function NotAuthorized() {
 }
 
 function SurveysArea({ scope, route }: { scope: CsiScopeParam; route: AdminRoute }) {
-    // A new HC survey is always built from location templates (a copy of an earlier survey keeps the generic wizard).
-    if (scope === 'hc' && route.wizard === null && !route.copyFrom) {
+    // A new HC/Procurement survey is always built from location templates (a copy keeps the generic wizard).
+    if (isOrgCsiScope(scope) && route.wizard === null && !route.copyFrom) {
         return (
             <>
                 <SurveyList scope={scope} route={route} />

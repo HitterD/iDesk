@@ -14,9 +14,13 @@ import { titleCase } from './hcFormat';
  * layanan (optionally one bagian). Saving rewrites the survey's raters and pairs from the rows.
  */
 const ANY = '__all';
-const SERVICES = [['HCC', 'HC Compensation & Benefit'], ['HCD', 'HC Development'], ['HCS', 'HC Services']] as const;
+const SERVICES_BY_SCOPE = {
+    hc: [['HCC', 'HC Compensation & Benefit'], ['HCD', 'HC Development'], ['HCS', 'HC Services']],
+    procurement: [['PROC', 'Procurement']],
+} as const;
 const LOCATIONS: Array<[CsiLocationCode, string]> = [['SJA1', 'SJA 1'], ['SJA2', 'SJA 2'], ['SJA3', 'SJA 3'], ['SJA4', 'SJA 4 (Semarang)'], ['JKT', 'Jakarta']];
-const emptyRule = (): CsiUnitRule => ({ division: '', serviceCode: 'HCS' });
+const defaultServiceOf = (scope: CsiScopeParam) => (scope === 'procurement' ? 'PROC' : 'HCS');
+const emptyRule = (scope: CsiScopeParam): CsiUnitRule => ({ division: '', serviceCode: defaultServiceOf(scope) });
 
 function Pick({ label, value, options, onChange, disabled, placeholder = 'Semua' }: {
     label: string; value: string | null | undefined; options: Array<[string, string]>; onChange: (value: string | null) => void;
@@ -37,9 +41,11 @@ function Pick({ label, value, options, onChange, disabled, placeholder = 'Semua'
 }
 
 export function UnitRulesEditor({ scope, period, picBagians }: { scope: CsiScopeParam; period: CsiPeriodDetail; picBagians: Record<string, string[]> }) {
+    const services = scope === 'procurement' ? SERVICES_BY_SCOPE.procurement : SERVICES_BY_SCOPE.hc;
+    const defaultService = defaultServiceOf(scope);
     const { data: units = [] } = useCsiUnitOptions(scope);
     const apply = useApplyCsiUnitRules(scope, period.id);
-    const [rules, setRules] = useState<CsiUnitRule[]>(() => (period.unitRules?.length ? period.unitRules : [emptyRule()]));
+    const [rules, setRules] = useState<CsiUnitRule[]>(() => (period.unitRules?.length ? period.unitRules : [emptyRule(scope)]));
     const divisions = useMemo(() => [...new Set(units.map((unit) => unit.division))].sort(), [units]);
     const departmentsOf = (division: string) => [...new Set(units.filter((unit) => unit.division === division && unit.department).map((unit) => unit.department!))].sort();
     const bagiansOf = (division: string, department?: string | null) =>
@@ -54,7 +60,11 @@ export function UnitRulesEditor({ scope, period, picBagians }: { scope: CsiScope
     const locked = period.locked;
     return (
         <div className="grid gap-3">
-            <p className={MUTED_TEXT}>Contoh: semua karyawan <b>OPERATION SJA 1</b> menilai layanan <b>HCS · GA Management</b>. Kosongkan kolom untuk "semua".</p>
+            <p className={MUTED_TEXT}>
+                {scope === 'procurement'
+                    ? <>Contoh: semua karyawan <b>OPERATION SJA 1</b> menilai layanan <b>PROC · Procurement</b>. Kosongkan kolom untuk "semua".</>
+                    : <>Contoh: semua karyawan <b>OPERATION SJA 1</b> menilai layanan <b>HCS · GA Management</b>. Kosongkan kolom untuk "semua".</>}
+            </p>
             {rules.map((rule, index) => (
                 <div key={index} className="grid gap-2 rounded-2xl bg-[hsl(var(--muted)/.45)] p-3 lg:grid-cols-[1.3fr_1.2fr_1.2fr_0.9fr_auto_0.8fr_1.2fr_auto] lg:items-end">
                     <Pick label="Divisi responden" value={rule.division} placeholder="Pilih divisi" disabled={locked}
@@ -66,8 +76,8 @@ export function UnitRulesEditor({ scope, period, picBagians }: { scope: CsiScope
                         options={bagiansOf(rule.division, rule.department).map((value) => [value, titleCase(value)])} onChange={(value) => update(index, { bagian: value })} />
                     <Pick label="Lokasi" value={rule.location} disabled={locked} options={LOCATIONS} onChange={(value) => update(index, { location: value as CsiLocationCode | null })} />
                     <span aria-hidden="true" className="hidden pb-2 text-center text-[13px] font-bold text-[hsl(var(--idesk-sapphire))] lg:block">menilai →</span>
-                    <Pick label="Layanan" value={rule.serviceCode} disabled={locked} placeholder="Pilih" options={SERVICES.map(([code]) => [code, code])}
-                        onChange={(value) => update(index, { serviceCode: value ?? 'HCS', picBagian: null })} />
+                    <Pick label="Layanan" value={rule.serviceCode} disabled={locked} placeholder="Pilih" options={services.map(([code]) => [code, code])}
+                        onChange={(value) => update(index, { serviceCode: value ?? defaultService, picBagian: null })} />
                     <Pick label="Bagian PIC" value={rule.picBagian} disabled={locked} placeholder="Semua bagian"
                         options={(picBagians[rule.serviceCode] ?? []).map((value) => [value, titleCase(value)])} onChange={(value) => update(index, { picBagian: value })} />
                     <Button variant="subtle" size="icon" disabled={locked} aria-label="Hapus aturan" onClick={() => setRules((current) => current.filter((_, at) => at !== index))}>
@@ -77,7 +87,7 @@ export function UnitRulesEditor({ scope, period, picBagians }: { scope: CsiScope
                 </div>
             ))}
             <div className="flex flex-wrap items-center gap-2">
-                <Button variant="soft" disabled={locked} onClick={() => setRules((current) => [...current, emptyRule()])}><Plus aria-hidden="true" />Tambah aturan</Button>
+                <Button variant="soft" disabled={locked} onClick={() => setRules((current) => [...current, emptyRule(scope)])}><Plus aria-hidden="true" />Tambah aturan</Button>
                 <span className="flex-1" />
                 <span className={FIELD_LABEL}>{`${valid.length} aturan`}</span>
                 <Button variant="primary" disabled={locked || !valid.length || apply.isPending} onClick={save}>Terapkan aturan</Button>

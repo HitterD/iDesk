@@ -427,6 +427,23 @@ const DEFAULT_PRESETS: Partial<PermissionPreset>[] = [
         },
     },
 
+    // PROCUREMENT_ADMIN - Procurement administrator: only Procurement admin pages (CSI Procurement)
+    {
+        name: 'Admin Procurement',
+        description: 'Administrator Procurement. Hanya halaman admin Procurement (saat ini: Admin CSI Procurement).',
+        sortOrder: 9,
+        isSystem: true,
+        targetRole: 'MANAGER',
+        pageAccess: {
+            notifications: true,
+            csi_admin_procurement: true,
+        },
+        permissions: {
+            'notifications.view': { canView: true, canCreate: false, canEdit: false, canDelete: false },
+            'settings.view': { canView: true, canCreate: false, canEdit: true, canDelete: false },
+        },
+    },
+
     // ADMIN - Full system administrator
     {
         name: 'Admin',
@@ -687,6 +704,7 @@ export class PermissionsService implements OnModuleInit {
             [UserRole.AGENT_MOBILE_DEV]: 'Agent Mobile Developer',
             [UserRole.MANAGER]: 'Manager',
             [UserRole.HC_ADMIN]: 'Admin HC',
+            [UserRole.PROCUREMENT_ADMIN]: 'Admin Procurement',
             [UserRole.ADMIN]: 'Admin',
         };
         const preset = await this.presetRepo.findOne({

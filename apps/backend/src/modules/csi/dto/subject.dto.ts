@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf, ValidateNested } from 'class-validator';
 import { CsiTeamKind } from '../csi.constants';
+import { ORG_SERVICE_CODES } from '../org/csi-services';
 
 export const CSI_TAGLINE_MAX = 90;
 export const CSI_JOB_TITLE_MAX = 150;
@@ -42,11 +43,10 @@ export class UpdateSubjectDto {
 /** Custom team and member names use the full csi_teams / csi_team_members column (150). */
 export const CSI_CUSTOM_TEAM_NAME_MAX = 150;
 export const CSI_TEAM_MEMBERS_MAX = 200;
-const HC_SERVICE_CODES = ['HCD', 'HCC', 'HCS'];
-const SERVICE_CODE_MESSAGE = 'Layanan harus HCD, HCC atau HCS';
+const SERVICE_CODE_MESSAGE = 'Layanan harus salah satu dari HCD, HCC, HCS, atau PROC';
 const TEAM_NAME_MESSAGE = 'Nama tim harus terdiri dari 1–150 karakter';
 
-/** SITE (default, idempotent per site) or CUSTOM (HC only; name + serviceCode required, checked in the service). */
+/** SITE (default, idempotent per site) or CUSTOM (HC/Procurement only; name + serviceCode required, checked in the service). */
 export class CreateTeamDto {
     @IsUUID('all', { message: 'Site harus berupa UUID' })
     siteId: string;
@@ -62,7 +62,7 @@ export class CreateTeamDto {
     name?: string;
 
     @IsOptional()
-    @IsIn(HC_SERVICE_CODES, { message: SERVICE_CODE_MESSAGE })
+    @IsIn(ORG_SERVICE_CODES, { message: SERVICE_CODE_MESSAGE })
     serviceCode?: string;
 }
 
@@ -74,7 +74,7 @@ export class UpdateTeamDto {
     name?: string;
 
     @IsOptional()
-    @IsIn(HC_SERVICE_CODES, { message: SERVICE_CODE_MESSAGE })
+    @IsIn(ORG_SERVICE_CODES, { message: SERVICE_CODE_MESSAGE })
     serviceCode?: string;
 }
 

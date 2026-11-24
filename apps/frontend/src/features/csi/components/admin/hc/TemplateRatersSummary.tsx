@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useCsiTemplates } from '../../../hooks/useCsiHc';
+import type { CsiScopeParam } from '../../../types';
 import { AdminSection, MUTED_TEXT } from '../AdminParts';
 import { CSI_TEMPLATE_LOCATIONS } from './hcFormat';
 import { templateRaterCounts } from './templates/templateRaterCounts';
@@ -11,9 +12,9 @@ function CountCells({ counts }: { counts: ReturnType<typeof templateRaterCounts>
         .map((count, index) => <td key={index} className="px-3 py-3 text-right tabular-nums">{count}</td>)}</>;
 }
 
-/** HC raters are maintained only in assignment templates, not in a second editable registry. */
-export function TemplateRatersSummary({ onFix }: { onFix?: (locationCode: string) => void }) {
-    const { data, isLoading, isError, refetch } = useCsiTemplates('hc');
+/** HC/Procurement raters are maintained only in assignment templates, not in a second editable registry. */
+export function TemplateRatersSummary({ scope = 'hc', onFix }: { scope?: CsiScopeParam; onFix?: (locationCode: string) => void }) {
+    const { data, isLoading, isError, refetch } = useCsiTemplates(scope);
     const templates = data?.templates ?? [];
     return (
         <AdminSection title="Penilai dari Template penugasan"

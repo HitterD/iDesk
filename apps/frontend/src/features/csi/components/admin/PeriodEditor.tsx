@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateCsiPeriod, useUpdateCsiPeriod } from '../../hooks/useCsi';
-import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX } from '../../lib/csiAdmin';
+import { CSI_MODE_LABELS, CSI_TEXT_MAX, CSI_TITLE_MAX, isOrgCsiScope } from '../../lib/csiAdmin';
 import {
     datesInvalid, formDirty, targetRespondentsInvalid, initialState, nextPeriodForm, scoreBandsError, sectionsInvalid, slaInvalid, teamLabelInvalid, toCreatePayload, toUpdatePayload,
     withCopyMode, withCopySource, type PeriodFormState,
@@ -84,16 +84,16 @@ export function PeriodEditor({ scope, period, periods = [], copyFrom, onSaved, f
                 overlap={<OverlapNotice scope={scope} title={form.title} siteIds={form.siteIds} startDate={form.startDate} endDate={form.endDate} excludeId={period?.id}
                     onUseDates={(range) => setForm((current) => ({ ...current, ...range }))} />} />
             <SectionFields form={form} set={set} locked={locked} rateeCounts={period ? sectionRateeCounts(scope, period) : undefined} />
-            {scope === 'hc' && <HcRaterModeField form={form} set={set} locked={locked} />}
+            {isOrgCsiScope(scope) && <HcRaterModeField scope={scope} form={form} set={set} locked={locked} />}
         </form>
     );
 }
 
-/** Saved ratees per section. HC counts PICs only (people picked from user accounts are never reported there). */
+/** Saved ratees per section. HC/Procurement counts PICs only (people picked from user accounts are never reported there). */
 export const sectionRateeCounts = (scope: CsiScopeParam, period: CsiPeriodDetail): SectionRateeCounts => ({
     team: period.ratees.filter((ratee) => ratee.kind === 'TEAM').length,
-    people: period.ratees.filter((ratee) => ratee.kind !== 'TEAM' && (scope !== 'hc' || !!ratee.picId)).length,
-    peopleNoun: scope === 'hc' ? 'PIC' : 'orang',
+    people: period.ratees.filter((ratee) => ratee.kind !== 'TEAM' && (!isOrgCsiScope(scope) || !!ratee.picId)).length,
+    peopleNoun: isOrgCsiScope(scope) ? 'PIC' : 'orang',
 });
 
 type SetField = <K extends keyof PeriodFormState>(key: K, value: PeriodFormState[K]) => void;

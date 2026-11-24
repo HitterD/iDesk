@@ -41,7 +41,7 @@ export class TicketModule {
     isSystem: boolean;
 
     /** Department that services this module's tickets (ICT today, HC later). */
-    @Column({ type: 'varchar', length: 10, default: ServiceScope.ICT })
+    @Column({ type: 'varchar', length: 20, default: ServiceScope.ICT })
     scope: ServiceScope;
 
     @Column({

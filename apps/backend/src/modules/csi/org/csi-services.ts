@@ -1,8 +1,8 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { CSI_HC_SERVICES } from './csi-org.constants';
+import { CSI_HC_SERVICES, CSI_PROCUREMENT_SERVICES } from './csi-org.constants';
 
-/** A "layanan" a report and its owners are grouped by: HC departments, ICT handling teams. */
+/** A "layanan" a report and its owners are grouped by: HC departments, Procurement, ICT handling teams. */
 export type CsiService = { code: string; name: string };
 
 /** ICT layanan = the ticket handling teams (as in the Reports team filter) plus managers. */
@@ -16,8 +16,14 @@ const ICT_SERVICES: readonly CsiService[] = [
 
 export const CSI_SERVICES: Readonly<Record<ServiceScope, readonly CsiService[]>> = {
     [ServiceScope.HC]: CSI_HC_SERVICES.map(({ code, name }) => ({ code, name })),
+    [ServiceScope.PROCUREMENT]: CSI_PROCUREMENT_SERVICES.map(({ code, name }) => ({ code, name })),
     [ServiceScope.ICT]: ICT_SERVICES,
 };
+
+export const ORG_SERVICE_CODES: readonly string[] = [
+    ...CSI_HC_SERVICES.map((service) => service.code),
+    ...CSI_PROCUREMENT_SERVICES.map((service) => service.code),
+];
 
 const ICT_SERVICE_OF_ROLE: Readonly<Partial<Record<UserRole, string>>> = {
     [UserRole.AGENT]: 'OPS',

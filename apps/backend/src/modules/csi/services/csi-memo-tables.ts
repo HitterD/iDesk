@@ -1,5 +1,4 @@
-import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_ANON_MIN_GROUP, CsiRateeKind } from '../csi.constants';
+import { CSI_ANON_MIN_GROUP, CsiRateeKind, isOrgCsiScope } from '../csi.constants';
 import { ANSWER_IDENTITY_COLUMNS, answerColumns, answerRows, ExportQuestion, questionsOf } from './csi-export.answers';
 import { CellValue } from './csi-export.sheet';
 import { formatLocation } from './csi-format.util';
@@ -21,14 +20,14 @@ export const LANDSCAPE = { size: 'A4', layout: 'landscape', margin: MARGIN } as 
  */
 function answerKinds(survey: MemoSurvey): CsiRateeKind[] {
     const kinds = new Set(survey.report.ratees.map((ratee) => ratee.kind));
-    if (survey.report.period.scope === ServiceScope.HC && kinds.size > 0) {
+    if (isOrgCsiScope(survey.report.period.scope) && kinds.size > 0) {
         return [CsiRateeKind.PERSON, CsiRateeKind.TEAM].filter((kind) => kinds.has(kind));
     }
     return [kinds.has(CsiRateeKind.TEAM) ? CsiRateeKind.TEAM : CsiRateeKind.PERSON];
 }
 
-/** HC memos never name a rater: answer rows are numbered instead of carrying timestamp, name, area and department. */
-const isAnonymous = (survey: MemoSurvey) => survey.report.period.scope === ServiceScope.HC;
+/** HC/Procurement memos never name a rater: answer rows are numbered instead of carrying timestamp, name, area and department. */
+const isAnonymous = (survey: MemoSurvey) => isOrgCsiScope(survey.report.period.scope);
 
 type AnonymousRows = { rows: CellValue[][]; hidden: string[] };
 const lastNumber = (values: CellValue[]) => {

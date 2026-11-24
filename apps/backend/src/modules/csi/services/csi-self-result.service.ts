@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { User } from '../../users/entities/user.entity';
-import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
+import { CsiPairMode, CsiPeriodPublishStatus, CsiQuestionType, CsiRateeKind, CsiRespondentMode, CsiTeamKind, isOrgCsiScope } from '../csi.constants';
 import { CsiTeamMember } from '../entities/csi-team-member.entity';
 import { CsiPeriodRateeDimension } from '../entities/csi-period-ratee-dimension.entity';
 import { CsiPeriodRatee } from '../entities/csi-period-ratee.entity';
@@ -125,7 +125,7 @@ export class CsiSelfResultService {
             relations: { period: { sites: { site: true } }, team: true },
         }))
             .filter((row) => row.period?.publishStatus === CsiPeriodPublishStatus.PUBLISHED)
-            .filter((row) => row.period?.scope === ServiceScope.HC || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true))
+            .filter((row) => isOrgCsiScope(row.period?.scope) || (row.period?.scope === ServiceScope.ICT && row.period.selfResults === true))
             .filter((row, index, all) => all.findIndex((other) => other.id === row.id) === index);
         const rowPicIds = [...new Set(rawRows.map((row) => row.picId).filter((id): id is string => !!id))];
         const rowPics = rowPicIds.length ? await this.pics.find({ where: { id: In(rowPicIds) }, select: { id: true, userId: true } }) : [];
@@ -137,7 +137,7 @@ export class CsiSelfResultService {
                 if (row.kind === CsiRateeKind.TEAM) return row.team?.kind === CsiTeamKind.CUSTOM && teamIds.includes(row.teamId!);
                 const owner = ratedAccountOf(row, linkedByPic);
                 if (owner === userId) return true;
-                if (!ctx.isUniqueActiveName || row.period?.scope !== ServiceScope.HC) return false;
+                if (!ctx.isUniqueActiveName || !isOrgCsiScope(row.period?.scope)) return false;
                 const ownerInactive = owner !== null && ctx.activeIds !== null && !ctx.activeIds.has(owner);
                 return normalizeName(row.displayName ?? '') === ctx.viewerName && (!owner || ownerInactive);
             })
@@ -164,7 +164,7 @@ export class CsiSelfResultService {
             return { allPicIds: directIds, reconciledIds: [], isUniqueActiveName: false, viewerName: '', activeIds: null };
         }
 
-        const hcPics = await this.pics.find({ where: { scope: ServiceScope.HC }, relations: { user: true } });
+        const hcPics = await this.pics.find({ where: { scope: In([ServiceScope.HC, ServiceScope.PROCUREMENT]) }, relations: { user: true } });
         const ownedDirect = new Set(hcPics.filter((pic) => pic.userId === userId).map((pic) => pic.id));
         const allDirectIds = [...new Set([...directIds, ...ownedDirect])];
 

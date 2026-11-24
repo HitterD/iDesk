@@ -4,7 +4,7 @@
  * Mirrors backend `shared/core/utils/service-scope.util.ts`; the backend is
  * the authority, this copy only drives labels and grouping in the UI.
  */
-export const SERVICE_SCOPES = ['ICT', 'HC'] as const;
+export const SERVICE_SCOPES = ['ICT', 'HC', 'PROCUREMENT'] as const;
 
 export type ServiceScope = (typeof SERVICE_SCOPES)[number];
 
@@ -13,6 +13,7 @@ export const DEFAULT_SERVICE_SCOPE: ServiceScope = 'ICT';
 export const SERVICE_SCOPE_LABELS: Readonly<Record<ServiceScope, string>> = {
   ICT: 'ICT',
   HC: 'HC (Human Capital)',
+  PROCUREMENT: 'Procurement',
 };
 
 /** ADMIN is absent on purpose (cross-scope); USER is a requester with no scope. */
@@ -25,6 +26,7 @@ export const ROLE_SCOPE: Readonly<Partial<Record<string, ServiceScope>>> = {
   AGENT_MOBILE_DEV: 'ICT',
   MANAGER: 'ICT',
   HC_ADMIN: 'HC',
+  PROCUREMENT_ADMIN: 'PROCUREMENT',
 };
 
 export const scopeOfRole = (role?: string | null): ServiceScope | null =>

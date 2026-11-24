@@ -331,6 +331,13 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
                 icon: Star,
                 allowedRoles: CSI_ADMIN_ROLES,
             },
+            {
+                key: 'csi_admin_procurement',
+                label: 'Admin CSI Procurement',
+                description: 'Kelola master data, periode, dan laporan survei kepuasan unit Procurement',
+                icon: Star,
+                allowedRoles: CSI_ADMIN_ROLES,
+            },
         ],
     },
 ];

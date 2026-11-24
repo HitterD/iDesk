@@ -60,29 +60,29 @@ export const queryKeys = {
         active: () => ['csi', 'me', 'active'] as const,
         forms: () => ['csi', 'me', 'form'] as const,
         form: (id: string) => ['csi', 'me', 'form', id] as const,
-        dimensions: (scope: 'ict' | 'hc', includeInactive?: boolean) =>
+        dimensions: (scope: 'ict' | 'hc' | 'procurement', includeInactive?: boolean) =>
             ['csi', scope, 'dimensions', ...(includeInactive === undefined ? [] : [includeInactive])] as const,
-        departments: (scope: 'ict' | 'hc', includeInactive?: boolean) =>
+        departments: (scope: 'ict' | 'hc' | 'procurement', includeInactive?: boolean) =>
             ['csi', scope, 'departments', ...(includeInactive === undefined ? [] : [includeInactive])] as const,
-        raters: (scope: 'ict' | 'hc') => ['csi', scope, 'raters'] as const,
-        memoSettings: (scope: 'ict' | 'hc') => ['csi', scope, 'memo-settings'] as const,
-        userSearch: (scope: 'ict' | 'hc', search: string) => ['csi', scope, 'users', search] as const,
-        periods: (scope: 'ict' | 'hc', siteId?: string) =>
+        raters: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'raters'] as const,
+        memoSettings: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'memo-settings'] as const,
+        userSearch: (scope: 'ict' | 'hc' | 'procurement', search: string) => ['csi', scope, 'users', search] as const,
+        periods: (scope: 'ict' | 'hc' | 'procurement', siteId?: string) =>
             ['csi', scope, 'periods', ...(siteId === undefined ? [] : [siteId])] as const,
         /** Prefix of every period detail of a scope (subject master edits change all of them). */
-        periodDetails: (scope: 'ict' | 'hc') => ['csi', scope, 'period'] as const,
-        period: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'period', id] as const,
-        report: (scope: 'ict' | 'hc', id: string, siteId?: string) =>
+        periodDetails: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'period'] as const,
+        period: (scope: 'ict' | 'hc' | 'procurement', id: string) => ['csi', scope, 'period', id] as const,
+        report: (scope: 'ict' | 'hc' | 'procurement', id: string, siteId?: string) =>
             ['csi', scope, 'report', id, ...(siteId === undefined ? [] : [siteId])] as const,
-        subjects: (scope: 'ict' | 'hc') => ['csi', scope, 'subjects'] as const,
-        questionSets: (scope: 'ict' | 'hc') => ['csi', scope, 'question-sets'] as const,
-        overlaps: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'overlaps', key] as const,
-        raterGroup: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'rater-group', key] as const,
-        raterTickets: (scope: 'ict' | 'hc', key: string) => ['csi', scope, 'rater-tickets', key] as const,
-        raterDepartments: (scope: 'ict' | 'hc', siteId: string) => ['csi', scope, 'rater-departments', siteId] as const,
-        assignments: (scope: 'ict' | 'hc', periodId: string) => ['csi', scope, 'assignments', periodId] as const,
-        dashboard: (scope: 'ict' | 'hc') => ['csi', scope, 'dashboard'] as const,
-        respondents: (scope: 'ict' | 'hc', id: string) => ['csi', scope, 'respondents', id] as const,
+        subjects: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'subjects'] as const,
+        questionSets: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'question-sets'] as const,
+        overlaps: (scope: 'ict' | 'hc' | 'procurement', key: string) => ['csi', scope, 'overlaps', key] as const,
+        raterGroup: (scope: 'ict' | 'hc' | 'procurement', key: string) => ['csi', scope, 'rater-group', key] as const,
+        raterTickets: (scope: 'ict' | 'hc' | 'procurement', key: string) => ['csi', scope, 'rater-tickets', key] as const,
+        raterDepartments: (scope: 'ict' | 'hc' | 'procurement', siteId: string) => ['csi', scope, 'rater-departments', siteId] as const,
+        assignments: (scope: 'ict' | 'hc' | 'procurement', periodId: string) => ['csi', scope, 'assignments', periodId] as const,
+        dashboard: (scope: 'ict' | 'hc' | 'procurement') => ['csi', scope, 'dashboard'] as const,
+        respondents: (scope: 'ict' | 'hc' | 'procurement', id: string) => ['csi', scope, 'respondents', id] as const,
     },
 
     // ─── System & User ─────────────────────────────────────────────────────────

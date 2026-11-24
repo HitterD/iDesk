@@ -30,6 +30,7 @@ export const VALID_PAGE_KEYS = [
     'data_wipe',
     'csi_admin_ict',
     'csi_admin_hc',
+    'csi_admin_procurement',
 ] as const;
 
 // Type for valid page keys
@@ -68,6 +69,8 @@ const DEFAULT_PAGES_BY_ROLE: Record<string, readonly PageKey[]> = {
     MANAGER: MANAGER_DEFAULT_PAGES,
     /** HC administrators see only their HC pages (more HC modules will join this list). */
     HC_ADMIN: ['notifications', 'csi_admin_hc'],
+    /** Procurement administrators see only their Procurement pages. */
+    PROCUREMENT_ADMIN: ['notifications', 'csi_admin_procurement'],
     ADMIN: VALID_PAGE_KEYS,
 };
 

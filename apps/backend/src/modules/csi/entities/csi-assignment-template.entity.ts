@@ -13,7 +13,7 @@ export class CsiAssignmentTemplate {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'varchar', length: 10 })
+    @Column({ type: 'varchar', length: 20 })
     scope: ServiceScope;
 
     /** Site code (SPJ, KRW, SKD, SMG, JTB). */

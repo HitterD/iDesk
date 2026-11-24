@@ -33,8 +33,9 @@ const SITE_READ_ROLES = [
     UserRole.AGENT_ORACLE,
     UserRole.AGENT_WEB_DEV,
     UserRole.AGENT_MOBILE_DEV,
-    // Admin CSI HC filters reports and creates site teams per site.
+    // Admin CSI HC and Admin CSI Procurement filter reports and create site teams per site.
     UserRole.HC_ADMIN,
+    UserRole.PROCUREMENT_ADMIN,
 ] as const;
 
 @ApiTags('Sites')

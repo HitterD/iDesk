@@ -191,7 +191,7 @@ export default function AppRoutes() {
                     {/* Admin/Agent/Manager Routes - Lazy loaded portal */}
                     <Route
                         element={
-                            <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER', 'HC_ADMIN']}>
+                            <ProtectedRoute allowedRoles={['ADMIN', 'AGENT', 'AGENT_OPERATIONAL_SUPPORT', 'AGENT_ORACLE', 'AGENT_WEB_DEV', 'AGENT_MOBILE_DEV', 'AGENT_ADMIN', 'MANAGER', 'HC_ADMIN', 'PROCUREMENT_ADMIN']}>
                                 <Suspense fallback={<PageLoader />}>
                                     <BentoLayout />
                                 </Suspense>

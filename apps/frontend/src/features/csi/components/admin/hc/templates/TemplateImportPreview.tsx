@@ -125,7 +125,7 @@ export function TemplateImportPreview({ report, unresolved, locationName, choice
             )}
             {report.ambiguousMasters.length > 0 && (
                 <details className={NOTE_AMBER} open>
-                    <summary className="cursor-pointer font-semibold">{`PIC master ganda, pilih manual di PIC HC (${report.ambiguousMasters.length})`}</summary>
+                    <summary className="cursor-pointer font-semibold">{`PIC master ganda, pilih manual di Daftar PIC (${report.ambiguousMasters.length})`}</summary>
                     <p className="mt-1">{report.ambiguousMasters.map(titleCase).join(', ')}</p>
                 </details>
             )}

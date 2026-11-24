@@ -38,6 +38,7 @@ export const AGENT_PAGES: PageDefinition[] = [
     // CSI administration is enabled explicitly for managers through presets.
     { key: 'csi_admin_ict', name: 'Admin CSI ICT', icon: 'Star', route: '/csi/admin/ict', adminOnly: true },
     { key: 'csi_admin_hc', name: 'Admin CSI HC', icon: 'Star', route: '/csi/admin/hc', adminOnly: true },
+    { key: 'csi_admin_procurement', name: 'Admin CSI Procurement', icon: 'Star', route: '/csi/admin/procurement', adminOnly: true },
     // Admin-only pages
     { key: 'agents', name: 'Agents', icon: 'Users', route: '/agents', adminOnly: true },
     { key: 'automation', name: 'Automation', icon: 'Zap', route: '/automation', adminOnly: true },
@@ -61,6 +62,7 @@ export const MANAGER_PAGES: PageDefinition[] = [
     { key: 'workloads', name: 'Workloads', icon: 'Activity', route: '/workloads' },
     { key: 'csi_admin_ict', name: 'Admin CSI ICT', icon: 'Star', route: '/csi/admin/ict', adminOnly: true },
     { key: 'csi_admin_hc', name: 'Admin CSI HC', icon: 'Star', route: '/csi/admin/hc', adminOnly: true },
+    { key: 'csi_admin_procurement', name: 'Admin CSI Procurement', icon: 'Star', route: '/csi/admin/procurement', adminOnly: true },
 ];
 
 export type TargetRole = 'USER' | 'AGENT' | 'MANAGER' | 'ADMIN';
@@ -81,7 +83,7 @@ export function getDefaultPageAccess(role: TargetRole): Record<string, boolean> 
     const pages = getPagesForRole(role);
     const access: Record<string, boolean> = {};
     // Don't include admin-only pages for non-admin roles
-    pages.filter(p => (role === 'ADMIN' || !p.adminOnly) && p.key !== 'csi_admin_hc').forEach(p => {
+    pages.filter(p => (role === 'ADMIN' || !p.adminOnly) && p.key !== 'csi_admin_hc' && p.key !== 'csi_admin_procurement').forEach(p => {
         access[p.key] = true;
     });
     return access;
@@ -95,7 +97,7 @@ export function getRoleDefaultPageKeys(role: string): string[] {
         AGENT_OPERATIONAL_SUPPORT: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
         AGENT_ADMIN: AGENT_PAGES.filter(p => !p.adminOnly).map(p => p.key),
         MANAGER: MANAGER_PAGES.filter(p => !p.adminOnly).map(p => p.key),
-        ADMIN: AGENT_PAGES.filter(p => p.key !== 'csi_admin_hc').map(p => p.key),
+        ADMIN: AGENT_PAGES.filter(p => p.key !== 'csi_admin_hc' && p.key !== 'csi_admin_procurement').map(p => p.key),
     };
     return roleMap[role] || roleMap['USER'];
 }

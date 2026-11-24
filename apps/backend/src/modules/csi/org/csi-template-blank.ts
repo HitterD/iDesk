@@ -1,4 +1,5 @@
 import * as ExcelJS from 'exceljs';
+import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { addGuideSheet } from '../services/csi-excel-style';
 import { addStyledSheet, ColumnSpec, sanitizeCell } from '../services/csi-export.sheet';
 import { TEMPLATE_EMPLOYEE_HEADERS, TEMPLATE_EMPLOYEE_SHEET_PREFIX, TEMPLATE_GUIDE_SHEET, TEMPLATE_LIST_HEADERS, TEMPLATE_RATER_NIK_HEADER,
@@ -23,10 +24,13 @@ const EMPLOYEE_WIDTHS = [WIDTH.name, WIDTH.title, WIDTH.nik];
 export type CsiBlankTemplateEmployee = { fullName: string; jobTitle: string | null; employeeId: string | null };
 
 /** The how-to, one line per row (kept to 10 lines or fewer). */
-function guideLines(employeeSheet: string): string[] {
+function guideLines(employeeSheet: string, scope: ServiceScope): string[] {
+    const areaHint = scope === ServiceScope.PROCUREMENT
+        ? 'PROCUREMENT'
+        : 'HC Development, HC Comben atau HC Services';
     return [
         `Isi sheet "${LIST_SHEET}": satu baris per penilai.`,
-        `Kolom ${TEMPLATE_LIST_HEADERS.area} diisi HC Development, HC Comben atau HC Services (cukup di baris pertama PIC).`,
+        `Kolom ${TEMPLATE_LIST_HEADERS.area} diisi ${areaHint} (cukup di baris pertama PIC).`,
         `${TEMPLATE_LIST_HEADERS.pic} dan ${TEMPLATE_LIST_HEADERS.serviceFunction} cukup ditulis di baris pertama PIC; baris di bawahnya ikut PIC tersebut.`,
         `Salin nama PIC dan penilai dari sheet "${employeeSheet}" agar jabatan dan NIK terbaca otomatis.`,
         `Penilai berupa tim custom: tulis nama tim diawali "Tim" (mis. "Tim Rekrutmen") di kolom ${TEMPLATE_LIST_HEADERS.pic}.`,
@@ -36,17 +40,18 @@ function guideLines(employeeSheet: string): string[] {
 }
 
 /**
- * Blank HC assignment workbook for one location: the list layout the importer reads (with the NIK Penilai column), an
+ * Blank assignment workbook for one location: the list layout the importer reads (with the NIK Penilai column), an
  * empty team sheet, the location's active employees to copy names from, and a short how-to. Imports back as empty.
  */
-export async function buildBlankTemplate(location: CsiTemplateLocation, employees: CsiBlankTemplateEmployee[]): Promise<Buffer> {
+export async function buildBlankTemplate(location: CsiTemplateLocation, employees: CsiBlankTemplateEmployee[], scope: ServiceScope = ServiceScope.HC): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
+    const scopeLabel = scope === ServiceScope.PROCUREMENT ? 'Procurement' : 'HC';
     const employeeSheet = `${TEMPLATE_EMPLOYEE_SHEET_PREFIX} ${location.code}`;
     addStyledSheet(workbook, LIST_SHEET, LIST_COLUMNS, []);
     addStyledSheet(workbook, TEMPLATE_TEAM_SHEET, TEAM_COLUMNS, []);
     addStyledSheet(workbook, employeeSheet, TEMPLATE_EMPLOYEE_HEADERS.map((header, index) => ({ header, width: EMPLOYEE_WIDTHS[index] })),
         employees.map((employee) => [sanitizeCell(employee.fullName), sanitizeCell(employee.jobTitle), sanitizeCell(employee.employeeId)]));
-    addGuideSheet(workbook, TEMPLATE_GUIDE_SHEET, `Template penugasan HC · ${location.code}`, guideLines(employeeSheet));
+    addGuideSheet(workbook, TEMPLATE_GUIDE_SHEET, `Template penugasan ${scopeLabel} · ${location.code}`, guideLines(employeeSheet, scope));
     // exceljs returns its own Buffer type; the runtime value is a Node Buffer.
     return Buffer.from(await workbook.xlsx.writeBuffer());
 }

@@ -221,11 +221,12 @@ export function HcRecapBody({ recap, expandAll }: { recap: CsiHcRecap; expandAll
 
 export function HcRecapPanel({ scope, periodId }: { scope: CsiScopeParam; periodId: string }) {
     const { data: recap, isLoading, isError, refetch } = useCsiHcRecap(scope, periodId);
+    const scopeLabel = scope === 'procurement' ? 'Procurement' : 'HC';
     return (
-        <AdminSection title="Rekap HC per layanan, bagian dan PIC"
+        <AdminSection title={`Rekap ${scopeLabel} per layanan, bagian dan PIC`}
             description="Angka = rata-rata bintang (skala 1-5) dari semua penilaian, sehingga bisa desimal (mis. 4,35). Kolom SJA 1-4/Jakarta = lokasi responden yang menilai, bukan lokasi PIC. SJA 4 = Semarang.">
             {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" aria-label="Memuat rekap" />}
-            {isError && <ErrorState compact message="Gagal memuat rekap HC." onRetry={() => refetch()} />}
+            {isError && <ErrorState compact message={`Gagal memuat rekap ${scopeLabel}.`} onRetry={() => refetch()} />}
             {recap && !recap.services.length && <EmptyNote>Belum ada PIC pada survei ini.</EmptyNote>}
             {recap && recap.services.length > 0 && <HcRecapBody recap={recap} />}
         </AdminSection>
