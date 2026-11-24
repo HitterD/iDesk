@@ -9,7 +9,8 @@ import { ScheduleProposeModal } from '@/features/hardware-request/components/sch
 import { SlotPickerModal } from '@/features/hardware-request/components/scheduling/SlotPickerModal';
 import type { HardwareRequestItem, InstallationSchedule } from '@/features/hardware-request/types';
 import { AccessCard } from './AccessCard';
-import { DocumentPane } from './DocumentPane';
+import { DocumentMini, DocumentPane } from './DocumentPane';
+import { printPreview, useDocumentPreview } from './useDocumentPreview';
 import type { RequestFlowView } from './flowTypes';
 import { canEditItems } from './nextStep';
 import { NextStepBar } from './NextStepBar';
@@ -77,6 +78,8 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
     const hardwareId = view?.hardware?.requestId ?? '';
     const isIt = view?.viewerRoleInFlow === 'ICT';
 
+    const preview = useDocumentPreview(ticketId, view?.documentVersion, slot === 'document');
+
     const catalog = useQuery<CatalogEntry[]>({
         queryKey: ['request-flow', 'catalog'],
         enabled: dialog === 'editItems' || dialog === 'reviewItems',
@@ -143,14 +146,12 @@ export function RequestFlowPanel({ ticketId, ticketNumber, requesterId, requeste
                     <ProgressCard view={view} />
                     {view.hardware && <RequestItemsCard items={view.hardware.items} assets={view.hardware.assets} onEdit={canEditItems(view) ? () => setDialog('editItems') : undefined} />}
                     {view.eform && <AccessCard eform={view.eform} onEditNumber={isIt ? () => setDialog('docNumber') : undefined} />}
-                    {slot !== 'details' && (onOpenDocument
-                        ? <button type="button" className="req-card req-link" onClick={onOpenDocument}>Lihat dokumen v{view.documentVersion}</button>
-                        : <div id="request-document"><DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)} /></div>)}
+                    <DocumentMini revisions={view.revisions} onOpen={onOpenDocument ?? (() => void openPdf(view.documentVersion))} />
                 </div>
             )}
 
             {slot === 'document' && (
-                <DocumentPane revisions={view.revisions} onDownload={(v) => void openPdf(v)}
+                <DocumentPane revisions={view.revisions} previewUrl={preview.url} previewError={preview.error} onPrint={printPreview} onDownload={(v) => void openPdf(v)}
                     onImport={isIt && (view.phase === 'appr_mgr' || view.phase === 'appr_gm') ? () => setDialog('paper') : undefined} />
             )}
 
