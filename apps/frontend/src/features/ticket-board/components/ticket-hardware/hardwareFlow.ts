@@ -9,7 +9,8 @@ export type HardwareRequestType = 'BUDGET_ANNUAL' | 'NON_BUDGET' | 'HARDWARE_INS
 /** Mirrors HardwareTicketPhase (backend utils/ticket-activity.util.ts). */
 export type HardwareTicketPhase =
     | 'PROPOSED' | 'SUBMITTED' | 'DECLINED' | 'WITHDRAWN' | 'APPROVED' | 'REJECTED' | 'PROCUREMENT_DONE'
-    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED';
+    | 'SCHEDULE_PROPOSED' | 'RESCHEDULE_REQUESTED' | 'SCHEDULED' | 'INSTALLED' | 'ISSUE_REPORTED' | 'COMPLETED' | 'CANCELLED'
+    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED';
 
 /** Latest installation schedule. PROPOSED: one time to confirm; PROPOSED_AWAITING_USER: `slots` to pick from. */
 export interface TicketHardwareSchedule {

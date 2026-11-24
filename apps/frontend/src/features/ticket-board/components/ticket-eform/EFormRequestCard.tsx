@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Check, CheckCircle2, CircleSlash, FileSignature, KeyRound, PenLine, ThumbsUp, UserCheck, XCircle } from 'lucide-react';
+import {
+    ArrowUpRight, Bell, Check, CheckCircle2, CircleSlash, FileSignature, KeyRound, MessageSquareWarning, PenLine, RotateCcw,
+    ShieldCheck, ThumbsUp, UserCheck, XCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
 import { getTypeConfig } from '@/features/request-center/components/eform/eform-vocabulary';
 import { formatMessageTime, toDisplayName } from '../ticket-detail/messageThread';
-import { TICKET_MOVE_TEXT, type LinkedTicketMove } from '../ticket-detail/ActivityEvent';
+import { phaseLineText, TICKET_MOVE_TEXT, type LinkedTicketMove, type PhaseLineMeta } from '../ticket-detail/ActivityEvent';
 import { currentStep, flowSteps, isStopped, staffTodo, statusSentence, type EFormStatus, type EFormTicketPhase, type TicketEFormRequest } from './eformFlow';
 import { useCancelEFormProposal } from './useTicketEForm';
 import '../ticket-hardware/ticket-hardware.css';
@@ -23,6 +26,7 @@ interface EFormRequestCardProps {
     event: EFormPhaseEvent;
     actorName?: string | null;
     reason?: string | null;
+    content?: string | null;
     createdAt: string;
     /** Live state; undefined while loading or when the viewer cannot read it. */
     request?: TicketEFormRequest;
@@ -35,7 +39,7 @@ interface EFormRequestCardProps {
     ticketMove?: LinkedTicketMove;
 }
 
-const PHASE: Record<Exclude<EFormTicketPhase, 'PROPOSED'>, { icon: React.ElementType; text: string; tone: 'ok' | 'warn' | 'bad' | 'info' }> = {
+const PHASE: Record<Exclude<EFormTicketPhase, 'PROPOSED'>, PhaseLineMeta> = {
     SUBMITTED: { icon: ThumbsUp, text: 'ditandatangani dan diajukan pemohon', tone: 'ok' },
     DECLINED: { icon: CircleSlash, text: 'ditolak pemohon', tone: 'bad' },
     WITHDRAWN: { icon: CircleSlash, text: 'ditarik tim IT', tone: 'info' },
@@ -44,24 +48,36 @@ const PHASE: Record<Exclude<EFormTicketPhase, 'PROPOSED'>, { icon: React.Element
     GM_APPROVED: { icon: PenLine, text: 'disetujui GM, diteruskan ke ICT', tone: 'ok' },
     GRANTED: { icon: KeyRound, text: 'aktif', tone: 'ok' },
     REJECTED: { icon: XCircle, text: 'ditolak', tone: 'bad' },
+    REVIEWED: { icon: ShieldCheck, text: 'ditinjau tim IT', tone: 'info' },
+    SIGNED: { icon: PenLine, text: 'ditandatangani penyetuju', tone: 'ok' },
+    RETURNED: { icon: RotateCcw, text: 'dikembalikan ke IT untuk diubah', tone: 'warn' },
+    REMINDED: { icon: Bell, text: 'pengingat persetujuan dikirim', tone: 'info' },
+    FULFILLED: { icon: KeyRound, text: 'akses diberikan, menunggu konfirmasi pemohon', tone: 'warn' },
+    CONFIRMED: { icon: CheckCircle2, text: 'dikonfirmasi selesai', tone: 'ok' },
+    ISSUE_REPORTED: { icon: MessageSquareWarning, text: 'dilaporkan bermasalah oleh pemohon', tone: 'bad' },
 };
 
+const FALLBACK_PHASE: PhaseLineMeta = { icon: ShieldCheck, text: 'diperbarui', tone: 'info' };
+
 const STATUS_TONE: Partial<Record<EFormStatus, TicketPillTone>> = {
-    DRAFT: 'amber', PENDING_MANAGER: 'amber', PENDING_GM: 'amber', CONFIRMED: 'green', REJECTED: 'red', CANCELLED: 'neutral',
+    DRAFT: 'amber', PENDING_REVIEW: 'amber', PENDING_MANAGER: 'amber', PENDING_GM: 'amber', PENDING_ICT: 'amber',
+    AWAITING_CONFIRMATION: 'amber', CONFIRMED: 'green', REJECTED: 'red', CANCELLED: 'neutral',
 };
 
 /** An e-form access message in the ticket chat: the proposal as a live card, later steps as one-line events. */
 export const EFormRequestCard: React.FC<EFormRequestCardProps> = (props) =>
     props.event.phase === 'PROPOSED' ? <ProposalCard {...props} /> : <PhaseLine {...props} />;
 
-function PhaseLine({ event, actorName, reason, createdAt, eformBasePath, ticketMove }: EFormRequestCardProps) {
-    const meta = PHASE[event.phase as Exclude<EFormTicketPhase, 'PROPOSED'>];
+function PhaseLine({ event, actorName, reason, content, createdAt, eformBasePath, ticketMove }: EFormRequestCardProps) {
+    const known = PHASE[event.phase as Exclude<EFormTicketPhase, 'PROPOSED'>];
+    const meta = known ?? FALLBACK_PHASE;
+    const text = phaseLineText(event.phase, known?.text, content);
     const Icon = meta.icon;
     return (
         <div className={cn('thw-line', `is-${meta.tone}`)}>
             <span className="thw-line-ico"><Icon aria-hidden="true" /></span>
             <span className="thw-line-text">
-                <Link to={`${eformBasePath}/${event.id}`}><b>{getTypeConfig(event.formType).label} {event.code}</b></Link> {meta.text}{ticketMove && `. ${TICKET_MOVE_TEXT[ticketMove]}`}
+                <Link to={`${eformBasePath}/${event.id}`}><b>{getTypeConfig(event.formType).label} {event.code}</b></Link> {text}{ticketMove && `. ${TICKET_MOVE_TEXT[ticketMove]}`}
                 {actorName && <span className="thw-line-by"> · {toDisplayName(actorName)}</span>}
                 {reason && <span className="thw-line-reason">“{reason}”</span>}
             </span>

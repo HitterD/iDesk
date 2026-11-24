@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    ArrowUpRight, CalendarCheck, CalendarClock, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck, ThumbsUp, Wrench, XCircle,
+    ArrowUpRight, Bell, CalendarCheck, CalendarClock, CheckCircle2, CircleSlash, Cpu, MessageSquareWarning, PackageCheck,
+    PenLine, RotateCcw, ShieldCheck, ThumbsUp, Wrench, XCircle,
 } from 'lucide-react';
-import { TICKET_MOVE_TEXT, type LinkedTicketMove } from '../ticket-detail/ActivityEvent';
+import { phaseLineText, TICKET_MOVE_TEXT, type LinkedTicketMove, type PhaseLineMeta } from '../ticket-detail/ActivityEvent';
 import { Button } from '@/components/ui/button';
 import { TicketPill, type TicketPillTone } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,7 @@ interface HardwareRequestCardProps {
     event: HardwarePhaseEvent;
     actorName?: string | null;
     reason?: string | null;
+    content?: string | null;
     createdAt: string;
     /** Live state; undefined while loading or when the viewer cannot read it. */
     request?: TicketHardwareRequest;
@@ -42,12 +44,16 @@ const WIB = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
 
-const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, { icon: React.ElementType; text: string; tone: 'ok' | 'warn' | 'bad' | 'info' }> = {
+const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, PhaseLineMeta> = {
     SUBMITTED: { icon: ThumbsUp, text: 'disetujui pemohon dan diajukan', tone: 'ok' },
     DECLINED: { icon: CircleSlash, text: 'ditolak pemohon', tone: 'bad' },
     WITHDRAWN: { icon: CircleSlash, text: 'ditarik tim IT', tone: 'info' },
     APPROVED: { icon: CheckCircle2, text: 'disetujui ICT', tone: 'ok' },
     REJECTED: { icon: XCircle, text: 'ditolak ICT', tone: 'bad' },
+    REVIEWED: { icon: ShieldCheck, text: 'ditinjau tim IT', tone: 'info' },
+    SIGNED: { icon: PenLine, text: 'ditandatangani penyetuju', tone: 'ok' },
+    RETURNED: { icon: RotateCcw, text: 'dikembalikan ke IT untuk diubah', tone: 'warn' },
+    REMINDED: { icon: Bell, text: 'pengingat persetujuan dikirim', tone: 'info' },
     PROCUREMENT_DONE: { icon: PackageCheck, text: 'selesai pengadaan', tone: 'ok' },
     SCHEDULE_PROPOSED: { icon: CalendarCheck, text: 'punya usulan jadwal pemasangan, menunggu pemohon', tone: 'warn' },
     RESCHEDULE_REQUESTED: { icon: CalendarClock, text: 'pemohon minta jadwal pemasangan lain', tone: 'warn' },
@@ -58,6 +64,8 @@ const PHASE: Record<Exclude<HardwareTicketPhase, 'PROPOSED'>, { icon: React.Elem
     CANCELLED: { icon: XCircle, text: 'dibatalkan', tone: 'bad' },
 };
 
+const FALLBACK_PHASE: PhaseLineMeta = { icon: ShieldCheck, text: 'diperbarui', tone: 'info' };
+
 const STATUS_TONE: Partial<Record<RequestStatus, TicketPillTone>> = {
     DRAFT: 'amber', COMPLETED: 'green', CLOSED: 'green', REJECTED: 'red', CANCELLED: 'neutral', AWAITING_USER_CONFIRMATION: 'amber',
 };
@@ -66,14 +74,16 @@ const STATUS_TONE: Partial<Record<RequestStatus, TicketPillTone>> = {
 export const HardwareRequestCard: React.FC<HardwareRequestCardProps> = (props) =>
     props.event.phase === 'PROPOSED' ? <ProposalCard {...props} /> : <PhaseLine {...props} />;
 
-function PhaseLine({ event, actorName, reason, createdAt, hardwareBasePath, ticketMove }: HardwareRequestCardProps) {
-    const meta = PHASE[event.phase as Exclude<HardwareTicketPhase, 'PROPOSED'>];
+function PhaseLine({ event, actorName, reason, content, createdAt, hardwareBasePath, ticketMove }: HardwareRequestCardProps) {
+    const known = PHASE[event.phase as Exclude<HardwareTicketPhase, 'PROPOSED'>];
+    const meta = known ?? FALLBACK_PHASE;
+    const text = phaseLineText(event.phase, known?.text, content);
     const Icon = meta.icon;
     return (
         <div className={cn('thw-line', `is-${meta.tone}`)}>
             <span className="thw-line-ico"><Icon aria-hidden="true" /></span>
             <span className="thw-line-text">
-                <Link to={`${hardwareBasePath}/${event.id}`}><b>{event.number}</b></Link> {meta.text}{ticketMove && `. ${TICKET_MOVE_TEXT[ticketMove]}`}
+                <Link to={`${hardwareBasePath}/${event.id}`}><b>{event.number}</b></Link> {text}{ticketMove && `. ${TICKET_MOVE_TEXT[ticketMove]}`}
                 {(event.phase === 'SCHEDULED' || event.phase === 'SCHEDULE_PROPOSED') && event.at && <> · <b>{WIB.format(new Date(event.at))} WIB</b></>}
                 {actorName && <span className="thw-line-by"> · {toDisplayName(actorName)}</span>}
                 {reason && <span className="thw-line-reason">“{reason}”</span>}

@@ -170,4 +170,40 @@ describe('BentoTicketDetailPage request ticket', () => {
         await screen.findAllByText('Error sistem saat input data');
         expect(screen.queryByTitle('Batalkan tiket ini') ?? screen.queryAllByText('Batalkan tiket')[0] ?? null).not.toBeNull();
     });
+
+    it('renders a Hardware ticket without crashing when chat has a REVIEWED event (e.g. route NONE)', async () => {
+        const reviewedTicket = {
+            ...REQUEST_TICKET,
+            messages: [
+                ...REQUEST_TICKET.messages,
+                {
+                    id: 'msg-reviewed',
+                    content: 'Bagastyo meninjau permintaan. Persetujuan: Tanpa persetujuan · Stok IT.',
+                    createdAt: '2026-11-17T02:25:00.000Z',
+                    isSystemMessage: true,
+                    attachments: [],
+                    sender: { id: 'bagas-1', fullName: 'Bagastyo', role: 'AGENT_OPERATIONAL_SUPPORT' },
+                    systemEvent: {
+                        v: 1,
+                        actor: { id: 'bagas-1', name: 'Bagastyo' },
+                        changes: [],
+                        hardwareRequest: { id: 'hr-1', number: 'HR-2026-0042', phase: 'REVIEWED' },
+                    },
+                },
+            ],
+        };
+        vi.mocked(api.get).mockImplementation((url: string) => {
+            if (url === `/tickets/${initialTicket.id}`) return Promise.resolve({ data: reviewedTicket });
+            if (url === `/request-flow/${initialTicket.id}`) {
+                return Promise.resolve({ data: { ...FLOW, phase: 'schedule', phaseLabel: 'Penjadwalan instalasi', route: 'NONE', hardwareSource: 'IT_STOCK' } });
+            }
+            if (url === '/ticket-attributes') return Promise.resolve({ data: { categories: [], priorities: [], devices: [], software: [] } });
+            if (url === '/sla-config') return Promise.resolve({ data: [] });
+            if (url.includes('/requester-device')) return Promise.resolve({ data: { requesterIp: null, requesterHostname: null, recentDevices: [] } });
+            return Promise.resolve({ data: [] });
+        });
+        renderDetailPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+        expect(await screen.findByText(/Bagastyo meninjau permintaan\. Persetujuan: Tanpa persetujuan · Stok IT\./)).toBeInTheDocument();
+        expect(screen.queryByText(/TICKET DETAIL ERROR/i)).toBeNull();
+    });
 });

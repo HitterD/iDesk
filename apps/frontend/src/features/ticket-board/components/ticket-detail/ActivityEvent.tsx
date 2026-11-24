@@ -35,6 +35,23 @@ export const TICKET_MOVE_TEXT: Record<Exclude<LinkedTicketMove, null>, string> =
     resumed: 'Tiket kembali ditangani',
 };
 
+export interface PhaseLineMeta {
+    icon: React.ElementType;
+    text: string;
+    tone: 'ok' | 'warn' | 'bad' | 'info';
+}
+
+/**
+ * Resolves the one-line summary for a linked request event. Generic backend phases like `REVIEWED` (shared across
+ * review, procurement, arrival, and item-edit updates) and any unknown phase prefer the server's message text so no
+ * phase ever loses context or crashes `PhaseLine`.
+ */
+export function phaseLineText(phase: string, mappedText: string | undefined, content?: string | null): string {
+    const clean = content?.replace(/^System:\s*/i, '').trim();
+    if ((phase === 'REVIEWED' || !mappedText) && clean) return clean;
+    return mappedText ?? 'diperbarui';
+}
+
 const FIELD_LABEL: Record<Change['field'], string> = {
     status: 'Status',
     assignee: 'PIC',

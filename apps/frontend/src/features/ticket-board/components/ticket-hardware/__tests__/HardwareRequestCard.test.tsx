@@ -126,4 +126,20 @@ describe('HardwareRequestCard', () => {
         expect(screen.getByText(/pemohon minta jadwal pemasangan lain/)).toBeInTheDocument();
         expect(screen.getByText('“Saya cuti hari itu”')).toBeInTheDocument();
     });
+
+    it.each([
+        ['REVIEWED', 'Bagastyo meninjau permintaan. Persetujuan: Tanpa persetujuan · Stok IT.', 'Bagastyo meninjau permintaan. Persetujuan: Tanpa persetujuan · Stok IT.'],
+        ['REVIEWED', undefined, 'ditinjau tim IT'],
+        ['SIGNED', undefined, 'ditandatangani penyetuju'],
+        ['RETURNED', undefined, 'dikembalikan ke IT untuk diubah'],
+        ['REMINDED', undefined, 'pengingat persetujuan dikirim'],
+    ] as const)('renders %s phase line without crashing', (phase, content, expected) => {
+        renderCard({ event: { ...proposed, phase }, content });
+        expect(screen.getByText(new RegExp(expected))).toBeInTheDocument();
+    });
+
+    it('falls back safely when a future hardware phase is unknown', () => {
+        renderCard({ event: { ...proposed, phase: 'FUTURE_PHASE' as never } });
+        expect(screen.getByText(/diperbarui/)).toBeInTheDocument();
+    });
 });
