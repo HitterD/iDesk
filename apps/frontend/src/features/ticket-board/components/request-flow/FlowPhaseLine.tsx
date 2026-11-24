@@ -16,8 +16,7 @@ export function FlowPhaseLine({ ticket }: { ticket: FlowFields }) {
     return (
         <span className="req-phase" data-flow-phase={ticket.flowPhase ?? undefined}>
             <span className="req-phase__label">{ticket.flowPhaseLabel}</span>
-            {ticket.flowPaused && <span className="req-phase__pause"><Pause aria-hidden="true" />Dijeda</span>}
-            {ticket.needsMyAction && <span className="req-phase__turn">Giliran Anda</span>}
+            {ticket.flowPaused && <span className="req-phase__pause" title="SLA dijeda"><Pause aria-hidden="true" />Dijeda</span>}
         </span>
     );
 }

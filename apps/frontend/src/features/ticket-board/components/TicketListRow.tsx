@@ -33,6 +33,7 @@ import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { TicketRowActions } from './TicketRowActions';
 import { FlowPhaseLine } from './request-flow/FlowPhaseLine';
+import { nextActionLabel } from './request-flow/nextActionLabel';
 import { RequestTypeTag } from './request-flow/RequestTypeTag';
 
 /** Created date in WIB like the rest of the app (SLA, timestamps), not the viewer's device zone. */
@@ -321,6 +322,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         selection={canEdit ? { selected: isSelected, onToggle: () => onSelect(ticket.id, !isSelected) } : undefined} />
                 </div>
                 <h3 className="queue-tk-title queue-mcard-title">{ticket.title}</h3>
+                {ticket.requestKind && ticket.needsMyAction && <span className="queue-act-needed"><i aria-hidden="true" />{nextActionLabel(ticket.flowPhase)}</span>}
 
                 <div className="queue-mcard-mid">
                     <div className="flex items-center gap-1.5 flex-wrap min-w-0">
@@ -421,6 +423,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             {unreadChip}
                         </div>
                         <h3 className="queue-tk-title">{ticket.title}</h3>
+                        {ticket.requestKind && ticket.needsMyAction && <span className="queue-act-needed"><i aria-hidden="true" />{nextActionLabel(ticket.flowPhase)}</span>}
                     </div>
                 </TicketQuickPreview>
                 <TicketRowActions layout="row" {...rowActions}

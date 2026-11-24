@@ -10,6 +10,7 @@ import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { RequestTypeTag } from '@/features/ticket-board/components/request-flow/RequestTypeTag';
 import { FlowPhaseLine } from '@/features/ticket-board/components/request-flow/FlowPhaseLine';
+import { nextActionLabel } from '@/features/ticket-board/components/request-flow/nextActionLabel';
 
 export interface MyTicketItem {
     id: string;
@@ -21,6 +22,7 @@ export interface MyTicketItem {
     ticketType?: string;
     /** Set on Hardware / E-Form request tickets (GET /tickets/paginated). */
     requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhase?: string | null;
     flowPhaseLabel?: string | null;
     flowPaused?: boolean;
     needsMyAction?: boolean;
@@ -152,8 +154,8 @@ export const MyTicketRow: React.FC<{ ticket: MyTicketItem }> = ({ ticket }) => {
                 <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" aria-hidden="true" />
                 {statusConfig.label}
             </TicketPill>
-            <FlowPhaseLine ticket={{ ...ticket, flowPhase: ticket.flowPhaseLabel }} />
-            {ticket.needsMyAction && <span className="req-turn req-turn--mine">Perlu tindakan Anda</span>}
+            <FlowPhaseLine ticket={ticket} />
+            {ticket.needsMyAction && <span className="queue-act-needed"><i aria-hidden="true" />{nextActionLabel(ticket.flowPhase)}</span>}
         </span>
     );
     const priorityPill = (

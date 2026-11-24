@@ -53,12 +53,13 @@ describe('BentoMyTicketsPage with request tickets', () => {
         });
     });
 
-    it('shows the type tag, the phase and "Perlu tindakan Anda" on a request ticket, and nothing extra on an IT ticket', async () => {
+    it('shows the type tag, the phase and the action I must take on a request ticket, and nothing extra on an IT ticket', async () => {
         renderPage();
         await waitFor(() => expect(screen.getAllByText('Akses VPN').length).toBeGreaterThan(0));
         expect(screen.getAllByText('E-Form').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Menunggu konfirmasi pemohon').length).toBeGreaterThan(0);
-        expect(screen.getAllByText('Perlu tindakan Anda').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Perlu konfirmasi Anda').length).toBeGreaterThan(0);
+        expect(screen.queryByText('Perlu tindakan Anda')).toBeNull();
         expect(screen.getAllByText('Hardware').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Menunggu barang tiba').length).toBeGreaterThan(0);
     });
