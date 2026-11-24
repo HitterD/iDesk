@@ -14,6 +14,7 @@ interface TicketEFormMessageProps {
     event: EFormPhaseEvent;
     actorName?: string | null;
     reason?: string | null;
+    content?: string | null;
     createdAt: string;
     isRequester: boolean;
     ticketMove?: LinkedTicketMove;

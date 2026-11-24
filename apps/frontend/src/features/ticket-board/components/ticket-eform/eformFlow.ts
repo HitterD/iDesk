@@ -1,7 +1,11 @@
 /** Mirrors EFormTicketPhase (backend ticketing/utils/ticket-activity.util.ts). */
-export type EFormTicketPhase = 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED';
+export type EFormTicketPhase =
+    | 'PROPOSED' | 'DECLINED' | 'WITHDRAWN' | 'SUBMITTED' | 'MANAGER_APPROVED' | 'GM_APPROVED' | 'GRANTED' | 'REJECTED'
+    | 'REVIEWED' | 'SIGNED' | 'RETURNED' | 'REMINDED' | 'FULFILLED' | 'CONFIRMED' | 'ISSUE_REPORTED';
 
-export type EFormStatus = 'DRAFT' | 'PENDING_MANAGER' | 'PENDING_GM' | 'PENDING_ICT' | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
+export type EFormStatus =
+    | 'DRAFT' | 'PENDING_REVIEW' | 'PENDING_MANAGER' | 'PENDING_GM' | 'PENDING_ICT' | 'AWAITING_CONFIRMATION'
+    | 'CONFIRMED' | 'REJECTED' | 'CANCELLED';
 export type EFormType = 'VPN' | 'WEBSITE' | 'NETWORK' | 'FLASHDISK' | 'EMAIL' | 'SYNOLOGY_NAS';
 
 /** What a ticket knows about one e-form request proposed from it (backend TicketEFormSummary). */
@@ -32,13 +36,13 @@ interface FlowStep { label: string; statuses: EFormStatus[] }
 /** Steps the ticket shows for this access type. */
 export function flowSteps(type: EFormType, requiresGm: boolean = type === 'VPN'): FlowStep[] {
     return [
-        { label: 'Tanda tangan pemohon', statuses: ['DRAFT'] },
+        { label: 'Tanda tangan pemohon', statuses: ['DRAFT', 'PENDING_REVIEW'] },
         ...(skipsManager(type) ? [] : [
             { label: 'Persetujuan atasan', statuses: ['PENDING_MANAGER'] as EFormStatus[] },
             ...(requiresGm ? [{ label: 'Persetujuan GM', statuses: ['PENDING_GM'] as EFormStatus[] }] : []),
         ]),
         { label: 'Proses ICT', statuses: ['PENDING_ICT'] },
-        { label: 'Akses aktif', statuses: ['CONFIRMED'] },
+        { label: 'Akses aktif', statuses: ['AWAITING_CONFIRMATION', 'CONFIRMED'] },
     ];
 }
 
@@ -54,9 +58,11 @@ export function currentStep(type: EFormType, status: EFormStatus, requiresGm?: b
 export function statusSentence(request: Pick<TicketEFormRequest, 'status' | 'approverName'>): string {
     switch (request.status) {
         case 'DRAFT': return 'Menunggu pemohon melengkapi & tanda tangan';
+        case 'PENDING_REVIEW': return 'Menunggu review IT';
         case 'PENDING_MANAGER': return request.approverName ? `Menunggu persetujuan ${request.approverName}` : 'Menunggu persetujuan atasan';
         case 'PENDING_GM': return 'Menunggu persetujuan GM';
         case 'PENDING_ICT': return 'Sedang disiapkan tim ICT';
+        case 'AWAITING_CONFIRMATION': return 'Akses diberikan, menunggu konfirmasi pemohon';
         case 'CONFIRMED': return 'Akses sudah aktif';
         case 'REJECTED': return 'Ditolak';
         case 'CANCELLED': return 'Tidak dilanjutkan';

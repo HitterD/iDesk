@@ -476,6 +476,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                     <div className="chat-system-event" data-system-event={message.id}>
                                         <TicketEFormMessage ticketId={ticket.id} event={eformEvent} createdAt={message.createdAt}
                                             actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            content={message.content}
                                             ticketMove={linkedTicketMove(message.systemEvent)}
                                             isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
                                     </div>
@@ -491,6 +492,7 @@ export const TicketChat = React.forwardRef<TicketChatHandle, TicketChatProps>(fu
                                     <div className="chat-system-event" data-system-event={message.id}>
                                         <TicketHardwareMessage ticketId={ticket.id} event={hardwareEvent} createdAt={message.createdAt}
                                             actorName={message.systemEvent?.actor?.name} reason={message.systemEvent?.reason}
+                                            content={message.content}
                                             ticketMove={linkedTicketMove(message.systemEvent)}
                                             isRequester={Boolean(user?.id && user.id === ticket.user?.id)} />
                                     </div>

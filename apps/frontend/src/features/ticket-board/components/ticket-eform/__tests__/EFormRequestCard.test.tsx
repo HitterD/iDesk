@@ -87,4 +87,31 @@ describe('EFormRequestCard', () => {
         expect(screen.getByText('“Tidak sesuai kebijakan”')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Akses VPN #3F2A9C1B' })).toHaveAttribute('href', '/client/eform-access/ef-1');
     });
+
+    it.each([
+        ['REVIEWED', 'Bagastyo meninjau permintaan. Persetujuan: Tanpa persetujuan.', 'Bagastyo meninjau permintaan. Persetujuan: Tanpa persetujuan.'],
+        ['REVIEWED', undefined, 'ditinjau tim IT'],
+        ['SIGNED', undefined, 'ditandatangani penyetuju'],
+        ['RETURNED', undefined, 'dikembalikan ke IT untuk diubah'],
+        ['REMINDED', undefined, 'pengingat persetujuan dikirim'],
+        ['FULFILLED', undefined, 'akses diberikan, menunggu konfirmasi pemohon'],
+        ['CONFIRMED', undefined, 'dikonfirmasi selesai'],
+        ['ISSUE_REPORTED', undefined, 'dilaporkan bermasalah oleh pemohon'],
+    ] as const)('renders %s phase line without crashing', (phase, content, expected) => {
+        renderCard({ event: { ...proposed, phase }, content });
+        expect(screen.getByText(new RegExp(expected))).toBeInTheDocument();
+    });
+
+    it('shows status sentences for PENDING_REVIEW and AWAITING_CONFIRMATION', () => {
+        const { unmount } = renderCard({ isRequester: false, request: { ...request, status: 'PENDING_REVIEW' } });
+        expect(screen.getByText('Menunggu review IT')).toBeInTheDocument();
+        unmount();
+        renderCard({ isRequester: true, request: { ...request, status: 'AWAITING_CONFIRMATION' } });
+        expect(screen.getByText('Akses diberikan, menunggu konfirmasi pemohon')).toBeInTheDocument();
+    });
+
+    it('falls back safely when a future e-form phase is unknown', () => {
+        renderCard({ event: { ...proposed, phase: 'FUTURE_PHASE' as never } });
+        expect(screen.getByText(/diperbarui/)).toBeInTheDocument();
+    });
 });
