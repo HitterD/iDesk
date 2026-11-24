@@ -1,13 +1,13 @@
 import { CsiTemplateSeed } from '../csi-template-excel';
 
 /**
- * CSI Procurement 2026 Karawang: 2 PIC Procurement beserta fungsi pelayanan dan daftar penilainya.
+ * CSI Procurement 2026 Sepanjang (SJA 1): 2 PIC Procurement beserta fungsi pelayanan dan daftar penilainya.
  * Dibuat sekali; ubah lewat editor template.
  */
-export const CSI_TEMPLATE_PROCUREMENT_KRW_2026: CsiTemplateSeed = {
+export const CSI_TEMPLATE_PROCUREMENT_SPJ_2026: CsiTemplateSeed = {
     scope: 'PROCUREMENT',
-    locationCode: 'KRW',
-    name: 'CSI Procurement 2026 – Karawang',
+    locationCode: 'SPJ',
+    name: 'CSI Procurement 2026 – Sepanjang',
     pics: [
         {
             area: 'PROCUREMENT',
@@ -59,3 +59,5 @@ export const CSI_TEMPLATE_PROCUREMENT_KRW_2026: CsiTemplateSeed = {
         },
     ],
 };
+
+export const CSI_TEMPLATE_PROCUREMENT_KRW_2026 = CSI_TEMPLATE_PROCUREMENT_SPJ_2026;
