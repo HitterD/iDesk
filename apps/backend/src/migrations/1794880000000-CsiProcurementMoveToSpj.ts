@@ -33,7 +33,7 @@ export class CsiProcurementMoveToSpj1794880000000 implements MigrationInterface 
                 `UPDATE "csi_period_ratees" r
                  SET "siteId" = $1
                  FROM "csi_periods" p
-                 WHERE r."periodId" = p."id" AND p."scope" = $2 AND p."publishStatus" = 'DRAFT' AND r."siteId" = $3`,
+                 WHERE r."periodId" = p."id" AND p."scope" = $2 AND p."status" = 'DRAFT' AND r."siteId" = $3`,
                 [spj.id, SCOPE, krw.id],
             );
         } else {

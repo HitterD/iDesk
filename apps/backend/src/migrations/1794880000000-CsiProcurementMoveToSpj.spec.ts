@@ -17,6 +17,10 @@ describe('CsiProcurementMoveToSpj migration', () => {
         const picUpdate = calls.find((c) => c.sql.includes('UPDATE "csi_pics"'));
         expect(picUpdate?.params).toEqual(['site-spj', 'PROCUREMENT', 'site-krw']);
 
+        const rateeUpdate = calls.find((c) => c.sql.includes('UPDATE "csi_period_ratees"'));
+        expect(rateeUpdate?.sql).toContain('p."status" = \'DRAFT\'');
+        expect(rateeUpdate?.params).toEqual(['site-spj', 'PROCUREMENT', 'site-krw']);
+
         const tplUpdate = calls.find((c) => c.sql.includes('UPDATE "csi_assignment_templates"'));
         expect(tplUpdate?.params).toEqual(['SPJ', 'CSI Procurement 2026 – Sepanjang', 'PROCUREMENT', 'KRW']);
     });
