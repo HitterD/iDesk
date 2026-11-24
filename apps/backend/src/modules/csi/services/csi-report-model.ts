@@ -1,5 +1,5 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CSI_RANK_MIN_RATERS, CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode } from '../csi.constants';
+import { CSI_RANK_MIN_RATERS, CSI_SIMULATION_TITLE_PREFIX, CsiQuestionType, CsiRateeKind, CsiRespondentMode, isOrgCsiScope } from '../csi.constants';
 import { CsiDepartmentParticipation, CsiSlaBlock, departmentParticipation, slaBlock } from './csi-report-participation';
 import { CsiServiceHighlight, CsiServiceRanking, rankingByService, serviceHighlight } from './csi-report-ranking';
 import { CsiReportService } from './csi-report.service';
@@ -189,10 +189,10 @@ function highlightSentences(model: Pick<CsiReportModel, 'bands' | 'overall' | 't
     lines.push(`Kepuasan keseluruhan ${overall.word} (${fmt(overall.average)} dari 5)${overall.delta === null ? '.' : `, ${overall.delta >= 0 ? 'naik' : 'turun'} ${fmt(Math.abs(overall.delta))} dari periode lalu.`}`);
     const highlight = model.serviceHighlight;
     if (highlight) lines.push(`Layanan tertinggi: ${highlight.best.code} ${fmt(highlight.best.average)} · terendah: ${highlight.worst.code} ${fmt(highlight.worst.average)}.`);
-    // HC counts only PICs the ranking can number (enough raters); ICT keeps every subject.
-    const counted = (row: CsiReportRow) => scope !== ServiceScope.HC || row.raters >= CSI_RANK_MIN_RATERS;
+    // HC / Procurement count only PICs the ranking can number (enough raters); ICT keeps every subject.
+    const counted = (row: CsiReportRow) => !isOrgCsiScope(scope) || row.raters >= CSI_RANK_MIN_RATERS;
     const below = [...model.teams, ...model.people].filter((row) => row.band === 'poor' && counted(row)).length;
-    if (below) lines.push(`${below} ${scope === ServiceScope.HC ? 'PIC' : 'tim/orang'} di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
+    if (below) lines.push(`${below} ${isOrgCsiScope(scope) ? 'PIC' : 'tim/orang'} di bawah ${fmt(model.bands.fairMin)} (Perlu perbaikan).`);
     const scored = model.aspects.filter((aspect) => aspect.average !== null);
     if (scored.length > 1) lines.push(`Aspek terlemah: ${scored[0].label} (${fmt(scored[0].average!)}). Terkuat: ${scored[scored.length - 1].label} (${fmt(scored[scored.length - 1].average!)}).`);
     // Participation per site is in the "Partisipasi & SLA" block on the same page, so it is not repeated here.
@@ -207,7 +207,7 @@ function rankSubjects(report: CsiReportData, rows: CsiReportRow[], scope: Servic
     const byId = new Map(report.ratees.map((ratee) => [ratee.periodRateeId, ratee]));
     return rows.map((row) => {
         const ratee = byId.get(row.periodRateeId);
-        const hc = scope === ServiceScope.HC;
+        const hc = isOrgCsiScope(scope);
         // HC: the bagian as in the recap tables (custom teams have none), never the fungsi pelayanan.
         const detail = hc ? (row.kind === CsiRateeKind.TEAM ? null : ratee?.bagian || CSI_NO_BAGIAN_LABEL) : row.siteCode;
         const name = hc && row.kind === CsiRateeKind.TEAM ? `${CSI_TEAM_ROW_PREFIX}${row.name}` : row.name;
@@ -244,16 +244,16 @@ type OverallBasis = { average: number | null; previous: number | null };
 
 /** HC with a recap: every rating weighs the same (recap basis); otherwise the report's mean of response means. */
 function overallBasis(input: CsiReportModelInput): OverallBasis {
-    const recap = input.scope === ServiceScope.HC ? input.hcRecap : null;
+    const recap = isOrgCsiScope(input.scope) ? input.hcRecap : null;
     if (!recap) return { average: input.report.overall.average, previous: input.report.previousAverage };
     const previous = recap.previousOverall === undefined ? input.report.previousAverage : recap.previousOverall;
     return { average: recap.overall.all.average, previous };
 }
 
-/** HC with a recap: the aspect average is the mean of that dimension's stars over every rating (Lampiran A). */
+/** HC/Procurement with a recap: the aspect average is the mean of that dimension's stars over every rating (Lampiran A). */
 function aspectsOf(input: CsiReportModelInput): CsiAspect[] {
     const base = aspects(input.report.ratees);
-    const recap = input.scope === ServiceScope.HC ? input.hcRecap : null;
+    const recap = isOrgCsiScope(input.scope) ? input.hcRecap : null;
     if (!recap) return base;
     return base.map((aspect) => (aspect.label in recap.overall.dimensions ? { ...aspect, average: recap.overall.dimensions[aspect.label] } : aspect))
         .sort((a, b) => (a.average ?? 99) - (b.average ?? 99));
@@ -305,7 +305,7 @@ export function buildReportModel(input: CsiReportModelInput): CsiReportModel {
         sla: slaBlock({ basis: sla.basis, targetPct, target: sla.target, responses: sla.responses }), hasPrevious: input.hasPrevious,
         sites, teams, people,
         rankingByService: rankingByService({ scope: input.scope, bands, subjects: rankSubjects(report, [...teams, ...people], input.scope) }),
-        serviceHighlight: input.scope === ServiceScope.HC ? serviceHighlight(input.serviceAverages) : null,
+        serviceHighlight: isOrgCsiScope(input.scope) ? serviceHighlight(input.serviceAverages, input.scope) : null,
         aspects: aspectsOf(input),
         teamGrid: grid(report.ratees, CsiRateeKind.TEAM, siteCodeOf, teamLabel, teams),
         peopleGrid: grid(report.ratees, CsiRateeKind.PERSON, siteCodeOf, teamLabel, people),

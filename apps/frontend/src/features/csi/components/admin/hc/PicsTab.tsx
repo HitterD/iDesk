@@ -36,7 +36,9 @@ function ImportCard({ scope }: { scope: CsiScopeParam }) {
                 <p className={MUTED_TEXT}>
                     {result
                         ? `Terimpor ${result.people.toLocaleString('id-ID')} karyawan · PIC baru ${result.picsAdded}, diperbarui ${result.picsUpdated}${result.usersSitesUpdated ? ` · ${result.usersSitesUpdated} akun dipindah site` : ''}.`
-                        : `${(directory?.people ?? 0).toLocaleString('id-ID')} karyawan di direktori. Sheet "4. ALL DATA_SJA": divisi, departemen, bagian dan lokasi responden + PIC HCC/HCD/HCS.`}
+                        : scope === 'procurement'
+                            ? `${(directory?.people ?? 0).toLocaleString('id-ID')} karyawan di direktori. Sheet "4. ALL DATA_SJA": divisi, departemen, bagian dan lokasi responden.`
+                            : `${(directory?.people ?? 0).toLocaleString('id-ID')} karyawan di direktori. Sheet "4. ALL DATA_SJA": divisi, departemen, bagian dan lokasi responden + PIC HCC/HCD/HCS.`}
                 </p>
             </div>
             <input ref={input} type="file" accept=".xlsx" className="hidden" onChange={(event) => {
@@ -150,7 +152,11 @@ export function PicsTab({ scope }: { scope: CsiScopeParam }) {
         if (onlyUnlinked && unlinked === 0) setOnlyUnlinked(false);
     }, [onlyUnlinked, unlinked]);
     return (
-        <AdminSection title="PIC HC per layanan & bagian" description="Semua staf HCC, HCD dan HCS dari Data Hirarki Approver. PIC yang dinonaktifkan tidak muncul di survei baru.">
+        <AdminSection
+            title={scope === 'procurement' ? 'PIC Procurement per layanan & bagian' : 'PIC HC per layanan & bagian'}
+            description={scope === 'procurement'
+                ? 'PIC Procurement yang dinilai per fungsi pelayanan. PIC yang dinonaktifkan tidak muncul di survei baru.'
+                : 'Semua staf HCC, HCD dan HCS dari Data Hirarki Approver. PIC yang dinonaktifkan tidak muncul di survei baru.'}>
             <div className="grid gap-4">
                 <ImportCard scope={scope} />
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}

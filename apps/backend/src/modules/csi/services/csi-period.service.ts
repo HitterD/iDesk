@@ -6,7 +6,7 @@ import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { wibEndOfDate, wibStartOfDate } from '../../../shared/core/utils/wib-date.util';
 import { Site } from '../../sites/entities/site.entity';
 import { User } from '../../users/entities/user.entity';
-import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_SLA_TARGET_DEFAULT_HC, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind } from '../csi.constants';
+import { CSI_CANCEL_REASON_MIN, CSI_SLA_TARGET_DEFAULT, CSI_SLA_TARGET_DEFAULT_HC, CSI_TEAM_LABEL_DEFAULT, CsiPairMode, CsiPeriodPublishStatus, CsiRateeKind, CsiRespondentMode, CsiTeamKind, isOrgCsiScope } from '../csi.constants';
 import { CreatePeriodDto, RateeAssignmentDto, UpdatePeriodDto, UpdatePeriodRateeDto } from '../dto/period.dto';
 import { CSI_TAGLINE_MAX } from '../dto/subject.dto';
 import { CsiAssignmentTemplatePic } from '../entities/csi-assignment-template-pic.entity';
@@ -46,10 +46,12 @@ export type CsiPeriodStatus = 'UPCOMING' | 'ACTIVE' | 'ENDED';
 const DEFAULT_RESPONDENT_MODE: Record<ServiceScope, CsiRespondentMode> = {
     ICT: CsiRespondentMode.LISTED,
     HC: CsiRespondentMode.LISTED,
+    PROCUREMENT: CsiRespondentMode.LISTED,
 };
 const DEFAULT_SLA_TARGET: Record<ServiceScope, number> = {
     ICT: CSI_SLA_TARGET_DEFAULT,
     HC: CSI_SLA_TARGET_DEFAULT_HC,
+    PROCUREMENT: CSI_SLA_TARGET_DEFAULT_HC,
 };
 const INACTIVE_USER_MESSAGE = 'Pengguna tidak ditemukan atau tidak aktif';
 const INCOMPLETE_MESSAGE = 'Survei belum lengkap';
@@ -234,7 +236,7 @@ export class CsiPeriodService {
                 // One team per site: the check passes only when every site team has at least one question.
                 teamQuestionCount: teamRatees.length ? Math.min(...teamRatees.map((ratee) => ratee.dimensions.length)) : 0,
                 teamRateeCount: teamRatees.length,
-                ...(period.scope === ServiceScope.HC ? { hcSubjectCount: rateesWithDimensions.filter((ratee) => ratee.picId || ratee.kind === CsiRateeKind.TEAM).length } : {}),
+                ...(isOrgCsiScope(period.scope) ? { hcSubjectCount: rateesWithDimensions.filter((ratee) => ratee.picId || ratee.kind === CsiRateeKind.TEAM).length } : {}),
             }),
         };
     }
@@ -569,7 +571,7 @@ export class CsiPeriodService {
         periodId: string,
         addedRatees: CsiPeriodRatee[],
     ) {
-        if (!addedRatees.length || scope !== ServiceScope.HC) return;
+        if (!addedRatees.length || !isOrgCsiScope(scope)) return;
         const tplRepo = manager.getRepository?.(CsiAssignmentTemplate);
         const tplPicRepo = manager.getRepository?.(CsiAssignmentTemplatePic);
         const tplRaterRepo = manager.getRepository?.(CsiAssignmentTemplateRater);

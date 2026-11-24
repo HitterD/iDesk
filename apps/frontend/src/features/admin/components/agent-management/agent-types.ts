@@ -1,6 +1,6 @@
 // Agent Management Types
 // Shared types for agent management components
-import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, Code2, Smartphone, HeartHandshake, type LucideIcon } from 'lucide-react';
+import { Shield, Crown, Users, ShieldAlert, Eye, LifeBuoy, Code2, Smartphone, HeartHandshake, PackageCheck, type LucideIcon } from 'lucide-react';
 
 export interface Site {
     id: string;
@@ -12,7 +12,7 @@ export interface User {
     id: string;
     fullName: string;
     email: string;
-    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN';
+    role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN' | 'PROCUREMENT_ADMIN';
     department?: { id: string; name: string };
     site?: Site;
     siteId?: string;
@@ -60,6 +60,7 @@ export type UserRoleKey =
     | 'AGENT_MOBILE_DEV'
     | 'AGENT_OPERATIONAL_SUPPORT'
     | 'HC_ADMIN'
+    | 'PROCUREMENT_ADMIN'
     | 'USER';
 
 export interface RoleConfigEntry {
@@ -162,6 +163,15 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
         bgColor: 'bg-rose-100 dark:bg-rose-900/30',
         badgeColor: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
     },
+    PROCUREMENT_ADMIN: {
+        icon: PackageCheck,
+        label: 'Admin Procurement',
+        pluralLabel: 'Admin Procurement',
+        description: 'Administrator Procurement: hanya halaman admin Procurement (CSI Procurement)',
+        color: 'text-amber-600',
+        bgColor: 'bg-amber-100 dark:bg-amber-900/30',
+        badgeColor: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+    },
     USER: {
         icon: Users,
         label: 'User',
@@ -177,6 +187,7 @@ export const ROLE_CONFIG: Record<UserRoleKey, RoleConfigEntry> = {
 export const ROLE_ORDER: UserRoleKey[] = [
     'USER',
     'HC_ADMIN',
+    'PROCUREMENT_ADMIN',
     'AGENT',
     'AGENT_ADMIN',
     'AGENT_ORACLE',

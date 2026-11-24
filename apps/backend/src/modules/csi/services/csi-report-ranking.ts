@@ -1,6 +1,6 @@
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
 import { CSI_RANK_MIN_RATERS, CsiRateeKind } from '../csi.constants';
-import { CSI_HC_SERVICES, serviceName } from '../org/csi-org.constants';
+import { serviceCodesOf, serviceNameOf } from '../org/csi-services';
 import { CsiScoreBands, CsiScoreWord, scoreWordFor } from './csi-score-bands';
 import { round2 } from './csi-score.util';
 
@@ -78,24 +78,25 @@ const hcServiceOrder = (code: string | null) => {
 export const compareServiceCodes = (a: string | null, b: string | null) =>
     hcServiceOrder(a || null) - hcServiceOrder(b || null) || (a === b ? 0 : !a ? 1 : !b ? -1 : a.localeCompare(b));
 
-/** HC: one group per service (PICs and teams together); ICT: the old split, "Tim" then "Orang". Empty groups are left out. */
+/** HC / Procurement: one group per service (PICs and teams together); ICT: the old split, "Tim" then "Orang". Empty groups are left out. */
 export function rankingByService(input: { scope: ServiceScope; subjects: CsiRankSubject[]; bands: CsiScoreBands }): CsiServiceRanking[] {
     const { scope, subjects, bands } = input;
     if (scope === ServiceScope.ICT) {
         return ICT_GROUPS.map((group) => serviceGroup(null, group.name, subjects.filter((subject) => subject.kind === group.kind), bands))
             .filter((group) => rankRowsOf(group).length);
     }
-    const known = (code: string | null) => (code && CSI_HC_SERVICES.some((service) => service.code === code) ? code : null);
+    const allowed = new Set(serviceCodesOf(scope));
+    const known = (code: string | null) => (code && allowed.has(code) ? code : null);
     const codes = [...new Set(subjects.map((subject) => known(subject.serviceCode)))]
         .sort(compareServiceCodes);
-    return codes.map((code) => serviceGroup(code, serviceName(code) ?? OTHER_SERVICE, subjects.filter((subject) => known(subject.serviceCode) === code), bands));
+    return codes.map((code) => serviceGroup(code, serviceNameOf(scope, code) ?? OTHER_SERVICE, subjects.filter((subject) => known(subject.serviceCode) === code), bands));
 }
 
-/** Best and worst HC service by average (never a person); null when fewer than two services have an average. */
-export function serviceHighlight(services: Array<{ serviceCode: string | null; average: number | null }>): CsiServiceHighlight | null {
+/** Best and worst service by average (never a person); null when fewer than two services have an average. */
+export function serviceHighlight(services: Array<{ serviceCode: string | null; average: number | null }>, scope: ServiceScope = ServiceScope.HC): CsiServiceHighlight | null {
     const scored = services
-        .filter((service): service is { serviceCode: string; average: number } => !!service.serviceCode && service.average !== null && !!serviceName(service.serviceCode))
-        .map((service) => ({ code: service.serviceCode, name: serviceName(service.serviceCode)!, average: service.average }))
+        .filter((service): service is { serviceCode: string; average: number } => !!service.serviceCode && service.average !== null && !!serviceNameOf(scope, service.serviceCode))
+        .map((service) => ({ code: service.serviceCode, name: serviceNameOf(scope, service.serviceCode)!, average: service.average }))
         .sort((a, b) => b.average - a.average || a.code.localeCompare(b.code));
     return scored.length < 2 ? null : { best: scored[0], worst: scored[scored.length - 1] };
 }

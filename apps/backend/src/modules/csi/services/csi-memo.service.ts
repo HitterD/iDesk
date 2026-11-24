@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
+import { isOrgCsiScope } from '../csi.constants';
 import { DEFAULT_TIMEZONE, localDateKey } from '../../sla-config/business-hours.calc';
 import { MemoHeaderDto } from '../dto/memo.dto';
 import { CsiMemoSetting } from '../entities/csi-memo-setting.entity';
@@ -39,7 +40,7 @@ export class CsiMemoService {
             const report = await this.reports.getReport(scope, periodId);
             const answers = await this.reports.listAnswers(scope, periodId);
             // HC memos never list raters: the SLA appendix shows participation per department instead.
-            const departments = scope === ServiceScope.HC ? await this.reports.departmentParticipation(scope, periodId, report) : undefined;
+            const departments = isOrgCsiScope(scope) ? await this.reports.departmentParticipation(scope, periodId, report) : undefined;
             surveys.push({ report, answers, departments });
         }
         const buffer = await renderMemoPdf(header, surveys);

@@ -14,13 +14,15 @@ import { CsiServiceReportOwner } from '../entities/csi-service-report-owner.enti
 
 /**
  * Who may administer CSI of a scope:
- * - HC_ADMIN: HC only, always (it is the role's purpose); never ICT.
- * - ADMIN: HC always; ICT with the explicit page key (no bypass, as before).
+ * - HC_ADMIN: HC only, always (it is the role's purpose); never ICT or Procurement.
+ * - PROCUREMENT_ADMIN: Procurement only, always; never ICT or HC.
+ * - ADMIN: HC and Procurement always; ICT with the explicit page key (no bypass, as before).
  * - MANAGER: with the explicit page key of the scope.
  */
 export function canAdminCsiScope(role: string, pageAccess: PageAccess, scope: ServiceScope): boolean {
     if (role === UserRole.HC_ADMIN) return scope === ServiceScope.HC;
-    if (role === UserRole.ADMIN && scope === ServiceScope.HC) return true;
+    if (role === UserRole.PROCUREMENT_ADMIN) return scope === ServiceScope.PROCUREMENT;
+    if (role === UserRole.ADMIN && (scope === ServiceScope.HC || scope === ServiceScope.PROCUREMENT)) return true;
     const allowedRole = role === UserRole.ADMIN || role === UserRole.MANAGER;
     return allowedRole && pageAccess[CSI_ADMIN_PAGE_KEY[scope]] === true;
 }

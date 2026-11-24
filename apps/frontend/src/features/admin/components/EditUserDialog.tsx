@@ -23,7 +23,7 @@ interface EditUserDialogProps {
         id: string;
         fullName: string;
         email: string;
-        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN';
+        role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN' | 'PROCUREMENT_ADMIN';
         department?: { id: string; name: string };
         site?: { id: string; code: string; name: string };
         siteId?: string;
@@ -54,6 +54,8 @@ export const getFilteredPresetsByRole = (role: string, presets: any[]) => {
     } else if (role === 'HC_ADMIN') {
         // "Admin HC" is stored with targetRole MANAGER (the entity has no HC role); match it by name only.
         return presets.filter((p) => (p.name || '').toLowerCase().startsWith('admin hc'));
+    } else if (role === 'PROCUREMENT_ADMIN') {
+        return presets.filter((p) => (p.name || '').toLowerCase().startsWith('admin procurement'));
     } else if (role === 'MANAGER') {
         targetRole = 'MANAGER';
         prefix = 'manager';
@@ -75,7 +77,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
-        role: 'AGENT' as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN',
+        role: 'AGENT' as 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'AGENT_OPERATIONAL_SUPPORT' | 'HC_ADMIN' | 'PROCUREMENT_ADMIN',
         departmentId: '',
         siteId: '',
         employeeId: '',
@@ -310,6 +312,7 @@ export const EditUserDialog: React.FC<EditUserDialogProps> = ({ isOpen, onClose,
                                     <option value="AGENT_MOBILE_DEV">Agent Mobile Dev</option>
                                     <option value="AGENT_OPERATIONAL_SUPPORT">Agent Ops Support</option>
                                     <option value="HC_ADMIN">Admin HC</option>
+                                    <option value="PROCUREMENT_ADMIN">Admin Procurement</option>
                                     <option value="USER">User</option>
                                 </select>
                             </div>

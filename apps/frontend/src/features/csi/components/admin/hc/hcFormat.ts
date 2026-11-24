@@ -17,7 +17,7 @@ export const locationHint = (code: string | null | undefined): string | null =>
     CSI_TEMPLATE_LOCATIONS.find((row) => row.code === code?.toUpperCase())?.hint ?? null;
 
 /** Acronyms kept upper-case after title-casing (HC, GA, PSW, HSE, SJA, ...). */
-const ACRONYMS = new Set(['HC', 'HCC', 'HCD', 'HCS', 'HCBP', 'GA', 'PSW', 'HSE', 'SJA', 'IR', 'TA', 'QC', 'QA', 'PPIC', 'ICT', 'RTD', 'BM', 'ATK', 'PPJP', 'CSV', 'HRIS', 'DAFT', 'R&D', 'S&OE', 'FGW', 'MT']);
+const ACRONYMS = new Set(['HC', 'HCC', 'HCD', 'HCS', 'HCBP', 'PROC', 'GA', 'PSW', 'HSE', 'SJA', 'IR', 'TA', 'QC', 'QA', 'PPIC', 'ICT', 'RTD', 'BM', 'ATK', 'PPJP', 'CSV', 'HRIS', 'DAFT', 'R&D', 'S&OE', 'FGW', 'MT']);
 
 /** "PAYROLL & BENEFIT" → "Payroll & Benefit", "HC SERVICES" → "HC Services" (directory data is upper-case). */
 export const titleCase = (value: string) => value.split(/(\s+)/).map((word) => {

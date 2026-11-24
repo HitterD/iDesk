@@ -131,7 +131,7 @@ function CustomTeamForm({ scope, groups, target, onClose, onEditPhoto }: FormPro
                     <label htmlFor={ids.service} className={FIELD_LABEL}>Layanan</label>
                     <select id={ids.service} className={FIELD} value={serviceCode} onChange={(event) => setServiceCode(event.target.value)}>
                         <option value="">Pilih layanan…</option>
-                        {Object.entries(CSI_SERVICE_NAMES.hc).map(([code, label]) => <option key={code} value={code}>{`${code} · ${label}`}</option>)}
+                        {Object.entries(CSI_SERVICE_NAMES[scope] ?? CSI_SERVICE_NAMES.hc).map(([code, label]) => <option key={code} value={code}>{`${code} · ${label}`}</option>)}
                     </select>
                     {!serviceCode && <p className={cn('text-[12.5px]', toneClasses('amber').ink)}>Pilih layanan tim.</p>}
                 </div>

@@ -10,7 +10,7 @@ import { CsiRater } from '../entities/csi-rater.entity';
 import { CreateDepartmentDto, CreateDimensionDto, DEFAULT_USER_SEARCH_LIMIT, MAX_USER_SEARCH_LIMIT, UpdateDepartmentDto, UpdateDimensionDto } from '../dto/master.dto';
 import { CsiQuestionType } from '../csi.constants';
 import { INVALID_OPTIONS_MESSAGE, optionsMatchType } from '../csi-question.util';
-import { CSI_TEMPLATE_2025, CSI_TEMPLATE_HC, CsiTemplateQuestion } from '../csi-template';
+import { CSI_TEMPLATE_2025, CSI_TEMPLATE_HC, CSI_TEMPLATE_PROCUREMENT, CsiTemplateQuestion } from '../csi-template';
 
 /** Template questions match existing ones case- and space-insensitively. */
 const templateKey = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -52,7 +52,10 @@ export class CsiMasterService {
      * dimensions, skipping any already present by name so pressing the button twice adds nothing).
      */
     async createTemplateDimensions(scope: ServiceScope) {
-        const template: ReadonlyArray<CsiTemplateQuestion> = scope === ServiceScope.HC ? CSI_TEMPLATE_HC : CSI_TEMPLATE_2025;
+        const template: ReadonlyArray<CsiTemplateQuestion> =
+            scope === ServiceScope.PROCUREMENT ? CSI_TEMPLATE_PROCUREMENT
+                : scope === ServiceScope.HC ? CSI_TEMPLATE_HC
+                    : CSI_TEMPLATE_2025;
         const rows = await this.dimensions.find({ where: { scope }, select: { id: true, name: true, isActive: true } });
         const byKey = new Map(rows.map((row) => [templateKey(row.name), row]));
         const reactivate = template

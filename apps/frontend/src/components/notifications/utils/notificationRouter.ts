@@ -1,7 +1,7 @@
 import { NotificationCategory, Notification } from '../types/notification.types';
 import { getRoleHome, portalEquivalent } from '@/lib/roleHome';
 
-export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'HC_ADMIN';
+export type UserRole = 'ADMIN' | 'AGENT' | 'USER' | 'MANAGER' | 'AGENT_OPERATIONAL_SUPPORT' | 'AGENT_ORACLE' | 'AGENT_WEB_DEV' | 'AGENT_MOBILE_DEV' | 'AGENT_ADMIN' | 'HC_ADMIN' | 'PROCUREMENT_ADMIN';
 
 /**
  * Get the redirect path for a notification based on its category and user role
@@ -50,7 +50,7 @@ function categoryPath(category: NotificationCategory | undefined, ticketId?: str
 function fallbackPath(userRole: UserRole): string {
     if (userRole === 'USER') return '/client/my-tickets';
     if (userRole === 'MANAGER') return '/manager/tickets';
-    if (userRole === 'HC_ADMIN') return getRoleHome(userRole);
+    if (userRole === 'HC_ADMIN' || userRole === 'PROCUREMENT_ADMIN') return getRoleHome(userRole);
     if (userRole === 'AGENT_ORACLE') return '/tickets/oracle-k2';
     if (userRole === 'AGENT_WEB_DEV') return '/tickets/web-developer';
     if (userRole === 'AGENT_MOBILE_DEV') return '/tickets/mobile-developer';

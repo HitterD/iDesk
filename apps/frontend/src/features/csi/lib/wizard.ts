@@ -2,8 +2,13 @@ import type { CsiDepartment, CsiDimension, CsiOpenForm, CsiPeriodDetail } from '
 import { orderRatees } from './csiForm';
 
 type PeriodRatee = CsiPeriodDetail['ratees'][number];
-/** HC layanan names (same as the backend org constants). */
-export const SERVICE_NAMES: Readonly<Record<string, string>> = { HCC: 'HC Compensation & Benefit', HCD: 'HC Development', HCS: 'HC Services' };
+/** Layanan names across HC and Procurement (same as backend org constants). */
+export const SERVICE_NAMES: Readonly<Record<string, string>> = {
+    HCC: 'HC Compensation & Benefit',
+    HCD: 'HC Development',
+    HCS: 'HC Services',
+    PROC: 'Procurement',
+};
 
 /** Same section rule as the respondent form: TEAM only while the team section is on, PERSON only while individuals are. */
 const inEnabledSection = (period: CsiPeriodDetail) => (ratee: PeriodRatee) =>
@@ -77,9 +82,9 @@ export function previousStep(period: WizardSections | null, current: WizardStepK
     return steps[steps.indexOf(current) - 1] ?? null;
 }
 
-/** HC only reports PIC and team ratees: people picked from user accounts never complete the ratees step. */
+/** HC/Procurement only reports PIC and team ratees: people picked from user accounts never complete the ratees step. */
 const hasHcSubject = (period: CsiPeriodDetail) =>
-    period.scope !== 'HC' || period.ratees.some((ratee) => !!ratee.picId || ratee.kind === 'TEAM');
+    (period.scope !== 'HC' && period.scope !== 'PROCUREMENT') || period.ratees.some((ratee) => !!ratee.picId || ratee.kind === 'TEAM');
 
 /**
  * Whether a step of an existing period counts as done (stepper tick, resume point).

@@ -5,15 +5,20 @@ import { normalizeNik } from './csi-org.constants';
 import { cleanTemplateCell as clean, templateCellText as cellText, parseMatrixWorkbook,
     TEMPLATE_NIK_MAX, TEMPLATE_ROWS_MAX as ROWS_MAX, TEMPLATE_TEXT_MAX as TEXT_MAX } from './csi-template-matrix';
 
-/** "Area" column of the HC assignment workbook → layanan code. */
+/** "Area" column of the assignment workbook → layanan code (HC and Procurement). */
 export const CSI_TEMPLATE_AREA_SERVICE: Readonly<Record<string, string>> = {
-    'HC DEVELOPMENT': 'HCD', 'HC COMBEN': 'HCC', 'HC COMPENSATION & BENEFIT': 'HCC', 'HC SERVICES': 'HCS',
+    'HC DEVELOPMENT': 'HCD',
+    'HC COMBEN': 'HCC',
+    'HC COMPENSATION & BENEFIT': 'HCC',
+    'HC SERVICES': 'HCS',
+    PROCUREMENT: 'PROC',
 };
 /** Header labels of the list layout as written in the workbook; matched case- and space-insensitively. */
 export const TEMPLATE_LIST_HEADERS = {
     area: 'Area', pic: 'Nama Lengkap Karyawan (HC)', jobTitle: 'Jabatan', serviceFunction: 'Fungsi pelayanan',
     rater: 'Nama Lengkap Penilai', raterJobTitle: 'Jabatan (akan terisi otomatis)',
 } as const;
+const PIC_HEADER_ALIASES = ['nama lengkap karyawan (hc)', 'nama lengkap karyawan (procurement)', 'nama lengkap karyawan'] as const;
 /** Optional rater NIK column; the 2026 Semarang file used the legacy label. */
 export const TEMPLATE_RATER_NIK_HEADER = 'NIK Penilai';
 const LEGACY_RATER_NIK_HEADER = 'NIK HRIS (dikosongkan saja)';
@@ -35,7 +40,7 @@ export type CsiTemplateSeedPic = {
     area: string; serviceCode: string; picName: string; nik: string | null; jobTitle: string | null; serviceFunction: string | null; raters: CsiTemplateSeedRater[];
 };
 /** Historical bundled seeds predate NIK; parsed drafts always provide it explicitly. */
-export type CsiTemplateSeed = { scope: 'HC'; locationCode: string; name: string; pics: Array<Omit<CsiTemplateSeedPic, 'nik' | 'raters'> & {
+export type CsiTemplateSeed = { scope: 'HC' | 'PROCUREMENT'; locationCode: string; name: string; pics: Array<Omit<CsiTemplateSeedPic, 'nik' | 'raters'> & {
     nik?: string | null; raters: Array<Omit<CsiTemplateSeedRater, 'nik'> & { nik?: string | null }>;
 }> };
 export type CsiTemplateDraft = { format: 'list' | 'matrix'; pics: CsiTemplateSeedPic[];
@@ -101,6 +106,9 @@ function readTeams(workbook: ExcelJS.Workbook, employees: Map<string, Employee>,
 function columnsOf(sheet: ExcelJS.Worksheet) {
     const header = (sheet.getRow(1).values as ExcelJS.CellValue[]).map((value) => cellText(value).replace(/\s+/g, ' ').trim().toLowerCase());
     const columns = Object.fromEntries(Object.entries(HEADERS).map(([key, label]) => [key, header.indexOf(label)])) as Record<keyof typeof HEADERS, number>;
+    if (columns.pic < 1) {
+        columns.pic = header.findIndex((label) => (PIC_HEADER_ALIASES as readonly string[]).includes(label));
+    }
     if (columns.pic < 1 || columns.rater < 1 || columns.area < 1) {
         throw new BadRequestException('Kolom "Area", "Nama Lengkap Karyawan (HC)" dan "Nama Lengkap Penilai" wajib ada di baris pertama');
     }
@@ -125,7 +133,7 @@ function readPic(state: ParseState, values: ExcelJS.CellValue[], row: number, pi
     const { columns, titles } = state;
     const serviceCode = CSI_TEMPLATE_AREA_SERVICE[(state.area ?? '').toUpperCase()];
     if (!serviceCode) {
-        state.problems.push({ row, message: `Area "${state.area ?? ''}" bukan HC Development / HC Comben / HC Services` });
+        state.problems.push({ row, message: `Area "${state.area ?? ''}" bukan HC Development / HC Comben / HC Services / PROCUREMENT` });
         state.current = null;
         return;
     }

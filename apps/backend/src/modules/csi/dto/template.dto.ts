@@ -1,14 +1,14 @@
 import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches, MaxLength, Validate, ValidateIf,
     ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 import { CSI_TEMPLATE_LOCATIONS } from '../org/csi-template-locations';
+import { ORG_SERVICE_CODES } from '../org/csi-services';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 const NAME_MAX = 150;
-const SERVICE_CODES = ['HCC', 'HCD', 'HCS'];
 
 export class AddTemplatePicDto {
-    @IsIn(SERVICE_CODES, { message: 'Layanan harus HCC, HCD atau HCS' })
+    @IsIn(ORG_SERVICE_CODES, { message: 'Layanan harus HCC, HCD, HCS atau PROC' })
     serviceCode: string;
 
     @IsString() @Length(2, NAME_MAX, { message: 'Nama PIC 2-150 karakter' })

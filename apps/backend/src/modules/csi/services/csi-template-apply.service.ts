@@ -206,11 +206,11 @@ export class CsiTemplateApplyService {
             const blockedReason = closedReason ?? sites.blockedReason ?? this.blockedReasonOf(period, state);
             const siteIds = [...(period.sites ?? []).map((row) => row.siteId), ...sites.added.map((site) => site.id)];
             const extra = { siteAdded: sites.added.map((site) => site.code).join(', ') || null, blockedReason, committed: commit };
-            if (!commit) return { ...await this.mergedReport(repos, views, state, siteIds, extra), nonPicRatees: nonPic.size };
+            if (!commit) return { ...await this.mergedReport(scope, repos, views, state, siteIds, extra), nonPicRatees: nonPic.size };
             if (blockedReason) throw new BadRequestException(blockedReason);
             if (replaceNonPic) await this.removeRatees(repos, before, state);
             if (sites.added.length) await manager.getRepository(CsiPeriodSite).save(sites.added.map((site) => ({ periodId, siteId: site.id })));
-            const out = await this.applyAll(manager, repos, period, views, questions, siteIds, extra);
+            const out = await this.applyAll(scope, manager, repos, period, views, questions, siteIds, extra);
             return { ...out, nonPicRatees: nonPic.size };
         });
         if (commit && (report.picsAdded > 0 || report.teamsAdded > 0 || report.ratersAdded > 0 || report.pairsAdded > 0)) {
@@ -275,11 +275,11 @@ export class CsiTemplateApplyService {
     }
 
     /** Dry run of several templates against one survey state; sets merge, so a rater in two locations counts once. */
-    private async mergedReport(repos: Repos, views: CsiTemplateView[], state: PeriodState, siteIds: string[], extra: Omit<ReportExtra, 'ratersOutsideSites'>) {
+    private async mergedReport(scope: ServiceScope, repos: Repos, views: CsiTemplateView[], state: PeriodState, siteIds: string[], extra: Omit<ReportExtra, 'ratersOutsideSites'>) {
         const total = emptyTally();
         const raterNames = new Map<string, string>();
         for (const view of views) {
-            const plan = await this.plan(ServiceScope.HC, view, repos, state, false);
+            const plan = await this.plan(scope, view, repos, state, false);
             mergeTally(total, plan.tally);
             mergeNames(raterNames, plan.raterNames);
         }
@@ -287,12 +287,12 @@ export class CsiTemplateApplyService {
     }
 
     /** Writes the templates one after another (each plans against what the previous one wrote). */
-    private async applyAll(manager: EntityManager, repos: Repos, period: CsiPeriod, views: CsiTemplateView[], questions: CsiDimension[],
+    private async applyAll(scope: ServiceScope, manager: EntityManager, repos: Repos, period: CsiPeriod, views: CsiTemplateView[], questions: CsiDimension[],
         siteIds: string[], extra: Omit<ReportExtra, 'ratersOutsideSites'>) {
         const total = emptyTally();
         const raterNames = new Map<string, string>();
         for (const view of views) {
-            const plan = await this.plan(ServiceScope.HC, view, repos, await this.stateOf(repos, period.id), true);
+            const plan = await this.plan(scope, view, repos, await this.stateOf(repos, period.id), true);
             if (plan.newSubjects.length && !questions.length) throw new BadRequestException(NO_QUESTIONS_MESSAGE);
             await this.write(manager, repos, period, plan, questions);
             mergeTally(total, plan.tally);

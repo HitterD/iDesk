@@ -10,6 +10,11 @@ describe('CSI services per scope', () => {
         expect(serviceNameOf(ServiceScope.HC, 'HCD')).toBe('HC Development');
     });
 
+    it('PROCUREMENT defines PROC service', () => {
+        expect(serviceCodesOf(ServiceScope.PROCUREMENT)).toEqual(['PROC']);
+        expect(serviceNameOf(ServiceScope.PROCUREMENT, 'PROC')).toBe('Procurement');
+    });
+
     it('ICT services are the handling teams plus managers', () => {
         expect(serviceCodesOf(ServiceScope.ICT)).toEqual(['OPS', 'ORACLE', 'WEB', 'MOBILE', 'MGR']);
         expect(serviceNameOf(ServiceScope.ICT, 'ORACLE')).toBe('Oracle / K2');
@@ -26,6 +31,7 @@ describe('CSI services per scope', () => {
         expect(ictServiceOfRole(UserRole.MANAGER)).toBe('MGR');
         expect(ictServiceOfRole(UserRole.USER)).toBeNull();
         expect(ictServiceOfRole(UserRole.HC_ADMIN)).toBeNull();
+        expect(ictServiceOfRole(UserRole.PROCUREMENT_ADMIN)).toBeNull();
         expect(ictServiceOfRole(undefined)).toBeNull();
     });
 });
@@ -33,7 +39,7 @@ describe('CSI services per scope', () => {
 describe('frontend copy of the services', () => {
     // apps/frontend/src/features/csi/lib/services.ts repeats the names for labels; they must not drift apart.
     const frontend = fs.readFileSync(path.resolve(__dirname, '../../../../../frontend/src/features/csi/lib/services.ts'), 'utf8');
-    it.each([ServiceScope.HC, ServiceScope.ICT])('%s codes and names match', (scope) => {
+    it.each([ServiceScope.HC, ServiceScope.PROCUREMENT, ServiceScope.ICT])('%s codes and names match', (scope) => {
         CSI_SERVICES[scope].forEach(({ code, name }) => expect(frontend).toContain(`${code}: '${name}'`));
     });
 });

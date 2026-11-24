@@ -1,5 +1,4 @@
-import { ServiceScope } from '../../../shared/core/utils/service-scope.util';
-import { CsiRespondentMode } from '../csi.constants';
+import { CsiRespondentMode, isOrgCsiScope } from '../csi.constants';
 import { formatLocation } from './csi-format.util';
 import { cell, contentWidth, Doc, drawRow, drawTable, MARGIN, MemoSurvey, PORTRAIT, scaleWidths, TableColumn, TEAL_SOFT, LINE } from './csi-memo-draw';
 import { formatPercent, MEMO_SLA_LABEL, memoSlaPct } from './csi-memo-page';
@@ -27,7 +26,7 @@ function summaryRows(survey: MemoSurvey): Array<[string, string]> {
 /** Reporter rows (ICT: Email | Departemen | Nama) or, for HC, participation per department without any name. */
 function appendixTable(doc: Doc, survey: MemoSurvey): { columns: TableColumn[]; rows: string[][] } {
     const width = contentWidth(doc);
-    if (survey.report.period.scope === ServiceScope.HC) {
+    if (isOrgCsiScope(survey.report.period.scope)) {
         const widths = scaleWidths(DEPARTMENT_WEIGHTS, width);
         return {
             columns: DEPARTMENT_HEADERS.map((header, i) => ({ header, width: widths[i], align: DEPARTMENT_ALIGN[i] })),

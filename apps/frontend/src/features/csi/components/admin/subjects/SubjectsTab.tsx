@@ -6,7 +6,7 @@ import { TicketPill } from '@/components/ui/ticket-pill';
 import { cn } from '@/lib/utils';
 import { useAddCsiSubjectMembers, useCreateCsiTeam, useCsiSubjects } from '../../../hooks/useCsi';
 import type { DraftUser } from '../../../lib/csiAdmin';
-import { CSI_SCOPE_OF } from '../../../lib/csiAdmin';
+import { CSI_SCOPE_OF, isOrgCsiScope } from '../../../lib/csiAdmin';
 import { siteTone, toneClasses } from '../../../lib/csiTone';
 import type { CsiScopeParam, CsiSubjectGroup, CsiSubjectView } from '../../../types';
 import { ADMIN_PANEL, MUTED_TEXT, UserMultiPicker } from '../AdminParts';
@@ -16,14 +16,16 @@ import { CustomTeamSheet, type CustomTeamTarget } from './CustomTeamSheet';
 import { SubjectCard } from './SubjectCard';
 import { SubjectEditSheet, type SubjectEditTarget } from './SubjectEditSheet';
 
-/** HC subjects come from any department, so its empty line does not name the ICT team. */
+/** HC & Procurement subjects come from any department, so their empty line does not name the ICT team. */
 const EMPTY_PEOPLE: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'Belum ada anggota ICT di site ini.',
     hc: 'Belum ada orang di site ini. Impor template lokasi ini di Template penugasan.',
+    procurement: 'Belum ada orang di site ini. Impor template lokasi ini di Template penugasan.',
 };
 const MEMBERS_HINT: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'Anggota ICT diambil otomatis dari role ICT. Tambahkan orang lain bila perlu dinilai juga.',
     hc: 'Pilih anggota tim HC yang akan dinilai. Mereka dikelompokkan per site sesuai profil masing-masing.',
+    procurement: 'Pilih anggota tim Procurement yang akan dinilai. Mereka dikelompokkan per site sesuai profil masing-masing.',
 };
 
 /** Adds people (any department) as subjects of the scope; HC has no staff roles, so this is how its team is built. */
@@ -56,7 +58,7 @@ const subjectsOf = (group: CsiSubjectGroup): CsiSubjectView[] => [...(group.team
  * HC header: people come from the location templates, so the main actions point there (import), at custom teams and
  * at bulk photos; the old member search stays reachable behind "tambah manual" as a fallback.
  */
-function HcHeader({ onOpenTemplates, onNewTeam, onBulkPhotos }: { onOpenTemplates?: () => void; onNewTeam: () => void; onBulkPhotos: () => void }) {
+function HcHeader({ scope, onOpenTemplates, onNewTeam, onBulkPhotos }: { scope: CsiScopeParam; onOpenTemplates?: () => void; onNewTeam: () => void; onBulkPhotos: () => void }) {
     const [manual, setManual] = useState(false);
     return (
         <>
@@ -76,7 +78,7 @@ function HcHeader({ onOpenTemplates, onNewTeam, onBulkPhotos }: { onOpenTemplate
                     )}
                 </div>
             </section>
-            {manual && <AddMembers scope="hc" />}
+            {manual && <AddMembers scope={scope} />}
         </>
     );
 }
@@ -107,9 +109,9 @@ function SiteHeader({ group, title, onAddTeam, adding }: { group: CsiSubjectGrou
     );
 }
 
-/** "HC Sukodono (SJA 3)": HC groups carry the SJA plant name of their site; ICT keeps the plain site name. */
+/** "HC Sukodono (SJA 3)": HC & Procurement groups carry the SJA plant name of their site; ICT keeps the plain site name. */
 function siteTitle(scope: CsiScopeParam, group: CsiSubjectGroup): string {
-    const hint = scope === 'hc' ? locationHint(group.siteCode) : null;
+    const hint = isOrgCsiScope(scope) ? locationHint(group.siteCode) : null;
     return `${CSI_SCOPE_OF[scope]} ${group.siteName}${hint ? ` (${hint})` : ''}`;
 }
 
@@ -139,14 +141,14 @@ export function SubjectsTab({ scope, onOpenTemplates }: { scope: CsiScopeParam; 
     const [target, setTarget] = useState<SubjectEditTarget | null>(null);
     const [teamTarget, setTeamTarget] = useState<CustomTeamTarget | null>(null);
     const [bulkOpen, setBulkOpen] = useState(false);
-    const isHc = scope === 'hc';
+    const isHc = isOrgCsiScope(scope);
     if (isLoading) return <div className={cn(ADMIN_PANEL, 'h-40 animate-pulse motion-reduce:animate-none')} aria-busy="true" aria-label="Memuat subjek" />;
     if (isError) return <ErrorState compact message="Gagal memuat subjek." onRetry={() => refetch()} />;
     if (!groups?.length) return <p className={cn(ADMIN_PANEL, MUTED_TEXT, 'px-6 py-10 text-center')}>Belum ada site untuk subjek CSI.</p>;
     return (
         <div className="space-y-6">
             {isHc
-                ? <HcHeader onOpenTemplates={onOpenTemplates} onNewTeam={() => setTeamTarget({ mode: 'create' })} onBulkPhotos={() => setBulkOpen(true)} />
+                ? <HcHeader scope={scope} onOpenTemplates={onOpenTemplates} onNewTeam={() => setTeamTarget({ mode: 'create' })} onBulkPhotos={() => setBulkOpen(true)} />
                 : <AddMembers scope={scope} />}
             {groups.map((group) => <SiteSection key={group.siteId} scope={scope} group={group} onEdit={setTarget} onEditTeam={setTeamTarget} />)}
             <SubjectEditSheet scope={scope} scopeLabel={CSI_SCOPE_OF[scope]} target={target} onClose={() => setTarget(null)} />

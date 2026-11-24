@@ -76,10 +76,16 @@ export const CSI_CANCEL_REASON_MAX = 500;
 export const CSI_ADMIN_PAGE_KEY: Record<ServiceScope, PageKey> = {
     ICT: 'csi_admin_ict',
     HC: 'csi_admin_hc',
+    PROCUREMENT: 'csi_admin_procurement',
 };
+
+/** Scopes that use the per-PIC / location-template CSI model (HC and Procurement). */
+export const isOrgCsiScope = (scope: ServiceScope | string | null | undefined): boolean =>
+    scope === ServiceScope.HC || scope === ServiceScope.PROCUREMENT;
 
 export function parseCsiScope(raw: string): ServiceScope {
     if (raw === 'ict') return ServiceScope.ICT;
     if (raw === 'hc') return ServiceScope.HC;
+    if (raw === 'procurement') return ServiceScope.PROCUREMENT;
     throw new BadRequestException('Unit CSI tidak valid.');
 }

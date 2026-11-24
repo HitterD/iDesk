@@ -53,8 +53,9 @@ export function useSubmitCsi(id: string) {
     const form = keys.form(id);
     const others = (scope: CsiScopeParam) => periodKeys(scope, id).filter((key) => JSON.stringify(key) !== JSON.stringify(form));
     return useCsiMutation((payload: SubmitCsiResponse) => CsiApi.submit(id, payload), () => [
-        ...others('ict'), ...others('hc'), ['csi', 'hc', 'hc-recap', id], ['csi', 'me', 'results'],
-        ['csi', 'me', 'hc', 'report'], ['csi', 'me', 'ict', 'report'],
+        ...others('ict'), ...others('hc'), ...others('procurement'),
+        ['csi', 'hc', 'hc-recap', id], ['csi', 'procurement', 'hc-recap', id], ['csi', 'me', 'results'],
+        ['csi', 'me', 'hc', 'report'], ['csi', 'me', 'procurement', 'report'], ['csi', 'me', 'ict', 'report'],
     ]);
 }
 

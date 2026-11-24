@@ -11,7 +11,7 @@ export class CsiQuestionSet {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
-    @Column({ type: 'varchar', length: 10 })
+    @Column({ type: 'varchar', length: 20 })
     scope: ServiceScope;
 
     @Column({ type: 'varchar', length: 100 })

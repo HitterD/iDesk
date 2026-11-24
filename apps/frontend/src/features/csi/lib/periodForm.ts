@@ -7,8 +7,8 @@ import type {
 
 export const NO_COPY = '';
 export const DEFAULT_TEAM_LABEL = 'Tim IT Support';
-/** Default participation target of a new survey: HC 90%, ICT 80% (backend CSI_SLA_TARGET_DEFAULT(_HC)). */
-export const DEFAULT_SLA_TARGET: Readonly<Record<CsiScopeParam, number>> = { ict: 80, hc: 90 };
+/** Default participation target of a new survey: HC/Procurement 90%, ICT 80% (backend CSI_SLA_TARGET_DEFAULT(_HC)). */
+export const DEFAULT_SLA_TARGET: Readonly<Record<CsiScopeParam, number>> = { ict: 80, hc: 90, procurement: 90 };
 export const SLA_TARGET_MIN = 1;
 export const SLA_TARGET_MAX = 100;
 export const TEAM_LABEL_MAX = 100;

@@ -49,23 +49,29 @@ describe('getRoleDefaultPageAccess', () => {
         expect(getRoleDefaultPageAccess(null)).toEqual(getRoleDefaultPageAccess('USER'));
     });
 
-    it('grants both CSI administration pages to ADMIN by default', () => {
+    it('grants all CSI administration pages to ADMIN by default', () => {
         const access: Record<string, boolean> = getRoleDefaultPageAccess('ADMIN');
         expect(access.csi_admin_ict).toBe(true);
         expect(access.csi_admin_hc).toBe(true);
+        expect(access.csi_admin_procurement).toBe(true);
     });
 
     it('HC_ADMIN only gets the HC pages', () => {
         expect(getRoleDefaultPageAccess('HC_ADMIN')).toEqual({ notifications: true, csi_admin_hc: true });
     });
 
-    it('does not grant either CSI administration page to MANAGER by default', () => {
+    it('PROCUREMENT_ADMIN only gets the Procurement CSI page and notifications', () => {
+        expect(getRoleDefaultPageAccess('PROCUREMENT_ADMIN')).toEqual({ notifications: true, csi_admin_procurement: true });
+    });
+
+    it('does not grant any CSI administration page to MANAGER by default', () => {
         const access: Record<string, boolean> = getRoleDefaultPageAccess('MANAGER');
         expect(access.csi_admin_ict).toBeUndefined();
         expect(access.csi_admin_hc).toBeUndefined();
+        expect(access.csi_admin_procurement).toBeUndefined();
     });
 
-    it.each(['csi_admin_ict', 'csi_admin_hc'])('recognises the CSI page key %s', (key) => {
+    it.each(['csi_admin_ict', 'csi_admin_hc', 'csi_admin_procurement'])('recognises the CSI page key %s', (key) => {
         expect(isValidPageKey(key)).toBe(true);
     });
 

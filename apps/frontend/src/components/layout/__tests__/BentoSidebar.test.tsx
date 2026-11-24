@@ -9,6 +9,7 @@ const csiActive = vi.hoisted(() => ({ current: [] as Array<{ id: string; scope: 
 const csiMyResults = vi.hoisted(() => ({ current: [] as Array<{ periodRateeId: string }> }));
 const csiReportAccess = vi.hoisted(() => ({
     hc: { admin: false, services: [] as string[] },
+    procurement: { admin: false, services: [] as string[] },
     ict: { admin: false, services: [] as string[] },
 }));
 const approvalRows = vi.hoisted(() => ({ current: [] as Array<{ ticketId: string }> }));
@@ -24,6 +25,7 @@ vi.mock('@/lib/api', () => ({
             if (url.startsWith('/csi/me/active')) return Promise.resolve({ data: csiActive.current });
             if (url.startsWith('/csi/me/results')) return Promise.resolve({ data: csiMyResults.current });
             if (url.startsWith('/csi/me/hc/report-access')) return Promise.resolve({ data: csiReportAccess.hc });
+            if (url.startsWith('/csi/me/procurement/report-access')) return Promise.resolve({ data: csiReportAccess.procurement });
             if (url.startsWith('/csi/me/ict/report-access')) return Promise.resolve({ data: csiReportAccess.ict });
             return Promise.resolve({ data: {} });
         }),
@@ -91,6 +93,7 @@ describe('BentoSidebar', () => {
         ticketModules.current = [];
         csiActive.current = [];
         csiReportAccess.hc = { admin: false, services: [] };
+        csiReportAccess.procurement = { admin: false, services: [] };
         csiReportAccess.ict = { admin: false, services: [] };
         authUser.current = { id: 'admin-1', fullName: 'Bagas Developer', role: 'ADMIN' };
     });
@@ -420,6 +423,18 @@ describe('BentoSidebar', () => {
             const profile = screen.getByRole('link', { name: /Bagas Developer/ });
             expect(profile).toHaveAttribute('href', '/settings');
             expect(screen.getByRole('button', { name: 'Logout' })).toBeInTheDocument();
+        });
+
+        it('shows only Procurement Admin CSI navigation for PROCUREMENT_ADMIN', () => {
+            authUser.current = { id: 'proc-1', fullName: 'Admin Procurement', role: 'PROCUREMENT_ADMIN' };
+            pageAccess.current = { notifications: true, csi_admin_procurement: true };
+            renderSidebar('/csi/admin/procurement');
+
+            const link = screen.getByRole('link', { name: 'Admin CSI Procurement' });
+            expect(link).toHaveAttribute('href', '/csi/admin/procurement');
+            expect(screen.queryByText('Admin CSI HC')).not.toBeInTheDocument();
+            expect(screen.queryByText('Admin CSI ICT')).not.toBeInTheDocument();
+            expect(screen.queryByText('Request Center')).not.toBeInTheDocument();
         });
     });
 });

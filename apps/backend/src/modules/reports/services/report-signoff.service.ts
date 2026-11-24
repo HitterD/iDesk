@@ -7,7 +7,7 @@ import { SignoffLayout, sanitizeSignoff } from '../generators/report-signoff';
 export const SIGNOFF_REPORT_TYPES = ['monthly', 'agent-performance', 'ticket-volume'] as const;
 export type SignoffReportType = (typeof SIGNOFF_REPORT_TYPES)[number];
 /** CSI survey report, one layout per CSI scope (managed from the CSI admin pages, not the generic reports API). */
-export type CsiSignoffType = 'csi-ICT' | 'csi-HC';
+export type CsiSignoffType = 'csi-ICT' | 'csi-HC' | 'csi-PROCUREMENT';
 type StoredSignoffType = SignoffReportType | CsiSignoffType;
 
 const ALL_SITES = 'ALL';

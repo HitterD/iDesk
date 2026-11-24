@@ -247,7 +247,7 @@ describe('TemplatesTab', () => {
     it('import preview warns about PIC rows with an ambiguous PIC master', async () => {
         fx.report = { ...REPORT, unresolved: [], ambiguousMasters: ['RARA'] };
         const dialog = await openPreview();
-        expect(within(dialog).getByText('PIC master ganda, pilih manual di PIC HC (1)')).toBeInTheDocument();
+        expect(within(dialog).getByText('PIC master ganda, pilih manual di Daftar PIC (1)')).toBeInTheDocument();
         expect(within(dialog).getByText('Rara')).toBeInTheDocument();
     });
 

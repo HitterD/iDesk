@@ -17,13 +17,24 @@ export const CSI_HC_SERVICES: ReadonlyArray<{ code: CsiHcService; department: st
     { code: CsiHcService.HCS, department: 'HC SERVICES', name: 'HC Services' },
 ];
 
+export enum CsiProcurementService {
+    PROC = 'PROC',
+}
+
+export const CSI_PROCUREMENT_SERVICES: ReadonlyArray<{ code: CsiProcurementService; department: string; name: string }> = [
+    { code: CsiProcurementService.PROC, department: 'PROCUREMENT', name: 'Procurement' },
+];
+
 export function collapse(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
 }
 
 export const serviceOfDepartment = (department: string | null | undefined): CsiHcService | null =>
     CSI_HC_SERVICES.find((service) => service.department === collapse(department ?? '').toUpperCase())?.code ?? null;
-export const serviceName = (code: string | null | undefined) => CSI_HC_SERVICES.find((service) => service.code === code)?.name ?? null;
+export const serviceName = (code: string | null | undefined) =>
+    CSI_HC_SERVICES.find((service) => service.code === code)?.name
+    ?? CSI_PROCUREMENT_SERVICES.find((service) => service.code === code)?.name
+    ?? null;
 
 /** Report location columns, in order; "ALL SJA" is computed over every rating. */
 export enum CsiOrgLocation {

@@ -3,19 +3,24 @@ import type {
     CsiPeriodDetail, CsiPeriodStatus, CsiPublishStatus, CsiRespondentMode, CsiScope, CsiScopeParam, SetCsiRatees,
 } from '../types';
 
-export const CSI_ADMIN_SCOPES = ['ict', 'hc'] as const satisfies readonly CsiScopeParam[];
+export const CSI_ADMIN_SCOPES = ['ict', 'hc', 'procurement'] as const satisfies readonly CsiScopeParam[];
 
 /** Mirrors backend `CSI_ADMIN_PAGE_KEY`; no ADMIN bypass for these keys. */
 export const CSI_ADMIN_PAGE_KEYS: Readonly<Record<CsiScopeParam, string>> = {
     ict: 'csi_admin_ict',
     hc: 'csi_admin_hc',
+    procurement: 'csi_admin_procurement',
 };
-export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER', 'HC_ADMIN'];
+export const CSI_ADMIN_ROLES: readonly string[] = ['ADMIN', 'MANAGER', 'HC_ADMIN', 'PROCUREMENT_ADMIN'];
 
-export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC' };
+export const CSI_SCOPE_OF: Readonly<Record<CsiScopeParam, CsiScope>> = { ict: 'ICT', hc: 'HC', procurement: 'PROCUREMENT' };
 
 /** Mirrors backend `DEFAULT_RESPONDENT_MODE`. */
-export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'LISTED', hc: 'LISTED' };
+export const CSI_DEFAULT_MODE: Readonly<Record<CsiScopeParam, CsiRespondentMode>> = { ict: 'LISTED', hc: 'LISTED', procurement: 'LISTED' };
+
+export const isOrgCsiScope = (scope: CsiScopeParam | string): boolean => scope === 'hc' || scope === 'procurement';
+
+export const orgScopeLabel = (scope: CsiScopeParam): string => (scope === 'procurement' ? 'Procurement' : scope === 'hc' ? 'HC' : 'ICT');
 
 export const CSI_MODE_LABELS: Readonly<Record<CsiRespondentMode, string>> = {
     OPEN: 'Semua user di site',

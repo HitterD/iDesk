@@ -17,18 +17,26 @@ import { buildTemplateView, CsiTemplateView, lookupOf, resolveRater } from '../o
 import { suggestAccounts } from '../org/csi-account-suggest';
 import { buildPicAccountMatcher } from '../org/csi-pic-account.util';
 import { CSI_TEMPLATE_HC_SMG_2026 } from '../org/templates/hc-smg-2026.data';
+import { CSI_TEMPLATE_PROCUREMENT_KRW_2026 } from '../org/templates/procurement-krw-2026.data';
 import { hcDirectoryCandidates, masterNameIndex, withCurrentNames } from './csi-template-import.service';
 import { buildBlankTemplate } from '../org/csi-template-blank';
 import { csiTemplateLocation } from '../org/csi-template-locations';
+import { serviceCodesOf } from '../org/csi-services';
 
 /** Templates shipped with the app, loaded on request (idempotent). */
-const BUNDLED: Readonly<Record<string, CsiTemplateSeed>> = { SMG: CSI_TEMPLATE_HC_SMG_2026 };
+const BUNDLED: ReadonlyArray<CsiTemplateSeed> = [CSI_TEMPLATE_HC_SMG_2026, CSI_TEMPLATE_PROCUREMENT_KRW_2026];
+const bundledFor = (scope: ServiceScope, locationCode: string) =>
+    BUNDLED.find((seed) => seed.scope === scope && seed.locationCode === locationCode.toUpperCase());
 const NOT_FOUND_MESSAGE = 'Template tidak ditemukan';
 /** Same as the DB text limit of a template name. */
 const SUGGESTION_NAME_MAX = 150;
 const PIC_NOT_FOUND_MESSAGE = 'PIC template tidak ditemukan';
-const SERVICE_CODES = new Set(['HCC', 'HCD', 'HCS']);
-const AREA_OF_SERVICE: Readonly<Record<string, string>> = { HCD: 'HC Development', HCC: 'HC Comben', HCS: 'HC Services' };
+const AREA_OF_SERVICE: Readonly<Record<string, string>> = {
+    HCD: 'HC Development',
+    HCC: 'HC Comben',
+    HCS: 'HC Services',
+    PROC: 'PROCUREMENT',
+};
 
 type PicIndex = (name: string) => CsiPic | 'ambiguous' | null;
 const idOf = (hit: CsiPic | 'ambiguous' | null) => (hit && hit !== 'ambiguous' ? hit.id : null);
@@ -54,7 +62,8 @@ export class CsiAssignmentTemplateService {
 
     async list(scope: ServiceScope) {
         const rows = await this.templates.find({ where: { scope } });
-        const bundled = Object.keys(BUNDLED).filter((code) => !rows.some((row) => row.locationCode === code));
+        const bundled = BUNDLED.filter((seed) => seed.scope === scope && !rows.some((row) => row.locationCode === seed.locationCode))
+            .map((seed) => seed.locationCode);
         return { templates: await Promise.all(rows.map((row) => this.get(scope, row.id))), bundledAvailable: bundled };
     }
 
@@ -86,8 +95,8 @@ export class CsiAssignmentTemplateService {
 
     /** Creates (or merges into) the template of a location from the copy bundled with the app. */
     async loadBundled(scope: ServiceScope, locationCode: string): Promise<CsiTemplateView> {
-        const seed = BUNDLED[locationCode.toUpperCase()];
-        if (!seed || seed.scope !== scope) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
+        const seed = bundledFor(scope, locationCode);
+        if (!seed) throw new NotFoundException('Template bawaan untuk lokasi ini tidak ada');
         const pics = seed.pics.map((pic) => ({ ...pic, nik: pic.nik ?? null, raters: pic.raters.map((rater) => ({ ...rater, nik: rater.nik ?? null })) }));
         const id = await this.dataSource.transaction((manager) => this.loadInto(manager, scope, seed.locationCode, seed.name, pics));
         return this.get(scope, id);
@@ -101,14 +110,14 @@ export class CsiAssignmentTemplateService {
         });
         const buffer = await buildBlankTemplate(location, employees.map((user) => ({
             fullName: user.fullName, jobTitle: user.jobTitle ?? null, employeeId: user.employeeId ?? null,
-        })));
+        })), scope);
         return { filename: `CSI ${scope} ${location.name} - template.xlsx`, buffer };
     }
 
     async addPic(scope: ServiceScope, templateId: string, input: { serviceCode: string; picName: string; jobTitle?: string | null; serviceFunction?: string | null }) {
         await this.get(scope, templateId);
         const serviceCode = input.serviceCode.toUpperCase();
-        if (!SERVICE_CODES.has(serviceCode)) throw new BadRequestException('Layanan tidak dikenal');
+        if (!serviceCodesOf(scope).includes(serviceCode)) throw new BadRequestException('Layanan tidak dikenal');
         const picName = normalizeName(input.picName);
         if (!picName) throw new BadRequestException('Nama PIC wajib diisi');
         if (await this.pics.findOne({ where: { templateId, picName } })) throw new BadRequestException('PIC sudah ada di template');
@@ -297,7 +306,7 @@ export class CsiAssignmentTemplateService {
     }
 
     private async createPicsFromDirectory(manager: EntityManager, scope: ServiceScope, locationCode: string, seeds: CsiTemplateSeedPic[], existing: CsiPic[]) {
-        const findPerson = buildNameIndex(await hcDirectoryCandidates(manager), (row) => row.fullName);
+        const findPerson = buildNameIndex(await hcDirectoryCandidates(manager, scope), (row) => row.fullName);
         const site = await manager.getRepository(Site).findOne({ where: { code: locationCode } });
         const accounts = await this.activeAccounts(manager.getRepository(User));
         const claimed = new Set(existing.map((pic) => pic.userId).filter((id): id is string => Boolean(id)));

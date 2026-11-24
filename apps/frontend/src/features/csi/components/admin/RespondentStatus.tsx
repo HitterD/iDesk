@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useCsiReport, useCsiRespondents, useSendCsiReminders } from '../../hooks/useCsi';
+import { orgScopeLabel } from '../../lib/csiAdmin';
 import { mergedSiteGroups } from '../../lib/siteHandlers';
 import type { CsiReminderResult, CsiRespondents, CsiScopeParam, CsiSiteSummary, CsiSla } from '../../types';
 import { AdminSection } from './AdminParts';
@@ -20,9 +21,9 @@ import { overallProgress, personRows, progressOf, type PersonRow } from './respo
 /** Basis copy per mode: OPEN counts iDesk ticket reporters (SLA basis), LISTED the registered raters. */
 const BASIS_LABEL = { OPEN: 'Pelapor tiket iDesk', LISTED: 'penilai terpilih' } as const;
 
-/** OPEN with an HC target (respondents pick their PICs): the basis is that target, not ticket reporters. */
-const openDescription = (hcTarget: boolean) => (hcTarget
-    ? 'Responden memilih PIC sendiri; basis = target jumlah responden yang ditetapkan HC (maks. 100%)'
+/** OPEN with an HC/Procurement target (respondents pick their PICs): the basis is that target, not ticket reporters. */
+const openDescription = (hcTarget: boolean, scope: CsiScopeParam) => (hcTarget
+    ? `Responden memilih PIC sendiri; basis = target jumlah responden yang ditetapkan ${orgScopeLabel(scope)} (maks. 100%)`
     : 'Mode terbuka: semua user aktif di site dapat mengisi; basis target = pelapor tiket iDesk 12 bulan terakhir');
 
 const reminderToast = ({ sent, skipped }: CsiReminderResult) =>
@@ -74,7 +75,7 @@ function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminder
     return (
         <div className="grid gap-6">
             {progress && (
-                <RespondentHero progress={progress} targetPct={targetPct} basisLabel={hcTarget ? 'target responden (HC)' : BASIS_LABEL[data.mode]}
+                <RespondentHero progress={progress} targetPct={targetPct} basisLabel={hcTarget ? `target responden (${orgScopeLabel(scope)})` : BASIS_LABEL[data.mode]}
                     sites={siteCards.length > 1 ? siteCards : []} />
             )}
             {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
@@ -136,7 +137,7 @@ export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget
     return (
         <>
             <AdminSection title="Status responden" actions={actions}
-                description={data && !listed ? openDescription(!!hcTarget) : undefined}>
+                description={data && !listed ? openDescription(!!hcTarget, scope) : undefined}>
                 {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-[hsl(var(--muted))] motion-reduce:animate-none" aria-busy="true" aria-label="Memuat responden" />}
                 {isError && <ErrorState compact message="Gagal memuat status responden." onRetry={() => refetch()} />}
                 {data && (

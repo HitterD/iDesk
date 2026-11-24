@@ -12,6 +12,7 @@ import { AdminSection, MUTED_TEXT } from '../../AdminParts';
 import { CSI_TEMPLATE_LOCATIONS } from '../hcFormat';
 import { HcSurveyWizard } from './HcSurveyWizard';
 import { TemplateApplyDialog } from './TemplateApplyDialog';
+import { CSI_SERVICE_NAMES } from '../../../../lib/services';
 import { BlankTemplateButton, TemplateEmptyState, type TemplateLocation } from './TemplateEmptyState';
 import { TemplateImportDialog } from './TemplateImportDialog';
 import { TemplateIssuesPanel } from './TemplateIssuesPanel';
@@ -22,8 +23,8 @@ import { RaterTableView } from './RaterTableView';
 type TemplateView = 'pic' | 'rater';
 const VIEW_OPTIONS = [{ value: 'pic', label: 'Per PIC' }, { value: 'rater', label: 'Per penilai' }] as const;
 
-const SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
-const SERVICE_NAMES: Record<string, string> = { HCD: 'HC Development', HCC: 'HC Compensation & Benefit', HCS: 'HC Services' };
+const HC_SERVICE_ORDER = ['HCD', 'HCC', 'HCS'];
+const PROCUREMENT_SERVICE_ORDER = ['PROC'];
 
 const summaryItems = (summary: CsiTemplate['summary']) => [
     `${summary.pics} PIC`, `${summary.raters} penilai`, `${summary.ratersConfirmed} terkonfirmasi`, `${summary.ratersOk} cocok otomatis`,
@@ -78,12 +79,12 @@ function TemplateEditor({ scope, template, location, onImport, view, onViewChang
             </div>
             <TemplateIssuesPanel scope={scope} template={template} />
             {view === 'rater' && <RaterTableView scope={scope} template={template} />}
-            {view === 'pic' && SERVICE_ORDER.map((code) => {
+            {view === 'pic' && (scope === 'procurement' ? PROCUREMENT_SERVICE_ORDER : HC_SERVICE_ORDER).map((code) => {
                 const pics = template.pics.filter((pic) => pic.serviceCode === code);
                 if (!pics.length) return null;
                 return (
                     <section key={code} className="grid gap-2">
-                        <h3 className="text-[14px] font-bold">{`${code} · ${SERVICE_NAMES[code]} (${pics.length})`}</h3>
+                        <h3 className="text-[14px] font-bold">{`${code} · ${CSI_SERVICE_NAMES[scope][code] ?? code} (${pics.length})`}</h3>
                         {/* 2 columns from 560px, 3 only from 1180px: a third column below that squeezes the rater rows. */}
                         <div className="grid grid-cols-1 gap-3 @min-[560px]:grid-cols-2 @min-[1180px]:grid-cols-3">
                             {pics.map((pic) => (
@@ -155,7 +156,7 @@ export function TemplatesTab({ scope, initialLocation, initialView }: {
     const openImport = () => setImporting(true);
     return (
         <AdminSection title="Template penugasan per lokasi"
-            description="Daftar PIC HC, fungsi pelayanan dan siapa yang menilai, per lokasi. Bisa diedit, ditambah, diimpor dari Excel, lalu dipakai untuk membuat survei.">
+            description={`Daftar PIC ${scope === 'procurement' ? 'Procurement' : 'HC'}, fungsi pelayanan dan siapa yang menilai, per lokasi. Bisa diedit, ditambah, diimpor dari Excel, lalu dipakai untuk membuat survei.`}>
             <div className="grid gap-4">
                 <LocationTabs templates={data ? templates : null} selected={location.code} onSelect={setSelected} />
                 {isLoading && <div className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" aria-busy="true" />}

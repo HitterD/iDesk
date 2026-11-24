@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiReport } from '../../hooks/useCsi';
+import { isOrgCsiScope } from '../../lib/csiAdmin';
 import { CSI_SCORE_BANDS_DEFAULT, type CsiScoreBands } from '../../lib/csiTone';
 import { mergedSiteGroups, siteHandlerMapOf } from '../../lib/siteHandlers';
 import type { CsiReportRatee, CsiScopeParam, CsiSiteSummary } from '../../types';
@@ -91,7 +92,7 @@ export function PeriodReport({ scope, periodId, sites, initialSiteId, onSiteChan
             <SubjectDetailSheet ratee={open} siteName={open ? siteOf(open.siteId)?.name ?? null : null}
                 siteCode={open ? siteCodeOf(open.siteId) : null} bands={bands} onClose={() => setOpenId(null)} />
         </AdminSection>
-        {scope === 'hc' && <HcRecapPanel scope={scope} periodId={periodId} />}
+        {isOrgCsiScope(scope) && <HcRecapPanel scope={scope} periodId={periodId} />}
         <ReportExportDialog scope={scope} periodId={periodId} siteId={siteParam} open={exportOpen} onOpenChange={setExportOpen} />
         </>
     );

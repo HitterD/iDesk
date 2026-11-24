@@ -18,6 +18,7 @@ import { normalizeName } from '../org/csi-name-match';
 import { lockPeriodRow } from './csi-period-lock.util';
 import { surveyStage } from './csi-survey-stage.util';
 import { assertHcScope } from './csi-scope.util';
+import { serviceCodesOf } from '../org/csi-services';
 import { CsiSubjectView, teamView } from './csi-subject.service';
 
 const TEAM_NOT_FOUND_MESSAGE = 'Tim tidak ditemukan';
@@ -67,6 +68,7 @@ export class CsiTeamService {
         const manager = this.dataSource.manager;
         const name = input.name?.trim();
         if (!name || !input.serviceCode) throw new BadRequestException(CUSTOM_REQUIRED_MESSAGE);
+        if (!serviceCodesOf(scope).includes(input.serviceCode)) throw new BadRequestException('Layanan tidak sesuai unit');
         if (name.length > CSI_CUSTOM_TEAM_NAME_MAX) throw new BadRequestException('Nama tim harus terdiri dari 1–150 karakter');
         const site = await manager.getRepository(Site).findOne({ where: { id: input.siteId } });
         if (!site) throw new NotFoundException(SITE_NOT_FOUND_MESSAGE);
@@ -90,6 +92,9 @@ export class CsiTeamService {
         const team = await this.findTeam(manager, scope, id);
         const isCustom = team.kind === CsiTeamKind.CUSTOM;
         if (input.serviceCode !== undefined && !isCustom) throw new BadRequestException('Layanan hanya untuk tim custom');
+        if (input.serviceCode !== undefined && !serviceCodesOf(scope).includes(input.serviceCode)) {
+            throw new BadRequestException('Layanan tidak sesuai unit');
+        }
         const name = input.name?.trim();
         if (input.name !== undefined && !name) throw new BadRequestException(CUSTOM_REQUIRED_MESSAGE);
         if (name && isCustom && normalizeName(name) !== normalizeName(team.name)) await this.assertNameFree(manager, scope, team.siteId, name);

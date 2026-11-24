@@ -10,6 +10,7 @@ import { HandlingTeam } from '../../../modules/ticketing/entities/ticket.entity'
 export enum ServiceScope {
     ICT = 'ICT',
     HC = 'HC',
+    PROCUREMENT = 'PROCUREMENT',
 }
 
 /**
@@ -26,6 +27,7 @@ export const ROLE_SCOPE: Readonly<Partial<Record<UserRole, ServiceScope>>> = {
     [UserRole.AGENT_MOBILE_DEV]: ServiceScope.ICT,
     [UserRole.MANAGER]: ServiceScope.ICT,
     [UserRole.HC_ADMIN]: ServiceScope.HC,
+    [UserRole.PROCUREMENT_ADMIN]: ServiceScope.PROCUREMENT,
 };
 
 /** Which scope owns each handling team. */

@@ -16,12 +16,18 @@ describe('service scope (frontend mirror)', () => {
         expect(scopeOfRole(undefined)).toBeNull();
     });
 
-    it('groups the agent-management role list as ADMIN, then all ICT roles, then HC, then USER', () => {
+    it('maps HC_ADMIN to HC and PROCUREMENT_ADMIN to PROCUREMENT', () => {
+        expect(scopeOfRole('HC_ADMIN')).toBe('HC');
+        expect(scopeOfRole('PROCUREMENT_ADMIN')).toBe('PROCUREMENT');
+    });
+
+    it('groups the agent-management role list as ADMIN, then all ICT roles, then PROCUREMENT, then HC, then USER', () => {
         const groups = groupRolesByScope([...ROLE_ORDER].reverse());
-        expect(groups.map(g => g.scope)).toEqual([null, 'ICT', 'HC', null]);
-        expect(groups[2].roles).toEqual(['HC_ADMIN']);
+        expect(groups.map(g => g.scope)).toEqual([null, 'ICT', 'PROCUREMENT', 'HC', null]);
+        expect(groups[2].roles).toEqual(['PROCUREMENT_ADMIN']);
+        expect(groups[3].roles).toEqual(['HC_ADMIN']);
         expect(groups[0].roles).toEqual(['ADMIN']);
         expect(groups[1].roles).toHaveLength(7);
-        expect(groups[3].roles).toEqual(['USER']);
+        expect(groups[4].roles).toEqual(['USER']);
     });
 });

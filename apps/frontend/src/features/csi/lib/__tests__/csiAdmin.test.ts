@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blobErrorMessage, CSI_EXPORT_FAILED } from '../csiAdmin';
+import { blobErrorMessage, CSI_EXPORT_FAILED, isOrgCsiScope, orgScopeLabel } from '../csiAdmin';
 import { canAdminCsi, canReadCsi } from '../useCsiAdminAccess';
 
 const blobError = (body: string) => ({ response: { data: new Blob([body], { type: 'application/json' }) } });
@@ -36,9 +36,26 @@ describe('canReadCsi / canAdminCsi', () => {
         expect(canAdminCsi('AGENT', {}, 'ict')).toBe(false);
         expect(canReadCsi('USER', {}, 'ict', false)).toBe(false);
     });
-    it('HC_ADMIN: HC saja, ICT hanya jika penanggung jawab', () => {
+    it('HC_ADMIN: HC saja, ICT/Procurement hanya jika penanggung jawab', () => {
         expect(canReadCsi('HC_ADMIN', {}, 'ict', false)).toBe(false);
+        expect(canReadCsi('HC_ADMIN', {}, 'procurement', false)).toBe(false);
         expect(canReadCsi('HC_ADMIN', {}, 'ict', true)).toBe(true);
         expect(canAdminCsi('HC_ADMIN', {}, 'hc')).toBe(true);
+        expect(canAdminCsi('HC_ADMIN', { csi_admin_procurement: true }, 'procurement')).toBe(false);
+    });
+    it('PROCUREMENT_ADMIN: Procurement saja, HC/ICT ditolak walau ada page key', () => {
+        expect(canAdminCsi('PROCUREMENT_ADMIN', {}, 'procurement')).toBe(true);
+        expect(canAdminCsi('PROCUREMENT_ADMIN', { csi_admin_hc: true, csi_admin_ict: true }, 'hc')).toBe(false);
+        expect(canReadCsi('PROCUREMENT_ADMIN', {}, 'hc', false)).toBe(false);
+        expect(canReadCsi('PROCUREMENT_ADMIN', {}, 'ict', false)).toBe(false);
+        expect(canReadCsi('MANAGER', {}, 'procurement', false)).toBe(false);
+        expect(canAdminCsi('MANAGER', { csi_admin_procurement: true }, 'procurement')).toBe(true);
+        expect(canAdminCsi('ADMIN', {}, 'procurement')).toBe(true);
+    });
+    it('mengidentifikasi scope org (HC & Procurement) dan label unit', () => {
+        expect(isOrgCsiScope('hc')).toBe(true);
+        expect(isOrgCsiScope('procurement')).toBe(true);
+        expect(isOrgCsiScope('ict')).toBe(false);
+        expect(orgScopeLabel('procurement')).toBe('Procurement');
     });
 });

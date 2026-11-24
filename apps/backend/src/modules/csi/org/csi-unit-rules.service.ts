@@ -16,6 +16,7 @@ import { lockPeriodForRaterAdditions, lockUnlockedPeriod } from '../services/csi
 import { emitCsiUpdated } from '../csi.events';
 import { assertPeriodInScope } from '../services/csi-scope.util';
 import { normalizeNik } from './csi-org.constants';
+import { serviceCodesOf } from './csi-services';
 import { CsiUnitRule, expandRules } from './csi-unit-rules';
 
 const RULES_MAX = 200;
@@ -71,6 +72,7 @@ export class CsiUnitRulesService {
 
     async preview(scope: ServiceScope, periodId: string, rules: CsiUnitRule[]) {
         const period = await this.find(scope, periodId);
+        this.assertServicesInScope(scope, rules);
         const { raters, pairs } = await this.expand(period.id, rules);
         return { raters: raters.length, pairs: pairs.length };
     }
@@ -80,6 +82,7 @@ export class CsiUnitRulesService {
         const period = await this.find(scope, periodId);
         if (!rules.length) throw new BadRequestException(NO_RULES_MESSAGE);
         if (rules.length > RULES_MAX) throw new BadRequestException(`Maksimal ${RULES_MAX} aturan`);
+        this.assertServicesInScope(scope, rules);
         const { raters, pairs, unmatched } = await this.expand(period.id, rules);
         await this.dataSource.transaction(async (manager) => {
             await lockUnlockedPeriod(manager, period.id);
@@ -361,6 +364,13 @@ export class CsiUnitRulesService {
         });
         const raters = [...new Set(pairs.map((pair) => pair.userId))];
         return { raters, pairs, unmatched: Math.max(0, byNik.size - matchedNiks.size) };
+    }
+
+    private assertServicesInScope(scope: ServiceScope, rules: CsiUnitRule[]) {
+        const allowed = new Set(serviceCodesOf(scope));
+        if (rules.some((rule) => !allowed.has(rule.serviceCode))) {
+            throw new BadRequestException('Layanan pada aturan unit tidak sesuai unit CSI');
+        }
     }
 
     private async find(scope: ServiceScope, periodId: string) {

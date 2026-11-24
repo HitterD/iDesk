@@ -20,14 +20,23 @@ const TEMPLATE_HC_NAMES: readonly string[] = [
     'Tangible — Terpenuhinya kebutuhan pelayanan',
 ];
 
+const TEMPLATE_PROCUREMENT_NAMES: readonly string[] = [
+    'Knowledge — Pengetahuan dan Pemahaman PIC terhadap Jasa/Pelayanan',
+    'Responsiveness — Kecepatan respon dan tindak lanjut PIC terhadap permintaan',
+    'Courtesy — Kesopanan dan keramahan dalam memberikan layanan dan berkomunikasi',
+    'Communication — Kemampuan menyampaikan informasi secara tepat',
+    'Tangible — Terpenuhinya kebutuhan',
+];
+
 export const normalizeQuestionKey = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
 
 export function templateQuestionNames(scope: CsiScopeParam): readonly string[] {
+    if (scope === 'procurement') return TEMPLATE_PROCUREMENT_NAMES;
     return scope === 'hc' ? TEMPLATE_HC_NAMES : TEMPLATE_2025_NAMES;
 }
 
 export function templateLabel(scope: CsiScopeParam): string {
-    return scope === 'hc' ? 'Template 5 dimensi' : 'Template CSI 2025';
+    return scope === 'hc' || scope === 'procurement' ? 'Template 5 dimensi' : 'Template CSI 2025';
 }
 
 export interface TemplateMatchResult {

@@ -10,4 +10,6 @@ export enum UserRole {
     MANAGER = 'MANAGER',
     /** Human Capital administrator: only the HC admin pages (today: Admin CSI HC). */
     HC_ADMIN = 'HC_ADMIN',
+    /** Procurement administrator: only the Procurement admin pages (today: Admin CSI Procurement). */
+    PROCUREMENT_ADMIN = 'PROCUREMENT_ADMIN',
 }

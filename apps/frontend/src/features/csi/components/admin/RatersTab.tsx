@@ -6,7 +6,7 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { cn } from '@/lib/utils';
 import { useCsiRaters, useRemoveCsiRaters } from '../../hooks/useCsi';
-import { CSI_MODE_LABELS } from '../../lib/csiAdmin';
+import { CSI_MODE_LABELS, isOrgCsiScope } from '../../lib/csiAdmin';
 import { siteTone, toneClasses } from '../../lib/csiTone';
 import type { CsiRater, CsiScopeParam } from '../../types';
 import { ADMIN_PANEL, AdminSection, EmptyNote, MUTED_TEXT } from './AdminParts';
@@ -63,7 +63,7 @@ function SiteSection({ group, selected, onToggle, onToggleAll, onRemove }: {
 
 /** Registered raters of the scope: three ways to add, a searchable per-site list and bulk removal. */
 export function RatersTab({ scope, onFix }: { scope: CsiScopeParam; onFix?: (locationCode: string) => void }) {
-    return scope === 'hc' ? <TemplateRatersSummary onFix={onFix} /> : <EditableRatersTab scope={scope} />;
+    return isOrgCsiScope(scope) ? <TemplateRatersSummary scope={scope} onFix={onFix} /> : <EditableRatersTab scope={scope} />;
 }
 
 function EditableRatersTab({ scope }: { scope: CsiScopeParam }) {

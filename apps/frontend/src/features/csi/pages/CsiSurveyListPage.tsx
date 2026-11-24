@@ -19,8 +19,9 @@ export function CsiSurveyListPage() {
     const { user } = useAuth();
     const { data: surveys, isLoading, isError, refetch } = useCsiActive();
     const { data: hcReport } = useCsiMyReportAccess('hc');
+    const { data: procurementReport } = useCsiMyReportAccess('procurement');
     const { data: ictReport } = useCsiMyReportAccess('ict');
-    const reportServices = [...(hcReport?.services ?? []), ...(ictReport?.services ?? [])];
+    const reportServices = [...(hcReport?.services ?? []), ...(procurementReport?.services ?? []), ...(ictReport?.services ?? [])];
     const { data: myResults } = useCsiMyResults();
 
     return (
@@ -83,7 +84,7 @@ export function CsiSurveyListPage() {
                                     <span className="min-w-0 flex-1">
                                         <span className="line-clamp-2 block text-[15px] font-semibold leading-snug text-foreground">{survey.title}</span>
                                         <span className="mt-1.5 flex flex-wrap items-center gap-2">
-                                            <TicketPill tone={survey.scope === 'HC' ? 'teal' : 'blue'}>{survey.scope}</TicketPill>
+                                            <TicketPill tone={survey.scope === 'HC' ? 'teal' : survey.scope === 'PROCUREMENT' ? 'amber' : 'blue'}>{survey.scope}</TicketPill>
                                             {survey.submitted ? (
                                                 <TicketPill tone="green"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Sudah diisi</TicketPill>
                                             ) : survey.partialRemainingCount ? (

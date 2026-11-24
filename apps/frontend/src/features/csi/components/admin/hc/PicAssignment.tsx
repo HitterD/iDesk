@@ -19,18 +19,21 @@ import { isHcDecided } from '../../../lib/hcMode';
  * and the star questions every PIC gets. Either respondents later choose among these PICs, or HC decides who rates
  * which PIC on the Penilai step (then the PICs, raters and pairs can also come from a location template).
  */
-const COPY = {
-    title: 'PIC yang dinilai',
-    description: 'Pilih PIC HC yang bisa dinilai pada survei ini. Responden nanti memilih sendiri PIC yang pernah melayaninya.',
-    decidedDescription: 'Pilih PIC HC yang dinilai pada survei ini, atau ambil PIC beserta penilainya dari template lokasi. Siapa menilai siapa diatur di langkah Penilai.',
-    questions: 'Pertanyaan untuk setiap PIC',
-    save: 'Simpan PIC',
-    saved: 'Tersimpan',
-    unsaved: 'Belum disimpan',
-    all: 'Pilih semua',
-    none: 'Kosongkan',
-    noPics: 'Belum ada PIC. Impor "Data Hirarki Approver" di Pengaturan → PIC HC.',
-} as const;
+const copyFor = (scope: CsiScopeParam) => {
+    const label = scope === 'procurement' ? 'Procurement' : 'HC';
+    return {
+        title: 'PIC yang dinilai',
+        description: `Pilih PIC ${label} yang bisa dinilai pada survei ini. Responden nanti memilih sendiri PIC yang pernah melayaninya.`,
+        decidedDescription: `Pilih PIC ${label} yang dinilai pada survei ini, atau ambil PIC beserta penilainya dari template lokasi. Siapa menilai siapa diatur di langkah Penilai.`,
+        questions: 'Pertanyaan untuk setiap PIC',
+        save: 'Simpan PIC',
+        saved: 'Tersimpan',
+        unsaved: 'Belum disimpan',
+        all: 'Pilih semua',
+        none: 'Kosongkan',
+        noPics: `Belum ada PIC. Impor "Data Hirarki Approver" di Pengaturan → PIC ${label}.`,
+    } as const;
+};
 
 const groupBy = <T,>(rows: T[], key: (row: T) => string) => {
     const map = new Map<string, T[]>();
@@ -55,6 +58,7 @@ const stateOf = (ids: string[], selected: ReadonlySet<string>) => {
 const EMPTY_LOCKED_IDS: ReadonlySet<string> = new Set();
 
 export function PicAssignment({ scope, period, onDirtyChange }: { scope: CsiScopeParam; period: CsiPeriodDetail; onDirtyChange?: (dirty: boolean) => void }) {
+    const COPY = copyFor(scope);
     const { data: pics = [], isLoading: picsLoading } = useCsiPics(scope);
     const { data: questions = [] } = useCsiDimensions(scope);
     const save = useSetCsiPeriodPics(scope, period.id);

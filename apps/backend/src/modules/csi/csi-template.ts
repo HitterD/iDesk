@@ -49,3 +49,16 @@ export const CSI_TEMPLATE_HC: ReadonlyArray<CsiTemplateQuestion> = [
     // The question already carries the description; the short label names the dimension in reports.
     ...star(`${shortLabel} — ${description}`), shortLabel,
 }));
+
+/**
+ * Procurement "Dimensi Pelayanan": the 5 star questions rated per Procurement PIC.
+ */
+export const CSI_TEMPLATE_PROCUREMENT: ReadonlyArray<CsiTemplateQuestion> = [
+    { shortLabel: 'Knowledge', description: 'Pengetahuan dan Pemahaman PIC terhadap Jasa/Pelayanan' },
+    { shortLabel: 'Responsiveness', description: 'Kecepatan respon dan tindak lanjut PIC terhadap permintaan' },
+    { shortLabel: 'Courtesy', description: 'Kesopanan dan keramahan dalam memberikan layanan dan berkomunikasi' },
+    { shortLabel: 'Communication', description: 'Kemampuan menyampaikan informasi secara tepat' },
+    { shortLabel: 'Tangible', description: 'Terpenuhinya kebutuhan' },
+].map(({ shortLabel, description }) => ({
+    ...star(`${shortLabel} — ${description}`), shortLabel,
+}));

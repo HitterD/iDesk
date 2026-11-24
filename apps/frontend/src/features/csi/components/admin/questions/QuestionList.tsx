@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import {
     useApplyCsiTemplate, useCreateCsiDimension, useCsiDimensions, useReorderCsiDimensions, useUpdateCsiDimension,
 } from '../../../hooks/useCsi';
+import { isOrgCsiScope } from '../../../lib/csiAdmin';
 import type { CsiScopeParam, UpdateCsiDimension } from '../../../types';
 import { mergeVisibleOrder } from '../../common/mergeVisibleOrder';
 import { SortableList } from '../../common/SortableList';
@@ -40,7 +41,7 @@ export function QuestionList({ scope }: { scope: CsiScopeParam }) {
             setAddError(saveErrorMessage(error, QUESTION_COPY.createFailed));
         }
     };
-    const hc = scope === 'hc';
+    const hc = isOrgCsiScope(scope);
     const copy = {
         template: hc ? QUESTION_COPY.hcTemplate : QUESTION_COPY.template,
         title: hc ? QUESTION_COPY.hcTemplateTitle : QUESTION_COPY.templateTitle,

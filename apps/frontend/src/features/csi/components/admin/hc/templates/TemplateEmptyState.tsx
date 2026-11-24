@@ -12,13 +12,14 @@ export interface TemplateLocation { code: string; name: string }
 /** The download uses skipToast (blob body), so the failure toast is ours to show. */
 const BLANK_DOWNLOAD_FAILED = 'Gagal mengunduh template kosong.';
 
-/** Blank workbook for one location, saved as "CSI HC <Nama> - template.xlsx". */
+/** Blank workbook for one location, saved as "CSI HC/Procurement <Nama> - template.xlsx". */
 export function BlankTemplateButton({ scope, location, variant = 'soft' }: {
     scope: CsiScopeParam; location: TemplateLocation; variant?: 'soft' | 'subtle';
 }) {
     const download = useBlankTemplateDownload(scope);
+    const scopeLabel = scope === 'procurement' ? 'Procurement' : 'HC';
     const run = () => download.mutate(location.code, {
-        onSuccess: (blob) => downloadBlob(blob, `CSI HC ${location.name} - template.xlsx`),
+        onSuccess: (blob) => downloadBlob(blob, `CSI ${scopeLabel} ${location.name} - template.xlsx`),
         onError: () => toast.error(BLANK_DOWNLOAD_FAILED),
     });
     return (

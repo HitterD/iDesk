@@ -3,6 +3,7 @@ import { EditOnly } from '../../lib/CsiReadOnly';
 import { Check, CircleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCsiDepartments, useCsiDimensions, useCsiRaters, useCsiSubjects } from '../../hooks/useCsi';
+import { isOrgCsiScope } from '../../lib/csiAdmin';
 import { toneClasses } from '../../lib/csiTone';
 import type { CsiScopeParam } from '../../types';
 import { ADMIN_PANEL } from './AdminParts';
@@ -29,29 +30,34 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
     const { data: departments = [] } = useCsiDepartments(scope);
     const { data: pics = [] } = useCsiPics(scope);
     const { data: owners = [] } = useCsiReportOwners(scope);
-    const { data: templateList } = useCsiTemplates(scope, scope === 'hc');
+    const orgScope = isOrgCsiScope(scope);
+    const isProcurement = scope === 'procurement';
+    const { data: templateList } = useCsiTemplates(scope, orgScope);
     const templateCount = templateList?.templates.length ?? 0;
     const templateRaters = templateRaterCounts(templateList?.templates ?? []);
     const people = groups.flatMap((group) => [...(group.team ? [group.team] : []), ...group.people]);
     const noPhoto = people.filter((subject) => !subject.photoUrl).length;
     const raterSites = new Set(raters.map((rater) => rater.user.site?.code).filter(Boolean));
     const sitesWithoutRaters = groups.filter((group) => group.people.length > 0 && !raterSites.has(group.siteCode)).map((group) => group.siteCode);
-    const hcPics: SectionStatus[] = scope === 'hc' ? [{
-        key: 'pics', label: 'PIC HC', done: pics.length > 0,
+    const hcPics: SectionStatus[] = orgScope ? [{
+        key: 'pics', label: isProcurement ? 'PIC Procurement' : 'PIC HC', done: pics.length > 0,
         hint: pics.length ? `${pics.length} PIC` : 'belum ada',
-        description: 'Staf HCC, HCD dan HCS per layanan dan bagian, diimpor dari Data Hirarki Approver.',
+        description: isProcurement
+            ? 'PIC Procurement yang dinilai dan direktori karyawan dari Data Hirarki Approver.'
+            : 'Staf HCC, HCD dan HCS per layanan dan bagian, diimpor dari Data Hirarki Approver.',
     }, {
         key: 'templates', label: 'Template penugasan', done: templateCount > 0,
         hint: `${templateCount} lokasi${templateRaters.issues ? ` · ${templateRaters.issues} perlu dicek` : ''}`,
         description: 'Siapa menilai siapa per lokasi (mis. Semarang), lengkap dengan fungsi pelayanan PIC.',
     }] : [];
-    // Both scopes: HC per layanan (HCC / HCD / HCS), ICT per handling team.
     const reportOwners: SectionStatus = {
         key: 'report-owners', label: 'Penanggung jawab report', done: owners.length > 0 && owners.every((row) => row.users.length > 0),
-        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || Object.keys(CSI_SERVICE_NAMES[scope]).length} ${scope === 'hc' ? 'layanan' : 'tim'}`,
-        description: scope === 'hc'
-            ? 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.'
-            : 'Siapa yang boleh membuka report CSI per tim (Operational Support, Oracle, Web, Mobile, Manager) untuk semua lokasi.',
+        hint: `${owners.filter((row) => row.users.length > 0).length}/${owners.length || Object.keys(CSI_SERVICE_NAMES[scope]).length} ${orgScope ? 'layanan' : 'tim'}`,
+        description: isProcurement
+            ? 'Siapa yang boleh membuka report CSI layanan Procurement untuk semua lokasi.'
+            : scope === 'hc'
+                ? 'Siapa yang boleh membuka report CSI per layanan (HCC / HCD / HCS) untuk semua lokasi.'
+                : 'Siapa yang boleh membuka report CSI per tim (Operational Support, Oracle, Web, Mobile, Manager) untuk semua lokasi.',
     };
     return [
         ...hcPics,
@@ -68,11 +74,11 @@ export function useSettingsStatus(scope: CsiScopeParam): SectionStatus[] {
         },
         {
             key: 'raters', label: 'Penilai',
-            done: scope === 'hc' ? templateCount > 0 && templateRaters.issues === 0 : raters.length > 0 && !sitesWithoutRaters.length,
-            hint: scope === 'hc'
+            done: orgScope ? templateCount > 0 && templateRaters.issues === 0 : raters.length > 0 && !sitesWithoutRaters.length,
+            hint: orgScope
                 ? !templateCount ? 'belum ada template' : templateRaters.issues ? `${templateRaters.issues} perlu dicek` : `${templateRaters.total} orang`
                 : !raters.length ? 'belum ada' : sitesWithoutRaters.length ? `${sitesWithoutRaters.join(', ')} kosong` : `${raters.length} orang`,
-            description: scope === 'hc' ? 'Penilai ditentukan di Template penugasan tiap lokasi.' : 'Orang yang boleh mengisi survei dengan mode "Hanya penilai terdaftar".',
+            description: orgScope ? 'Penilai ditentukan di Template penugasan tiap lokasi.' : 'Orang yang boleh mengisi survei dengan mode "Hanya penilai terdaftar".',
         },
         {
             key: 'departments', label: 'Departemen', done: departments.length > 0,
@@ -93,7 +99,7 @@ function Body({ scope, section, onSection, templateFocus, onFix }: {
         case 'pics': return <PicsTab scope={scope} />;
         case 'report-owners': return <ReportOwnersTab scope={scope} />;
         case 'templates': return <TemplatesTab scope={scope} initialLocation={templateFocus} initialView={templateFocus ? 'rater' : undefined} />;
-        default: return <SubjectsTab scope={scope} onOpenTemplates={scope === 'hc' ? () => onSection('templates') : undefined} />;
+        default: return <SubjectsTab scope={scope} onOpenTemplates={isOrgCsiScope(scope) ? () => onSection('templates') : undefined} />;
     }
 }
 
@@ -102,7 +108,7 @@ function Body({ scope, section, onSection, templateFocus, onFix }: {
  * (replaces the separate "Subjek & foto" and "Master data" tabs).
  */
 export function SettingsPanel({ scope, initial }: { scope: CsiScopeParam; initial?: SettingsSection }) {
-    const [section, setSection] = useState<SettingsSection>(initial ?? (scope === 'hc' ? 'pics' : 'subjects'));
+    const [section, setSection] = useState<SettingsSection>(initial ?? (isOrgCsiScope(scope) ? 'pics' : 'subjects'));
     const [templateFocus, setTemplateFocus] = useState<string>();
     const openTemplate = (locationCode: string) => { setTemplateFocus(locationCode); setSection('templates'); };
     const status = useSettingsStatus(scope);

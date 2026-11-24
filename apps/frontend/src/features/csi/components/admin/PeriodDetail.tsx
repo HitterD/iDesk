@@ -5,7 +5,7 @@ import { ConfirmationDialog } from '@/components/ui/ConfirmationDialog';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { useCsiPeriod, useCsiPeriods } from '../../hooks/useCsi';
-import { CSI_MODE_LABELS, isRaterAdditionOpen } from '../../lib/csiAdmin';
+import { CSI_MODE_LABELS, isOrgCsiScope, isRaterAdditionOpen } from '../../lib/csiAdmin';
 import { formatDateRange } from '../../lib/format';
 import { formatSites } from '../../lib/location';
 import type { WizardStepKey } from '../../lib/wizard';
@@ -103,7 +103,7 @@ export function PeriodDetail({ scope, periodId, onBack, onEditStep, initialTab, 
             {tab === 'raters' && <EditOnly>{isHcDecided(scope, period) ? <HcPairsPanel scope={scope} period={period} />
                 : <PairsPanel scope={scope} period={period} onDirtyChange={setMatrixDirty} />}</EditOnly>}
             {tab === 'report' && <ReportPanel scope={scope} periodId={period.id} periodTitle={period.title} sites={period.sites} initialSiteId={initialSiteId}
-                onSiteChange={onSiteChange} hcTarget={scope === 'hc' && !!period.respondentPicks && !!period.targetRespondents}
+                onSiteChange={onSiteChange} hcTarget={isOrgCsiScope(scope) && !!period.respondentPicks && !!period.targetRespondents}
                 canEditRaters={isRaterAdditionOpen(period)} />}
             <ConfirmationDialog isOpen={pendingAction !== null} appearance="ticket" variant="warning" title={UNSAVED_LEAVE_TITLE}
                 description="Perubahan pada matriks penilai akan hilang." confirmText="Tinggalkan" cancelText="Tetap di sini"

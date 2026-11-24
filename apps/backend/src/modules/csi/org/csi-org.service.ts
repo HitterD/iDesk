@@ -16,7 +16,7 @@ import { CsiOrgRow, readOrgWorkbook } from './csi-org-import';
 import { buildPicAccountMatcher } from './csi-pic-account.util';
 import {
     CSI_HC_SERVICES, CsiOrgLocation, locationOfSiteCode, locationOfWorkLocation, normalizeBagian, normalizeNik,
-    serviceOfDepartment, siteCodeOfLocation,
+    serviceName, serviceOfDepartment, siteCodeOfLocation,
 } from './csi-org.constants';
 
 const UPSERT_CHUNK = 500;
@@ -50,7 +50,7 @@ export type CsiPicView = {
 
 export const picView = (pic: CsiPic): CsiPicView => ({
     id: pic.id, nik: pic.nik, fullName: pic.fullName, jobTitle: pic.jobTitle, serviceCode: pic.serviceCode,
-    serviceName: CSI_HC_SERVICES.find((service) => service.code === pic.serviceCode)?.name ?? null, serviceFunction: pic.serviceFunction ?? null,
+    serviceName: serviceName(pic.serviceCode), serviceFunction: pic.serviceFunction ?? null,
     bagian: pic.bagian, workLocation: pic.workLocation, siteId: pic.siteId, userId: pic.userId,
     user: pic.user ? { id: pic.user.id, fullName: pic.user.fullName, email: pic.user.email } : null,
     photoUrl: pic.photoUrl ?? pic.user?.avatarUrl ?? null, isActive: pic.isActive,

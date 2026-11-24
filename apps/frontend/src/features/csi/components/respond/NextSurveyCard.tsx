@@ -26,7 +26,7 @@ export function NextSurveyCard({ currentId, basePath, className }: { currentId: 
                 </p>
                 <p className="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-foreground">
                     <span className="truncate">{next.title}</span>
-                    <TicketPill tone={next.scope === 'HC' ? 'teal' : 'blue'}>{next.scope}</TicketPill>
+                    <TicketPill tone={next.scope === 'HC' ? 'teal' : next.scope === 'PROCUREMENT' ? 'amber' : 'blue'}>{next.scope}</TicketPill>
                 </p>
             </div>
             <Link to={`${basePath}/${encodeURIComponent(next.id)}`} className="idesk-btn is-primary is-lg shrink-0 justify-center">
