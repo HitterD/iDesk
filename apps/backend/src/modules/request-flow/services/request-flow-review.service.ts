@@ -13,7 +13,7 @@ import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
+import { assertSiteAccess, resolveSiteScope } from '../../../shared/core/utils/site-scope.util';
 import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import { canChangeRoute, type ApprovalRoute } from '../domain/approval-route';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
@@ -185,9 +185,13 @@ export class RequestFlowReviewService {
         this.assertTicketId(ticketId);
         const done = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
-            const isIt = REQUEST_PROCESSOR_ROLES.includes(actor.role);
-            if (isIt) assertSiteAccess(actor, ctx.ticket.siteId);
-            else if (actor.userId !== ctx.requesterId) throw new ForbiddenException(MESSAGES.cancelDenied);
+            const scope = resolveSiteScope(actor);
+            const hasSiteAccess = scope.mode === 'all' || (scope.mode === 'site' && scope.siteId === ctx.ticket.siteId);
+            const isIt = REQUEST_PROCESSOR_ROLES.includes(actor.role) && hasSiteAccess;
+            if (!isIt && actor.userId !== ctx.requesterId) {
+                if (REQUEST_PROCESSOR_ROLES.includes(actor.role)) assertSiteAccess(actor, ctx.ticket.siteId);
+                throw new ForbiddenException(MESSAGES.cancelDenied);
+            }
             if (!isIt && ctx.phase === 'other') throw new ConflictException(MESSAGES.cancelLate);
 
             let announce: () => void = () => undefined;

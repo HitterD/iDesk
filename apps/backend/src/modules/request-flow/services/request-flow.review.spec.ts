@@ -474,4 +474,10 @@ describe('RequestFlowReviewService.cancel', () => {
     it('someone who is not the requester or IT is refused', async () => {
         await expect(setup(context({ phase: 'review' }, 'EFORM')).service.cancel({ ...REQ, userId: 'other' }, TID)).rejects.toBeInstanceOf(ForbiddenException);
     });
+
+    it('lets a cross-site AGENT requester withdraw their own request', async () => {
+        const { service, hardware } = setup(context({ phase: 'review' }, 'HARDWARE'));
+        await service.cancel({ userId: 'req-1', role: UserRole.AGENT, siteId: 'site-9', fullName: 'Leony' }, TID);
+        expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'req-1', role: 'USER' }, 'hr-1', { allowed: [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW] });
+    });
 });

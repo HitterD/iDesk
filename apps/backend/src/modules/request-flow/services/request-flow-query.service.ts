@@ -7,7 +7,7 @@ import { InstallStatus } from '../../hardware-request/domain/enums/install-statu
 import { RequestStatus } from '../../hardware-request/domain/enums/request-status.enum';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { assertSiteAccess, type SiteActor } from '../../../shared/core/utils/site-scope.util';
+import { assertSiteAccess, resolveSiteScope, type SiteActor } from '../../../shared/core/utils/site-scope.util';
 import type { ApprovalRoute } from '../domain/approval-route';
 import { PHASE_LABEL, phaseOf, phaseSinceOf, type FlowPhase } from '../domain/flow-phase';
 import type { HardwareSource, RequestKind } from '../domain/request-kind';
@@ -169,20 +169,28 @@ export class RequestFlowQueryService {
         };
     }
 
-    /** Priority when several apply: ICT > current approver > approver > requester > observer. Refuses everyone else. */
+    /** Priority when several apply: ICT (with site access) > current approver > approver > requester > observer. Refuses everyone else. */
     private roleOf(viewer: FlowViewer, ctx: FlowContext): ViewerRoleInFlow {
         const { userId } = viewer;
-        if (REQUEST_PROCESSOR_ROLES.includes(viewer.role)) {
-            assertSiteAccess(viewer, ctx.ticket.siteId);
+        const isProcessor = REQUEST_PROCESSOR_ROLES.includes(viewer.role);
+        if (isProcessor && this.canProcessSite(viewer, ctx.ticket.siteId)) {
             return 'ICT';
         }
         if (userId === ctx.flow.managerId || userId === ctx.flow.gmId) {
             return userId === ctx.approverId ? 'APPROVER_CURRENT' : 'APPROVER';
         }
         if (userId === ctx.requesterId) return 'REQUESTER';
+        if (isProcessor) {
+            assertSiteAccess(viewer, ctx.ticket.siteId);
+        }
         if (!REQUEST_DOCUMENT_VIEWER_ROLES.includes(viewer.role) || viewer.role === UserRole.USER) throw new ForbiddenException(NOT_ALLOWED);
         assertSiteAccess(viewer, ctx.ticket.siteId);
         return 'OBSERVER';
+    }
+
+    private canProcessSite(viewer: FlowViewer, siteId: string | null | undefined): boolean {
+        const scope = resolveSiteScope(viewer);
+        return scope.mode === 'all' || (scope.mode === 'site' && scope.siteId === siteId);
     }
 
     private labelOf(phase: FlowPhase, schedule: ScheduleView | null, row: InstallationSchedule | null): string {
