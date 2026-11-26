@@ -12,6 +12,8 @@ export interface ActiveTicketItem {
     title: string;
     status: string;
     priority: string;
+    ticketType?: string | null;
+    isNonSla?: boolean;
     slaTarget: string | null;
     isOverdue: boolean;
 }

@@ -50,7 +50,7 @@ export class EFormRequest {
   requesterName: string;
 
   @Column({ type: 'varchar', nullable: true })
-  requesterEmail: string;
+  requesterEmail: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   requesterJobTitle: string;

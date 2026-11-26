@@ -32,7 +32,7 @@ import { VendorVisitDialog } from './ticket-detail/VendorVisitDialog';
 import { getStaggeredDelay, StopPropagationWrapper } from '../utils/listUtils';
 import { useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { TicketRowActions } from './TicketRowActions';
-import { FlowPhaseLine } from './request-flow/FlowPhaseLine';
+import { isNonSlaTicket } from '../utils/nonSlaTicket';
 import { nextActionLabel } from './request-flow/nextActionLabel';
 import { RequestTypeTag } from './request-flow/RequestTypeTag';
 
@@ -62,10 +62,14 @@ export interface TicketRowData {
     scheduledDate?: string;
     scheduledTime?: string;
     isHardwareInstallation?: boolean;
+    ticketType?: string;
+    isNonSla?: boolean;
     /** Set on Hardware / E-Form request tickets (GET /tickets/paginated). */
     requestKind?: 'HARDWARE' | 'EFORM' | null;
     flowPhase?: string | null;
     flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
     flowPaused?: boolean;
     needsMyAction?: boolean;
     device?: string;
@@ -163,7 +167,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
     const isCritical = ticket.priority === 'CRITICAL';
     const showCriticalIndicator = isCritical && !isTerminalStatus(ticket.status);
     // WAITING_VENDOR pauses the SLA clock: show the paused pill, never overdue.
-    const showOverdue = ticket.isOverdue && ticket.status !== 'WAITING_VENDOR' && !isTerminalStatus(ticket.status);
+    const showOverdue = !isNonSlaTicket(ticket) && ticket.isOverdue && ticket.status !== 'WAITING_VENDOR' && !isTerminalStatus(ticket.status);
 
     const statusTakeover = useStatusTakeover();
     const displayNumber = ticket.ticketNumber || ticket.id.slice(0, 8);
@@ -329,7 +333,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                         <StopPropagationWrapper>
                             <StatusDropdown value={ticket.status} onChange={handleStatusChange} disabled={!canEditStatus} />
                         </StopPropagationWrapper>
-                        <FlowPhaseLine ticket={ticket} />
+                        {isNonSlaTicket(ticket) && <span className="queue-nosla">Tanpa SLA</span>}
                         {/* Mockup cards hide priority below 860px; kept on wider cards (tablet). */}
                         <StopPropagationWrapper className="queue-mcard-pri">
                             <PriorityDropdown value={ticket.priority} showCriticalIndicator={showCriticalIndicator}
@@ -457,7 +461,7 @@ export const TicketListRow: React.FC<TicketListRowProps> = React.memo(({
                             disabled={!canEditStatus}
                         />
                     </StopPropagationWrapper>
-                    <FlowPhaseLine ticket={ticket} />
+                    {isNonSlaTicket(ticket) && <span className="queue-nosla">Tanpa SLA</span>}
                 </div>
 
                 {/* Pemohon (mockup .person) */}

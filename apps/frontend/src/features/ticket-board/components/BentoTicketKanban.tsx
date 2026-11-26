@@ -50,6 +50,8 @@ import { EnhancedKanbanCard, KanbanBoardColumn, type KanbanTicket } from './Kanb
 import { isHandledByTakeoverDialog, useStatusTakeover, type TakeoverOptions } from '../hooks/useStatusTakeover';
 import { getApiErrorMessage } from '@/features/client/components/resolution/resolutionApi';
 
+import { describeNonSlaStage, isNonSlaTicket } from '../utils/nonSlaTicket';
+
 const CROSS_SITE_ROLES = ['ADMIN','MANAGER','AGENT_ORACLE'] as const;
 const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly string[]).includes(role as string);
 
@@ -58,8 +60,14 @@ const isCrossSiteRole = (role?: string | null) => (CROSS_SITE_ROLES as readonly 
 const NOT_OVERDUE_STATUSES: readonly string[] = ['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'];
 
 /** Overdue for the quick filter and stat card — same rule as the list page's Overdue filter. */
-export const isCountedOverdue = (t: { status: string; isOverdue?: boolean }): boolean =>
-    Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
+export const isCountedOverdue = (t: {
+    status: string;
+    isOverdue?: boolean;
+    isNonSla?: boolean;
+    requestKind?: string | null;
+    ticketType?: string | null;
+}): boolean =>
+    !isNonSlaTicket(t) && Boolean(t.isOverdue) && !NOT_OVERDUE_STATUSES.includes(t.status);
 
 type Ticket = KanbanTicket;
 type KanbanAttention = '' | 'overdue' | 'critical';
@@ -270,12 +278,21 @@ const TicketPreviewPanel: React.FC<{
                         <p className="text-[11px] font-medium text-muted-foreground">Dibuat</p>
                         <p className="font-bold text-foreground truncate mt-0.5">{format(new Date(ticket.createdAt), 'dd MMM yyyy')}</p>
                     </div>
-                    <div>
-                        <p className="text-[11px] font-medium text-muted-foreground">Target SLA</p>
-                        <p className={cn("font-bold truncate mt-0.5", ticket.isOverdue ? "text-destructive" : "text-foreground")}>
-                            {ticket.slaTarget ? format(new Date(ticket.slaTarget), 'dd MMM HH:mm') : '-'}
-                        </p>
-                    </div>
+                    {isNonSlaTicket(ticket) ? (
+                        <div>
+                            <p className="text-[11px] font-medium text-muted-foreground">SLA</p>
+                            <p className="font-bold text-foreground truncate mt-0.5">
+                                {describeNonSlaStage(ticket).chipText} · Tanpa SLA
+                            </p>
+                        </div>
+                    ) : (
+                        <div>
+                            <p className="text-[11px] font-medium text-muted-foreground">Target SLA</p>
+                            <p className={cn("font-bold truncate mt-0.5", ticket.isOverdue ? "text-destructive" : "text-foreground")}>
+                                {ticket.slaTarget ? format(new Date(ticket.slaTarget), 'dd MMM HH:mm') : '-'}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Description */}

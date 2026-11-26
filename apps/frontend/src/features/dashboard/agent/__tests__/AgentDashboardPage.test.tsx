@@ -118,6 +118,8 @@ describe('AgentDashboardPage', () => {
             { id: 'd', ticketNumber: 'N-4', title: 'No SLA one', status: 'TODO', priority: 'LOW', slaTarget: null, isOverdue: false },
             // Stale flag after an SLA extension: the future target wins, no red "Sisa".
             { id: 'e', ticketNumber: 'N-5', title: 'Extended one', status: 'IN_PROGRESS', priority: 'HIGH', slaTarget: soon, isOverdue: true },
+            // Hardware / E-Form ticket: always neutral "Tanpa SLA" even if legacy target/overdue exists.
+            { id: 'f', ticketNumber: 'N-6', title: 'HW Request one', status: 'IN_PROGRESS', priority: 'HIGH', slaTarget: past, isOverdue: true, ticketType: 'HARDWARE_REQUEST', isNonSla: true },
         ] } }) });
         renderAt('/dashboard/me');
 
@@ -128,8 +130,11 @@ describe('AgentDashboardPage', () => {
         expect(row('Vendor one')).toHaveTextContent('Dijeda');
         expect(row('Vendor one')).not.toHaveTextContent('Lewat');
         expect(row('No SLA one')).toHaveTextContent('Tanpa SLA');
+        expect(row('HW Request one')).toHaveTextContent('Tanpa SLA');
+        expect(row('HW Request one')).not.toHaveTextContent('Lewat');
         expect(row('Extended one')).toHaveTextContent(/Sisa 1j 1[01]m/);
         const bubColor = (title: string) => (row(title).querySelector('.dash-bub') as HTMLElement).style.getPropertyValue('--c');
+        expect(bubColor('HW Request one')).toBe('var(--dash-gray)');
         expect(bubColor('Extended one')).toBe('var(--dash-blue)');
         expect(bubColor('Late one')).toBe('var(--dash-red)');
         expect(row('Late one')).toHaveAttribute('href', '/tickets/a');

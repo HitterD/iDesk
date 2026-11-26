@@ -2,6 +2,7 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { MessageSquare, Flame } from 'lucide-react';
+import { isNonSlaTicket } from '../utils/nonSlaTicket';
 
 interface Ticket {
     id: string;
@@ -9,6 +10,9 @@ interface Ticket {
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     status: string;
     isOverdue?: boolean;
+    ticketType?: string | null;
+    isNonSla?: boolean;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
     user: {
         fullName: string;
         jobTitle?: string;
@@ -41,7 +45,7 @@ const TicketCardComponent: React.FC<TicketCardProps> = ({ ticket, onClick }) => 
         transform: CSS.Translate.toString(transform),
     };
 
-    const isOverdue = ticket.isOverdue;
+    const isOverdue = !isNonSlaTicket(ticket) && ticket.isOverdue;
 
     return (
         <div
@@ -115,6 +119,9 @@ export const TicketCard = React.memo(TicketCardComponent, (prevProps, nextProps)
         prevProps.ticket.status === nextProps.ticket.status &&
         prevProps.ticket.priority === nextProps.ticket.priority &&
         prevProps.ticket.isOverdue === nextProps.ticket.isOverdue &&
+        prevProps.ticket.isNonSla === nextProps.ticket.isNonSla &&
+        prevProps.ticket.ticketType === nextProps.ticket.ticketType &&
+        prevProps.ticket.requestKind === nextProps.ticket.requestKind &&
         prevProps.onClick === nextProps.onClick
     );
 });

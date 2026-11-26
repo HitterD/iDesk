@@ -114,4 +114,45 @@ describe('agent dashboard calc', () => {
         const stats = computeAgentTicketStats([ageDays(1), ageDays(4), ageDays(10), ageDays(20), ageDays(30)], dashboardWindows(now, 30), 30);
         expect(stats.aging).toEqual({ lt3: 1, d3to7: 1, d7to14: 1, gt14: 2 });
     });
+
+    it('excludes HARDWARE_REQUEST, EFORM_REQUEST, and isNonSla tickets from SLA counts and strips slaTarget', () => {
+        const now = wib('2026-10-07T10:00:00');
+        const created = wib('2026-10-06T08:00:00');
+        const hwLate = ticket({
+            ticketType: 'HARDWARE_REQUEST' as any,
+            status: TicketStatus.IN_PROGRESS,
+            slaTarget: wib('2026-10-06T09:00:00'),
+        });
+        const backfilledResolved = ticket({
+            ticketType: 'SERVICE' as any,
+            isNonSla: true,
+            status: TicketStatus.RESOLVED,
+            createdAt: created,
+            resolvedAt: wib('2026-10-06T12:00:00'),
+            slaTarget: wib('2026-10-06T09:00:00'),
+        });
+        const regularDone = ticket({
+            ticketType: 'SERVICE' as any,
+            status: TicketStatus.RESOLVED,
+            createdAt: created,
+            resolvedAt: wib('2026-10-06T10:00:00'),
+            slaTarget: wib('2026-10-06T12:00:00'),
+        });
+        const regularSoon = ticket({
+            ticketType: 'SERVICE' as any,
+            status: TicketStatus.TODO,
+            slaTarget: wib('2026-10-07T15:00:00'),
+        });
+
+        const stats = computeAgentTicketStats(
+            [hwLate, regularSoon, backfilledResolved, regularDone],
+            dashboardWindows(now, 7),
+            7,
+        );
+
+        expect(stats.overdue).toBe(0);
+        expect(stats.slaCompliance).toBe(100);
+        expect(stats.activeTickets.map((t) => t.id)).toEqual([regularSoon.id, hwLate.id]);
+        expect(stats.activeTickets[1]).toMatchObject({ slaTarget: null, isOverdue: false, isNonSla: true });
+    });
 });

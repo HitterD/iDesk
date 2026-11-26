@@ -25,13 +25,24 @@ import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { ModuleAssignmentPolicyService } from './module-assignment-policy.service';
 import { computeResolutionDeadline, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
-import { TicketVendorVisitService, formatVendorVisit, normalizeVendorNote } from './ticket-vendor-visit.service';
+import { TicketVendorVisitService } from './ticket-vendor-visit.service';
 import { TicketSystemEvent, diffActivity, snapshotTicket, systemEvent } from '../utils/ticket-activity.util';
-import { presentMessage } from '../utils/message-presenter.util';
 import {
     AppliedTakeover, ModuleEligibility, TakeoverEffectDeps, TakeoverOptions, applyTakeoverDecision, decideBulkTakeovers,
     describeReassignment, ineligibleAssigneeMessage, recordStatusTakeover, resolveStatusTakeover,
 } from './status-takeover';
+import {
+    applyBulkStatusSla,
+    applyPriorityChange as applyPriorityChangeHelper,
+    applyStatusTransition as applyStatusTransitionHelper,
+} from './ticket-sla-transition.helper';
+import {
+    createAndEmitSystemMessage,
+    emitDashboardAndTvUpdates,
+    emitSiteTicketUpdated,
+    recalculateAgentsWorkload,
+} from './ticket-update-effects.helper';
+import { clearTicketSlaColumns, isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 const AGENT_CLOSE_FORBIDDEN_MESSAGE = 'Status CLOSED hanya bisa diberikan oleh pemohon (konfirmasi) atau otomatis setelah batas waktu konfirmasi.';
 
@@ -110,12 +121,15 @@ export class TicketUpdateService {
                 : null;
 
             if (updateData.status && updateData.status !== ticket.status) {
-                await this.applyStatusTransition(ticket, oldStatus, updateData.status, changes, user, manager, { visitAt: vendorVisitRequest, note: vendorNoteRequest });
+                await applyStatusTransitionHelper(
+                    ticket, oldStatus, updateData.status, changes, user, manager, this.slaDeps,
+                    { visitAt: vendorVisitRequest, note: vendorNoteRequest },
+                );
             }
             const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
 
             if (updateData.priority && updateData.priority !== ticket.priority) {
-                await this.applyPriorityChange(ticket, updateData.priority, changes, manager);
+                await applyPriorityChangeHelper(ticket, updateData.priority, changes, manager, this.slaClock);
             }
 
             // Apply updates
@@ -136,6 +150,20 @@ export class TicketUpdateService {
         return { auditService: this.auditService, workloadService: this.workloadService, eventEmitter: this.eventEmitter, logger: this.logger };
     }
 
+    private get slaDeps() {
+        return { slaClock: this.slaClock, businessHoursService: this.businessHoursService, vendorVisit: this.vendorVisit };
+    }
+
+    private get effectDeps() {
+        return {
+            messageRepo: this.messageRepo,
+            eventsGateway: this.eventsGateway,
+            workloadService: this.workloadService,
+            eventEmitter: this.eventEmitter,
+            logger: this.logger,
+        };
+    }
+
     /** Module curated-list check for `user` becoming PIC, shared with assignTicket's rule and message. */
     private moduleEligibilityOf(user: User): ModuleEligibility {
         return {
@@ -146,173 +174,23 @@ export class TicketUpdateService {
         };
     }
 
-    private async applyStatusTransition(
-        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, changes: string[], user: User, manager: EntityManager,
-        vendorRequest: { visitAt?: string; note?: string } = {},
-    ): Promise<void> {
-        changes.push(`Status changed from ${oldStatus} to ${newStatus}`);
-
-        if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO) {
-            await this.startSlaClock(ticket, changes);
-        }
-
-        if (newStatus === TicketStatus.WAITING_VENDOR) {
-            await this.pauseForVendor(ticket);
-            const visitAt = this.vendorVisit.resolveVisit(vendorRequest.visitAt);
-            await this.vendorVisit.schedule(manager, ticket, visitAt, user.id);
-            ticket.vendorNote = normalizeVendorNote(vendorRequest.note);
-            if (ticket.vendorNote) changes.push(`Keterangan vendor: ${ticket.vendorNote}`);
-            changes.push(`Janji vendor: ${formatVendorVisit(visitAt)}`);
-        } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
-            this.endVendorPause(ticket);
-            await this.vendorVisit.clear(manager, ticket);
-            ticket.vendorNote = null;
-        }
-
-        if (newStatus === TicketStatus.RESOLVED) {
-            await this.openConfirmationWindow(ticket, changes);
-        } else if (oldStatus === TicketStatus.RESOLVED) {
-            // Agent took the ticket back before the requester answered.
-            ticket.resolutionDeadlineAt = null;
-        }
-
-        if (newStatus !== TicketStatus.WAITING_VENDOR && newStatus !== TicketStatus.RESOLVED
-            && await this.slaClock.release(ticket)) {
-            changes.push(`SLA dilanjutkan. Target: ${ticket.slaTarget?.toISOString() ?? '-'}`);
-        }
-        if (await this.adoptStuckClock(ticket, oldStatus, newStatus)) {
-            changes.push(`SLA dimulai dari waktu tiket dibuat. Target: ${ticket.slaTarget?.toISOString() ?? '-'}`);
-        }
-    }
-
-    /** RESOLVED now waits for the requester: confirm, dispute, or auto-close at the deadline. */
-    private async openConfirmationWindow(ticket: Ticket, changes?: string[]): Promise<void> {
-        const now = new Date();
-        ticket.resolvedAt = now;
-        ticket.disputedAt = null;
-        ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHoursService, now);
-        // Time spent awaiting confirmation does not count; a dispute resumes from here.
-        await this.slaClock.hold(ticket, now);
-        changes?.push(`Menunggu konfirmasi pemohon hingga ${ticket.resolutionDeadlineAt.toISOString()}`);
-    }
-
-    private async startSlaClock(ticket: Ticket, changes: string[]): Promise<void> {
-        const config = await this.slaClock.startResolution(ticket);
-        if (config) changes.push(`SLA Timer started. Target: ${ticket.slaTarget!.toISOString()}`);
-    }
-
-    private async pauseForVendor(ticket: Ticket): Promise<void> {
-        const now = new Date();
-        ticket.lastPausedAt = now;
-        ticket.waitingVendorAt = now;
-        // TODO -> WAITING_VENDOR skips IN_PROGRESS: start the clock now so the hold keeps a full budget.
-        if (!ticket.slaStartedAt) await this.slaClock.startResolution(ticket, now);
-        await this.slaClock.hold(ticket, now);
-    }
-
-    /** Leaving WAITING_VENDOR with a clock that never started (older tickets): count from creation, as the page shows. */
-    private async adoptStuckClock(ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus): Promise<boolean> {
-        if (oldStatus !== TicketStatus.WAITING_VENDOR || newStatus !== TicketStatus.IN_PROGRESS) return false;
-        return this.slaClock.adoptUnstarted(ticket);
-    }
-
-    /** Vendor wait statistics; the SLA clock itself resumes via SlaClockService.release. */
-    private endVendorPause(ticket: Ticket): void {
-        if (!ticket.lastPausedAt) return;
-        const diffMinutes = Math.floor((Date.now() - new Date(ticket.lastPausedAt).getTime()) / 60000);
-        ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + diffMinutes;
-        ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + diffMinutes;
-        ticket.lastPausedAt = null;
-        ticket.waitingVendorAt = null;
-    }
-
-    private async applyPriorityChange(ticket: Ticket, newPriority: string | any, changes: string[], _manager?: any): Promise<void> {
-        if (newPriority === 'HARDWARE_INSTALLATION') {
-            throw new BadRequestException('Cannot manually set priority to HARDWARE_INSTALLATION. This priority is system-assigned for hardware installation tickets.');
-        }
-        if (ticket.priority === 'HARDWARE_INSTALLATION') {
-            throw new BadRequestException('Cannot change priority of hardware installation tickets. Priority HARDWARE_INSTALLATION is locked by the system.');
-        }
-
-        changes.push(`Priority changed from ${ticket.priority} to ${newPriority}`);
-
-        const config = await this.slaClock.changePriority(ticket, newPriority as string);
-        if (config) {
-            const target = ticket.slaRemainingMinutes != null
-                ? `${ticket.slaRemainingMinutes} menit tersisa (dijeda)`
-                : ticket.slaTarget?.toISOString();
-            changes.push(`SLA Target updated to ${target} (${config.resolutionTimeMinutes} minutes for ${newPriority})`);
-        }
-    }
-
-    /** SLA side of a bulk status change: same clock rules as a single update. */
-    private async applyBulkStatusSla(
-        ticket: Ticket, oldStatus: TicketStatus, newStatus: TicketStatus, manager: EntityManager, actorId: string,
-    ): Promise<void> {
-        if (newStatus === TicketStatus.IN_PROGRESS && oldStatus === TicketStatus.TODO && !ticket.slaStartedAt) {
-            await this.slaClock.startResolution(ticket);
-        }
-        if (newStatus === TicketStatus.WAITING_VENDOR) {
-            await this.pauseForVendor(ticket);
-            await this.vendorVisit.schedule(manager, ticket, this.vendorVisit.resolveVisit(), actorId);
-        } else if (oldStatus === TicketStatus.WAITING_VENDOR) {
-            this.endVendorPause(ticket);
-            await this.vendorVisit.clear(manager, ticket);
-            ticket.vendorNote = null;
-        }
-        if (newStatus === TicketStatus.RESOLVED) {
-            await this.openConfirmationWindow(ticket);
-        } else if (newStatus !== TicketStatus.WAITING_VENDOR) {
-            await this.slaClock.release(ticket);
-        }
-        await this.adoptStuckClock(ticket, oldStatus, newStatus);
-    }
-
     private async postUpdateActions(
         savedTicket: Ticket, user: User, changes: string[], oldStatus: TicketStatus, ticketId: string, userId: string,
         activity?: TicketSystemEvent,
     ): Promise<void> {
         await this.cacheInvalidationService.onTicketChange(savedTicket.id);
-
-        // Ensure workload is recalculated if ticket is assigned (internal trusted path)
-        if (savedTicket.assignedToId && savedTicket.siteId) {
-            try {
-                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
-                await this.workloadService.recalculateAgentWorkload(internalActor, savedTicket.assignedToId, savedTicket.siteId);
-            } catch (error) {
-                this.logger.error(`Failed to recalculate workload for ticket ${savedTicket.ticketNumber}: ${error.message}`);
-            }
-        }
-
-        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
-        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
-
-        if (savedTicket.siteId) {
-            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
-        }
+        await recalculateAgentsWorkload(this.effectDeps, savedTicket, [savedTicket.assignedToId], 'for ticket');
+        emitDashboardAndTvUpdates(this.effectDeps, savedTicket);
 
         if (changes.length > 0) {
-            const systemMessageContent = `System: ${changes.join(', ')} by ${user.fullName}`;
-            const systemMessage = this.messageRepo.create({
-                content: systemMessageContent,
-                ticket: savedTicket,
-                senderId: user.id,
-                isSystemMessage: true,
-                systemEvent: activity && activity.changes.length > 0 ? activity : null,
-            });
-            const savedSystemMessage = await this.messageRepo.save(systemMessage);
-            this.eventsGateway?.notifyNewMessage?.(ticketId, {
-                ...presentMessage(savedSystemMessage),
-                sender: { id: user.id, fullName: user.fullName, role: user.role },
-            });
-
-            if ((savedTicket as any).siteId) {
-                if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
-                    this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
-                } else {
-                    this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-                }
-            }
+            await createAndEmitSystemMessage(
+                this.effectDeps,
+                savedTicket,
+                user,
+                `System: ${changes.join(', ')} by ${user.fullName}`,
+                activity && activity.changes.length > 0 ? activity : null,
+            );
+            emitSiteTicketUpdated(this.eventsGateway, savedTicket);
 
             this.eventEmitter.emit(
                 'ticket.updated',
@@ -351,7 +229,7 @@ export class TicketUpdateService {
             throw new BadRequestException(TICKET_CLOSED_MESSAGE);
         }
 
-        const isOracle = isOracleTicket(ticket);
+        isOracleTicket(ticket);
         const oldAssigneeName = ticket.assignedTo ? ticket.assignedTo.fullName : 'Unassigned';
         const oldAssigneeId = ticket.assignedTo ? ticket.assignedTo.id : null;
         const isUnassign = !assigneeId || assigneeId === 'unassigned';
@@ -370,43 +248,19 @@ export class TicketUpdateService {
             const savedTicket = await this.ticketRepo.save(ticket);
 
             const reasonText = reason ? `. Alasan: ${reason}` : '';
-            const systemMessageContent = `System: Ticket unassigned (was ${oldAssigneeName}) by ${assigner.fullName}${reasonText}`;
-            const systemMessage = this.messageRepo.create({
-                content: systemMessageContent,
-                ticket: savedTicket,
-                senderId: assigner.id,
-                systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: null }], reason),
-                isSystemMessage: true,
-            });
-            const savedSystemMessage = await this.messageRepo.save(systemMessage);
-            this.eventsGateway?.notifyNewMessage?.(ticketId, {
-                ...presentMessage(savedSystemMessage),
-                sender: { id: assigner.id, fullName: assigner.fullName, role: assigner.role },
-            });
+            await createAndEmitSystemMessage(
+                this.effectDeps,
+                savedTicket,
+                assigner,
+                `System: Ticket unassigned (was ${oldAssigneeName}) by ${assigner.fullName}${reasonText}`,
+                systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: null }], reason),
+            );
+            emitSiteTicketUpdated(this.eventsGateway, savedTicket);
 
-            if ((savedTicket as any).siteId) {
-                if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
-                    this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
-                } else {
-                    this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-                }
+            if (savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) {
+                await recalculateAgentsWorkload(this.effectDeps, savedTicket, [oldAssigneeId], 'during unassignment');
             }
-
-            if ((savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) && oldAssigneeId) {
-                try {
-                    const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
-                    await this.workloadService.recalculateAgentWorkload(internalActor, oldAssigneeId, savedTicket.siteId);
-                } catch (err) {
-                    this.logger.error(`Failed to recalculate workload points during unassignment for ticket ${savedTicket.ticketNumber}: ${err.message}`);
-                }
-            }
-
-            this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
-            this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
-
-            if (savedTicket.siteId) {
-                this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
-            }
+            emitDashboardAndTvUpdates(this.effectDeps, savedTicket);
 
             this.auditService.logAsync({
                 userId,
@@ -486,51 +340,19 @@ export class TicketUpdateService {
 
         const actionLabel = oldAssigneeId ? 'reassigned to' : 'assigned to';
         const wasOld = oldAssigneeId ? ` (was ${oldAssigneeName})` : '';
-        const systemMessageContent = `System: ${describeReassignment(assignee.fullName, oldAssigneeId ? oldAssigneeName : null, assigner.fullName, reason)}`;
-        const systemMessage = this.messageRepo.create({
-            content: systemMessageContent,
-            ticket: savedTicket,
-            senderId: assigner.id,
-            isSystemMessage: true,
-            systemEvent: systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: assignee.fullName }], reason),
-        });
-        const savedSystemMessage = await this.messageRepo.save(systemMessage);
-        this.eventsGateway?.notifyNewMessage?.(ticketId, {
-            ...presentMessage(savedSystemMessage),
-            sender: { id: assigner.id, fullName: assigner.fullName, role: assigner.role },
-        });
+        await createAndEmitSystemMessage(
+            this.effectDeps,
+            savedTicket,
+            assigner,
+            `System: ${describeReassignment(assignee.fullName, oldAssigneeId ? oldAssigneeName : null, assigner.fullName, reason)}`,
+            systemEvent(assigner, [{ field: 'assignee', from: oldAssigneeId ? oldAssigneeName : null, to: assignee.fullName }], reason),
+        );
+        emitSiteTicketUpdated(this.eventsGateway, savedTicket);
 
-        if ((savedTicket as any).siteId) {
-            if (typeof this.eventsGateway?.emitToTicketAudience === 'function') {
-                this.eventsGateway.emitToTicketAudience((savedTicket as any).siteId, 'ticket:updated', { ticketId });
-            } else {
-                this.eventsGateway.server.to(`site:${(savedTicket as any).siteId}`).emit('ticket:updated', { ticketId });
-            }
-        }
-
-        // -------------------------------------------------------------
-        // Workload Recalculation (Manual Assignment Handling)
-        // -------------------------------------------------------------
         if (savedTicket.status === TicketStatus.TODO || savedTicket.status === TicketStatus.IN_PROGRESS) {
-            try {
-                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
-                // Remove points from old assignee if there was one
-                if (oldAssigneeId) {
-                    await this.workloadService.recalculateAgentWorkload(internalActor, oldAssigneeId, savedTicket.siteId);
-                }
-                // Add points to new assignee
-                await this.workloadService.recalculateAgentWorkload(internalActor, assignee.id, savedTicket.siteId);
-            } catch (err) {
-                this.logger.error(`Failed to recalculate workload points during manual assignment for ticket ${savedTicket.ticketNumber}: ${err.message}`);
-            }
+            await recalculateAgentsWorkload(this.effectDeps, savedTicket, [oldAssigneeId, assignee.id], 'during manual assignment');
         }
-
-        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
-        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
-
-        if (savedTicket.siteId) {
-            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
-        }
+        emitDashboardAndTvUpdates(this.effectDeps, savedTicket);
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -604,40 +426,18 @@ export class TicketUpdateService {
         ticket.cancelReason = cancelNote;
         const savedTicket = await this.ticketRepo.save(ticket);
 
-        // Log system message
-        const systemMessageContent = `System: Ticket cancelled by ${user.fullName}: ${reason}`;
-        const systemMessage = this.messageRepo.create({
-            content: systemMessageContent,
-            ticket: savedTicket,
-            senderId: userId,
-            isSystemMessage: true,
-            systemEvent: systemEvent(user, [{ field: 'status', from: previousStatus, to: TicketStatus.CANCELLED }], reason),
-        });
-        const savedSystemMessage = await this.messageRepo.save(systemMessage);
-        this.eventsGateway?.notifyNewMessage?.(ticketId, {
-            ...presentMessage(savedSystemMessage),
-            sender: { id: user.id, fullName: user.fullName, role: user.role },
-        });
+        await createAndEmitSystemMessage(
+            this.effectDeps,
+            savedTicket,
+            user,
+            `System: Ticket cancelled by ${user.fullName}: ${reason}`,
+            systemEvent(user, [{ field: 'status', from: previousStatus, to: TicketStatus.CANCELLED }], reason),
+        );
 
         // Emit WebSocket events
         this.eventsGateway.notifyStatusChange(ticketId, TicketStatus.CANCELLED, user.fullName, (savedTicket as any).siteId ?? null);
-        
-        // Recalculate workload points (internal trusted path)
-        if (savedTicket.assignedToId && savedTicket.siteId) {
-            try {
-                const internalActor: SiteActor = { role: UserRole.ADMIN, siteId: savedTicket.siteId };
-                await this.workloadService.recalculateAgentWorkload(internalActor, savedTicket.assignedToId, savedTicket.siteId);
-            } catch (error) {
-                this.logger.error(`Failed to recalculate workload upon cancellation for ticket ${savedTicket.ticketNumber}: ${error.message}`);
-            }
-        }
-
-        this.eventsGateway.notifyTicketListUpdate((savedTicket as any).siteId ?? null);
-        this.eventsGateway.notifyDashboardStatsUpdate((savedTicket as any).siteId ?? null);
-
-        if (savedTicket.siteId) {
-            this.eventEmitter.emit('tv-board.ticket-changed', { siteId: savedTicket.siteId });
-        }
+        await recalculateAgentsWorkload(this.effectDeps, savedTicket, [savedTicket.assignedToId], 'upon cancellation');
+        emitDashboardAndTvUpdates(this.effectDeps, savedTicket);
 
         // Emit Domain Event
         this.eventEmitter.emit(
@@ -742,7 +542,7 @@ export class TicketUpdateService {
                             continue;
                         }
                         changes.push(`Status: ${ticket.status} → ${updateData.status}`);
-                        await this.applyBulkStatusSla(ticket, ticket.status, updateData.status, queryRunner.manager, userId);
+                        await applyBulkStatusSla(ticket, ticket.status, updateData.status, queryRunner.manager, userId, this.slaDeps);
                         ticket.status = updateData.status;
                         const decision = takeoverPlan.decisions.get(ticket.id);
                         const takeover = decision ? applyTakeoverDecision(ticket, user, decision, changes) : null;
@@ -751,7 +551,11 @@ export class TicketUpdateService {
 
                     if (updateData.priority && updateData.priority !== ticket.priority) {
                         changes.push(`Priority: ${ticket.priority} → ${updateData.priority}`);
-                        await this.slaClock.changePriority(ticket, updateData.priority as string);
+                        if (await isNonSlaTicket(queryRunner.manager, ticket)) {
+                            clearTicketSlaColumns(ticket);
+                        } else {
+                            await this.slaClock.changePriority(ticket, updateData.priority as string);
+                        }
                         ticket.priority = updateData.priority as any;
                     }
 

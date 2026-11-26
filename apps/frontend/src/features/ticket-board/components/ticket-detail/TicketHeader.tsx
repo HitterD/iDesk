@@ -8,6 +8,8 @@ import {
     Clock,
     AlertCircle,
     Pause,
+    CircleDashed,
+    Hourglass,
     MessageSquare,
     Copy,
     Check,
@@ -28,6 +30,7 @@ import { PriorityPill, StatusPill } from './TicketPropertyRows';
 import { useTicketHold } from './useTicketHold';
 import { RequestTypeTag } from '../request-flow/RequestTypeTag';
 import type { RequestKind } from '../request-flow/requestKind';
+import { describeNonSlaStage, isNonSlaTicket } from '../../utils/nonSlaTicket';
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { ResolveTicketModal } from './ResolveTicketModal';
@@ -59,7 +62,7 @@ interface TicketHeaderProps {
     resolveOpen?: boolean;
     onResolveOpenChange?: (open: boolean) => void;
     /** Set on a Hardware / E-Form ticket: one phase chip replaces the status, and Teruskan / Selesaikan go away. */
-    flow?: { kind: RequestKind; phase: string; phaseLabel: string; paused: boolean };
+    flow?: { kind: RequestKind; phase: string; phaseLabel: string; paused: boolean; phaseSince?: string | null; installScheduledAt?: string | null };
     /** The "Unduh dokumen PDF" item of a request ticket's menu. */
     onDownloadPdf?: () => void;
 }
@@ -203,14 +206,27 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
     };
 
     const isTerminal = isTerminalStatus(ticket.status);
+    const nonSla = isNonSlaTicket(ticket) || Boolean(flow);
     const canCancel = !isTerminal && Boolean(onCancel);
     // A request ticket moves through its own steps (next-step bar): no hand-forwarding or resolving from the header.
     const canForward = !isTerminal && Boolean(onForward) && !flow;
     const canResolve = !isTerminal && Boolean(onResolve) && !flow;
     const ticketNumber = ticket.ticketNumber || ticket.id.split('-')[0];
     const isResolved = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
-    const slaTargetDate = ticket.slaTarget || ticket.targetResolutionDate;
+    const slaTargetDate = nonSla ? undefined : (ticket.slaTarget || ticket.targetResolutionDate);
     const slaClock = useSlaClock();
+
+    const nonSlaStage = useMemo(() => {
+        if (!nonSla) return null;
+        return describeNonSlaStage({
+            ...ticket,
+            requestKind: flow?.kind ?? ticket.requestKind,
+            flowPhase: flow?.phase ?? ticket.flowPhase,
+            flowPhaseLabel: flow?.phaseLabel ?? ticket.flowPhaseLabel,
+            flowPhaseSince: flow?.phaseSince ?? ticket.flowPhaseSince,
+            installScheduledAt: flow?.installScheduledAt ?? ticket.installScheduledAt,
+        }, currentTime);
+    }, [nonSla, ticket, flow, currentTime]);
 
     // Calculate SLA
     const { resolutionTime, slaStatus, slaTooltip } = useMemo(() => {
@@ -279,8 +295,9 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
         };
     }, [slaTargetDate, ticket.status, ticket.priority, ticket.slaRemainingMinutes, ticket.vendorNote, ticket.vendorVisitAt, isTerminal, isResolved, currentTime, slaClock]);
 
-    // First Response Metric
+    // First Response Metric (hidden for non-SLA Hardware/E-Form tickets)
     const firstResponse = useMemo(() => {
+        if (nonSla) return null;
         if (!ticket.firstResponseTarget && !ticket.firstResponseAt) return null;
 
         if (ticket.firstResponseAt) {
@@ -316,7 +333,7 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
             tone: 'amber' as TicketPillTone,
             isBreached: false,
         };
-    }, [ticket.priority, slaClock, ticket.firstResponseTarget, ticket.firstResponseAt, ticket.isFirstResponseBreached, isTerminal, currentTime]);
+    }, [nonSla, ticket.priority, slaClock, ticket.firstResponseTarget, ticket.firstResponseAt, ticket.isFirstResponseBreached, isTerminal, currentTime]);
 
     const slaTone: TicketPillTone = isTerminal
         ? (isResolved ? 'green' : 'neutral')
@@ -375,15 +392,18 @@ export const TicketHeader: React.FC<TicketHeaderProps> = ({
                     {flow
                         ? <span className={`req-phase-chip req-phase-chip--${flow.kind === 'HARDWARE' ? 'hw' : 'ef'}`}><span className="dot" aria-hidden="true" />{flow.phaseLabel}</span>
                         : <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />}
-                    {flow?.paused && !isTerminal ? (
-                        <TicketPill tone="amber" title="Waktu SLA IT tidak berjalan saat menunggu pihak lain">
-                            <Pause className="h-3 w-3 shrink-0" aria-hidden="true" /><span>SLA dijeda</span>
+                    {nonSlaStage ? (
+                        <TicketPill tone="neutral" title={nonSlaStage.tooltip}>
+                            {nonSlaStage.isLong
+                                ? <Hourglass className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                : <CircleDashed className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                            <span className="tabular-nums">{nonSlaStage.chipText}</span>
                         </TicketPill>
                     ) : (
-                    <TicketPill tone={slaTone} title={slaTooltip}>
-                        <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
-                        <span className="tabular-nums">{resolutionTime}</span>
-                    </TicketPill>
+                        <TicketPill tone={slaTone} title={slaTooltip}>
+                            <SlaIcon className={cn('h-3 w-3 shrink-0', slaStatus === 'overdue' && 'animate-pulse')} aria-hidden="true" />
+                            <span className="tabular-nums">{resolutionTime}</span>
+                        </TicketPill>
                     )}
                     {firstResponse && (
                         <TicketPill tone={firstResponse.tone} title={firstResponse.tooltip}>

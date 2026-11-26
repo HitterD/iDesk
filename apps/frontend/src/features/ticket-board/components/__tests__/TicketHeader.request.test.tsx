@@ -18,24 +18,34 @@ const ticket = {
     priority: 'MEDIUM', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 };
 
-const renderHeader = (flow?: { kind: 'HARDWARE' | 'EFORM'; phase: string; phaseLabel: string; paused: boolean }) => render(
+const renderHeader = (
+    flow?: { kind: 'HARDWARE' | 'EFORM'; phase: string; phaseLabel: string; paused: boolean; phaseSince?: string | null; installScheduledAt?: string | null },
+    ticketOverrides: Record<string, unknown> = {},
+) => render(
     <MemoryRouter>
-        <TicketHeader ticket={ticket as never} flow={flow} onForward={vi.fn()} onResolve={vi.fn()} onCancel={vi.fn()} />
+        <TicketHeader ticket={{ ...ticket, ...ticketOverrides } as never} flow={flow} onForward={vi.fn()} onResolve={vi.fn()} onCancel={vi.fn()} />
     </MemoryRouter>,
 );
 
 describe('TicketHeader for a request ticket', () => {
-    it('shows the type tag and one phase chip, and no Teruskan / Selesaikan buttons', () => {
-        renderHeader({ kind: 'EFORM', phase: 'appr_mgr', phaseLabel: 'Menunggu Atasan', paused: true });
+    it('shows the type tag and neutral stage chip, and no Teruskan / Selesaikan / Responded', () => {
+        renderHeader(
+            { kind: 'EFORM', phase: 'appr_mgr', phaseLabel: 'Menunggu Atasan', paused: true, phaseSince: new Date().toISOString() },
+            { firstResponseAt: new Date().toISOString(), firstResponseTarget: new Date().toISOString() },
+        );
         expect(screen.getByText('E-Form Request')).toBeInTheDocument();
-        expect(screen.getByText('Menunggu Atasan')).toBeInTheDocument();
+        expect(screen.getByText('Menunggu Atasan · Hari ini')).toBeInTheDocument();
+        expect(screen.queryByText('SLA dijeda')).toBeNull();
+        expect(screen.queryByText('Responded')).toBeNull();
         expect(screen.queryByRole('button', { name: /Teruskan/ })).toBeNull();
         expect(screen.queryByRole('button', { name: /Selesaikan/ })).toBeNull();
     });
 
-    it('says the SLA is on hold while IT waits on someone else', () => {
-        renderHeader({ kind: 'HARDWARE', phase: 'delivery', phaseLabel: 'Menunggu barang tiba', paused: true });
-        expect(screen.getByText('SLA dijeda')).toBeInTheDocument();
+    it('shows neutral stage pill with age instead of "SLA dijeda"', () => {
+        const eightDaysAgo = new Date(Date.now() - 8 * 86_400_000).toISOString();
+        renderHeader({ kind: 'HARDWARE', phase: 'delivery', phaseLabel: 'Menunggu barang tiba', paused: true, phaseSince: eightDaysAgo });
+        expect(screen.getByText('Menunggu barang tiba · 8 hari')).toBeInTheDocument();
+        expect(screen.queryByText('SLA dijeda')).toBeNull();
     });
 
     it('keeps everything as it was for an ordinary IT ticket', () => {

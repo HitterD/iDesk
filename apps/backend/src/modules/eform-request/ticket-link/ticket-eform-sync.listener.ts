@@ -54,7 +54,8 @@ export class TicketEFormSyncListener {
     }
 
     @OnEvent('eform.rejected')
-    onRejected({ request, userId }: EFormEvent) {
+    async onRejected({ request, userId }: EFormEvent) {
+        if (await this.inFlow(request)) return;
         return this.link.record(request.id, 'REJECTED', { actorId: userId ?? null, reason: request.rejectionReason || null });
     }
 }

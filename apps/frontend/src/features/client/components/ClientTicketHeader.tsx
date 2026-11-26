@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronLeft, Clock, Copy, Ellipsis, PanelRightClose, PanelRightOpen, Pause, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, CheckCircle2, ChevronLeft, CircleDashed, Clock, Copy, Ellipsis, Hourglass, PanelRightClose, PanelRightOpen, Pause, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ import type { TicketDetail } from '../../ticket-board/components/ticket-detail/t
 import { isTerminalStatus } from '../../ticket-board/components/ticket-detail/constants';
 import { RequestTypeTag } from '../../ticket-board/components/request-flow/RequestTypeTag';
 import type { RequestKind } from '../../ticket-board/components/request-flow/requestKind';
+import { describeNonSlaStage, isNonSlaTicket } from '../../ticket-board/utils/nonSlaTicket';
 import { PriorityPill, StatusPill } from '../../ticket-board/components/ticket-detail/TicketPropertyRows';
 import { CancelReasonNote, formatCancelReason } from '../../ticket-board/components/ticket-detail/CancelTicketDialog';
 import { SelfResolveButton } from './resolution/SelfResolveButton';
@@ -74,7 +75,7 @@ interface ClientTicketHeaderProps {
     /** Percakapan / Aktivitas switch rendered as the header's last row. */
     tabs?: React.ReactNode;
     /** Set on a Hardware / E-Form ticket: the type tag and one phase chip replace the status pill. */
-    flow?: { kind: RequestKind; phaseLabel: string };
+    flow?: { kind: RequestKind; phase?: string; phaseLabel: string; phaseSince?: string | null; installScheduledAt?: string | null };
 }
 
 const MergedNotice: React.FC<{ parentNumber: string }> = ({ parentNumber }) => {
@@ -103,6 +104,18 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
     const hold = useTicketHold(ticket);
     const sla = useRequesterSla(ticket, hold);
     const SlaIcon = SLA_ICONS[sla.state];
+    const nonSla = isNonSlaTicket(ticket) || Boolean(flow);
+    const nonSlaStage = useMemo(
+        () => nonSla ? describeNonSlaStage({
+            ...ticket,
+            requestKind: flow?.kind ?? ticket.requestKind,
+            flowPhase: flow?.phase ?? ticket.flowPhase,
+            flowPhaseLabel: flow?.phaseLabel ?? ticket.flowPhaseLabel,
+            flowPhaseSince: flow?.phaseSince ?? ticket.flowPhaseSince,
+            installScheduledAt: flow?.installScheduledAt ?? ticket.installScheduledAt,
+        }) : null,
+        [nonSla, ticket, flow],
+    );
 
     const isTerminal = isTerminalStatus(ticket.status);
     const showSelfResolve = canSelfResolve && !isTerminal;
@@ -141,10 +154,19 @@ export const ClientTicketHeader: React.FC<ClientTicketHeaderProps> = ({ ticket, 
                     {flow
                         ? <span className={`req-phase-chip req-phase-chip--${flow.kind === 'HARDWARE' ? 'hw' : 'ef'}`}><span className="dot" aria-hidden="true" />{flow.phaseLabel}</span>
                         : <StatusPill status={ticket.status} hold={hold} cancelReason={formatCancelReason(ticket)} />}
-                    <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
-                        <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
-                        <span className="tabular-nums">{sla.label}</span>
-                    </TicketPill>
+                    {nonSlaStage ? (
+                        <TicketPill tone="neutral" title={nonSlaStage.tooltip}>
+                            {nonSlaStage.isLong
+                                ? <Hourglass className="h-3 w-3 shrink-0" aria-hidden="true" />
+                                : <CircleDashed className="h-3 w-3 shrink-0" aria-hidden="true" />}
+                            <span className="tabular-nums">{nonSlaStage.chipText}</span>
+                        </TicketPill>
+                    ) : (
+                        <TicketPill tone={SLA_TONES[sla.state]} title={sla.tooltip}>
+                            <SlaIcon className={cn('h-3 w-3 shrink-0', sla.state === 'overdue' && 'animate-pulse')} aria-hidden="true" />
+                            <span className="tabular-nums">{sla.label}</span>
+                        </TicketPill>
+                    )}
                     <PriorityPill priority={ticket.priority} short />
                 </div>
 

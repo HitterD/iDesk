@@ -11,6 +11,7 @@ import {
     endOfNextBusinessDay,
 } from '../../sla-config/business-hours.calc';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { clearTicketSlaColumns, isNonSlaTicketType } from '../utils/non-sla-ticket.util';
 
 const MS_PER_MINUTE = 60_000;
 
@@ -110,6 +111,10 @@ export class SlaClockService {
      * priority has none (slaStartedAt is still stamped).
      */
     async startResolution(ticket: Ticket, now: Date = new Date()): Promise<SlaConfig | null> {
+        if (isNonSlaTicketType(ticket)) {
+            clearTicketSlaColumns(ticket);
+            return null;
+        }
         ticket.slaStartedAt = now;
         ticket.slaRemainingMinutes = null;
         const config = await this.findConfig(ticket.priority);
@@ -125,7 +130,7 @@ export class SlaClockService {
      * what is left as a hold. Returns false when the clock already runs or the priority has no config.
      */
     async adoptUnstarted(ticket: Ticket, now: Date = new Date(), opts: { paused?: boolean } = {}): Promise<boolean> {
-        if (ticket.slaStartedAt) return false;
+        if (isNonSlaTicketType(ticket) || ticket.slaStartedAt) return false;
         const createdAt = new Date(ticket.createdAt);
         const config = await this.startResolution(ticket, createdAt);
         if (!config) {
@@ -138,6 +143,7 @@ export class SlaClockService {
 
     /** Freezes the running clocks, keeping the minutes left. Idempotent. */
     async hold(ticket: Ticket, now: Date = new Date()): Promise<void> {
+        if (isNonSlaTicketType(ticket)) return;
         const needsResolution = ticket.slaTarget && ticket.slaRemainingMinutes == null;
         const needsResponse = ticket.firstResponseTarget && !ticket.firstResponseAt && ticket.firstResponseRemainingMinutes == null;
         if (!needsResolution && !needsResponse) return;
@@ -157,6 +163,7 @@ export class SlaClockService {
      * counts. Used when a resolve is disputed, so the ticket is overdue once its original target passed.
      */
     resumeOnOriginalTarget(ticket: Ticket, now: Date = new Date()): void {
+        if (isNonSlaTicketType(ticket)) return;
         ticket.slaRemainingMinutes = null;
         ticket.firstResponseRemainingMinutes = null;
         if (ticket.slaTarget) ticket.isOverdue = new Date(ticket.slaTarget).getTime() < now.getTime();
@@ -164,6 +171,7 @@ export class SlaClockService {
 
     /** Restarts held clocks from their remaining minutes. Returns true when a target moved. */
     async release(ticket: Ticket, now: Date = new Date()): Promise<boolean> {
+        if (isNonSlaTicketType(ticket)) return false;
         if (ticket.slaRemainingMinutes == null && ticket.firstResponseRemainingMinutes == null) return false;
 
         const [config, schedule] = await Promise.all([this.findConfig(ticket.priority), this.getSchedule()]);
@@ -188,7 +196,7 @@ export class SlaClockService {
      * or null when the clock has not started or the priority has no config.
      */
     async changePriority(ticket: Ticket, newPriority: string, now: Date = new Date()): Promise<SlaConfig | null> {
-        if (!ticket.slaStartedAt) return null;
+        if (isNonSlaTicketType(ticket) || !ticket.slaStartedAt) return null;
         const [oldConfig, newConfig, schedule] = await Promise.all([
             this.findConfig(ticket.priority),
             this.findConfig(newPriority),

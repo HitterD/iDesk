@@ -8,6 +8,7 @@ import { Site } from '../sites/entities/site.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { DashboardQueryDto } from './dto';
 import { CacheService } from '../../shared/core/cache/cache.service';
+import { isSlaTicketSql } from '../ticketing/utils/non-sla-ticket.util';
 
 interface SiteStats {
     siteCode: string;
@@ -125,20 +126,20 @@ export class ManagerDashboardService {
             },
         });
 
-        // SLA breach count
+        // SLA breach count (excludes Hardware & E-Form tickets)
         const now = new Date();
-        const slaBreach = await this.ticketRepo.count({
-            where: {
-                ...(siteIds.length ? { siteId: In(siteIds) } : {}),
-                status: In([TicketStatus.TODO, TicketStatus.IN_PROGRESS]),
-                slaTarget: LessThanOrEqual(now),
-            },
-        });
+        const openStatuses = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
+        const slaBreachQb = this.ticketRepo.createQueryBuilder('t')
+            .where('t.status IN (:...openStatuses)', { openStatuses })
+            .andWhere('t."slaStartedAt" IS NOT NULL')
+            .andWhere('t."slaTarget" <= :now', { now })
+            .andWhere(isSlaTicketSql('t'));
+        if (siteIds.length) slaBreachQb.andWhere('t.siteId IN (:...siteIds)', { siteIds });
+        const slaBreach = await slaBreachQb.getCount();
 
         // Site stats — P1 perf: was 4 counts × N sites. Now one grouped query
         // that aggregates all four metrics per site via COUNT(*) FILTER (WHERE ...).
         const nowForBreach = new Date();
-        const openStatuses = [TicketStatus.TODO, TicketStatus.IN_PROGRESS];
         const siteStatRows = siteIds.length
             ? await this.ticketRepo.createQueryBuilder('t')
                 .select('t.siteId', 'siteId')
@@ -146,7 +147,7 @@ export class ManagerDashboardService {
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses))`, 'openTickets')
                 .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...resolvedStatuses))`, 'resolvedTickets')
                 .addSelect(`COUNT(*) FILTER (WHERE t.priority = :criticalPriority AND t.status IN (:...openStatuses))`, 'criticalTickets')
-                .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses) AND t."slaTarget" <= :now)`, 'slaBreach')
+                .addSelect(`COUNT(*) FILTER (WHERE t.status IN (:...openStatuses) AND t."slaStartedAt" IS NOT NULL AND t."slaTarget" <= :now AND ${isSlaTicketSql('t')})`, 'slaBreach')
                 .where('t.siteId IN (:...siteIds)', { siteIds })
                 .setParameters({
                     openStatuses,

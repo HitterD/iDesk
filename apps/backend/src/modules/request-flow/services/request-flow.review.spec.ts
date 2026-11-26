@@ -199,6 +199,21 @@ describe('RequestFlowReviewService.decide', () => {
         expect(await validate(plainToInstance(ApproveDto, { decision: 'REJECT', note: 'Tidak sesuai' }))).toHaveLength(0);
     });
 
+    it('REJECT transitions the linked ticket to CANCELLED in the same transaction', async () => {
+        const { service, linked, documents, emitter } = setup(approving());
+        await service.decide(MGR, TID, { decision: 'REJECT', note: 'Anggaran tidak disetujui' });
+        expect(documents.bump).toHaveBeenCalledWith('flow-1', 'FIN', expect.stringContaining('Ditolak'), 'mgr-1', expect.anything());
+        expect(linked.recordWithin).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+            actorId: 'mgr-1',
+            target: TicketStatus.CANCELLED,
+            event: expect.objectContaining({
+                reason: 'Anggaran tidak disetujui',
+                eformRequest: expect.objectContaining({ phase: 'REJECTED' }),
+            }),
+        }));
+        expect(emitter.emit).toHaveBeenCalledWith('eform.rejected', expect.objectContaining({ userId: 'mgr-1' }));
+    });
+
     it('APPROVE needs a PNG signature and advances to the GM', async () => {
         expect((await validate(plainToInstance(ApproveDto, { decision: 'APPROVE' }))).map((e) => e.property)).toEqual(['signatureData']);
 
@@ -458,5 +473,11 @@ describe('RequestFlowReviewService.cancel', () => {
 
     it('someone who is not the requester or IT is refused', async () => {
         await expect(setup(context({ phase: 'review' }, 'EFORM')).service.cancel({ ...REQ, userId: 'other' }, TID)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('lets a cross-site AGENT requester withdraw their own request', async () => {
+        const { service, hardware } = setup(context({ phase: 'review' }, 'HARDWARE'));
+        await service.cancel({ userId: 'req-1', role: UserRole.AGENT, siteId: 'site-9', fullName: 'Leony' }, TID);
+        expect(hardware.cancelWith).toHaveBeenCalledWith(expect.anything(), { id: 'req-1', role: 'USER' }, 'hr-1', { allowed: [RequestStatus.SUBMITTED, RequestStatus.UNDER_REVIEW] });
     });
 });

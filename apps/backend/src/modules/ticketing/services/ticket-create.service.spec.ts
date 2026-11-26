@@ -196,5 +196,25 @@ describe('TicketCreateService', () => {
             await expect(service.createTicketWithin('user-1', REQUEST_DTO, async () => { throw new BadRequestException('Isian wajib'); }))
                 .rejects.toThrow('Isian wajib');
         });
+
+        it.each([TicketType.HARDWARE_REQUEST, TicketType.EFORM_REQUEST])('does not set SLA fields for %s tickets', async (ticketType) => {
+            const requester = { id: 'user-1', role: UserRole.USER, siteId: 'site-krw', isActive: true };
+            const { service, ticketRepo } = buildService({ 'user-1': requester });
+            const manager = { save: jest.fn(async (entity: any) => ({ id: 't-1', ...entity })), query: jest.fn().mockResolvedValue([{ maxSeq: null }]) };
+            ticketRepo.manager.transaction = jest.fn((cb: any) => cb(manager));
+
+            await service.createTicketWithin('user-1', { ...REQUEST_DTO, ticketType }, async () => undefined);
+
+            expect(ticketRepo.create).toHaveBeenCalledWith(expect.objectContaining({ ticketType }));
+            const savedArg = manager.save.mock.calls[0][0];
+            expect(savedArg.firstResponseTarget).toBeNull();
+            expect(savedArg.slaTarget).toBeNull();
+            expect(savedArg.slaStartedAt).toBeNull();
+            expect(savedArg.originalSlaTarget).toBeNull();
+            expect(savedArg.isOverdue).toBe(false);
+            expect(savedArg.isFirstResponseBreached).toBe(false);
+            expect(savedArg.slaWarningSent).toBe(false);
+        });
     });
 });
+

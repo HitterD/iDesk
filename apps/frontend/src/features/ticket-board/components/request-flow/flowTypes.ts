@@ -33,6 +33,8 @@ export interface RequestFlowView {
     kind: RequestKind;
     phase: FlowPhase;
     phaseLabel: string;
+    phaseSince?: string | null;
+    installScheduledAt?: string | null;
     route: ApprovalRoute | null;
     managerId: string | null;
     gmId: string | null;

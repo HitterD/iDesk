@@ -12,16 +12,23 @@ describe('FlowPhaseLine', () => {
         expect(container).toBeEmptyDOMElement();
     });
 
-    it('shows only the phase and the SLA pause; "my turn" lives in the ticket column', () => {
+    it('shows only the phase and "Tanpa SLA"; "my turn" lives in the ticket column', () => {
         render(<FlowPhaseLine ticket={{ ...base, flowPaused: true, needsMyAction: true }} />);
         expect(screen.getByText('Menunggu barang tiba')).toBeInTheDocument();
-        expect(screen.getByTitle('SLA dijeda')).toHaveTextContent('Dijeda');
+        expect(screen.getByText('Tanpa SLA')).toBeInTheDocument();
+        expect(screen.queryByText('Dijeda')).toBeNull();
         expect(screen.queryByText(/Giliran Anda|Catat pembelian|Perlu/)).toBeNull();
     });
 
-    it('has no marker when there is nothing to flag', () => {
+    it('never renders legacy .req-phase__pause indicator for request tickets', () => {
         const { container } = render(<FlowPhaseLine ticket={base} />);
         expect(screen.getByText('Menunggu barang tiba')).toBeInTheDocument();
+        expect(screen.getByText('Tanpa SLA')).toBeInTheDocument();
         expect(container.querySelector('.req-phase__pause')).toBeNull();
+    });
+
+    it('still shows Tanpa SLA when a non-SLA ticket has no flowPhaseLabel yet', () => {
+        render(<FlowPhaseLine ticket={{ ticketType: 'HARDWARE_REQUEST' }} />);
+        expect(screen.getByText('Tanpa SLA')).toBeInTheDocument();
     });
 });

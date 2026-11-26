@@ -1,15 +1,20 @@
-import { Ticket, TicketStatus } from '../entities/ticket.entity';
+import { Ticket, TicketStatus, TicketType } from '../entities/ticket.entity';
 import { TicketLinkedRequestService } from './ticket-linked-request.service';
 
 const DEADLINE = new Date('2026-11-24T10:00:00Z');
 
-function setup(ticket: Partial<Ticket>, running = '0', proposals = '0') {
+function setup(ticket: Partial<Ticket>, running = '0', proposals = '0', hasFlow = false) {
     const row: any = { id: 't-1', siteId: 'site-1', assignedToId: 'agent-1', ...ticket };
     const manager = {
         findOne: jest.fn(async (entity: unknown) => (entity === Ticket ? row : null)),
         save: jest.fn(async (_e: unknown, v: any) => ({ id: 'msg-1', ...v })),
         create: jest.fn((_e: unknown, v: unknown) => v),
-        query: jest.fn(async () => [{ running, proposals }]),
+        query: jest.fn(async (sql: string) => {
+            if (typeof sql === 'string' && sql.includes('request_flows')) {
+                return hasFlow ? [{ '?column?': 1 }] : [];
+            }
+            return [{ running, proposals }];
+        }),
     };
     const dataSource = { transaction: jest.fn(async (cb: (m: unknown) => unknown) => cb(manager)) };
     const slaClock: Record<string, jest.Mock> = { hold: jest.fn(async () => undefined), release: jest.fn(async () => false) };
@@ -151,5 +156,17 @@ describe('TicketLinkedRequestService RESOLVED target', () => {
         await expect(service.record(phase(TicketStatus.CLOSED))).resolves.toBe(true);
 
         expect(row.status).toBe(TicketStatus.IN_PROGRESS);
+    });
+
+    it('skips SLA clock mutations for HARDWARE_REQUEST or request_flows tickets', async () => {
+        const hw = setup({ ticketType: TicketType.HARDWARE_REQUEST, status: TicketStatus.IN_PROGRESS });
+        await expect(hw.service.record(hw.phase(TicketStatus.WAITING_VENDOR))).resolves.toBe(true);
+        expect(hw.row.status).toBe(TicketStatus.WAITING_VENDOR);
+        expect(hw.row.lastPausedAt).toBeUndefined();
+        expect(hw.slaClock.hold).not.toHaveBeenCalled();
+
+        const flow = setup({ ticketType: TicketType.SERVICE, status: TicketStatus.RESOLVED, resolutionDeadlineAt: DEADLINE }, '0', '0', true);
+        await expect(flow.service.record(flow.phase(TicketStatus.IN_PROGRESS, { reopenResolved: true }))).resolves.toBe(true);
+        expect(flow.slaClock.resumeOnOriginalTarget).not.toHaveBeenCalled();
     });
 });

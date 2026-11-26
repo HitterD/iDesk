@@ -134,4 +134,16 @@ describe('EFormNotificationListener', () => {
         expect(notificationCenter.send).not.toHaveBeenCalled();
         expect(mailDispatch.send).not.toHaveBeenCalled();
     });
+
+    it('falls back to userRepo email when requesterEmail is null on the e-form row', async () => {
+        userRepo.findOne.mockResolvedValue({ id: 'u-legacy', email: 'legacy@example.com' });
+        await listener.handleEFormRejected({
+            request: { id: 'ef-old', formType: 'VPN', requesterId: 'u-legacy', requesterEmail: null, requesterName: 'Budi', rejectionReason: 'ditolak' } as any,
+        });
+        expect(userRepo.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u-legacy' } }));
+        expect(mailDispatch.send).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'legacy@example.com',
+            subject: 'Permintaan VPN Ditolak',
+        }));
+    });
 });

@@ -142,11 +142,15 @@ describe('ClientTicketDetailPage', () => {
         );
 
     it('a request ticket shows the flow panel with the one button to press, and no "Masalah sudah selesai"', async () => {
-        extraFields = { ticketType: 'EFORM_REQUEST' };
+        extraFields = { ticketType: 'EFORM_REQUEST', isNonSla: true };
         renderPage();
         expect(await screen.findByRole('button', { name: 'Ya, berhasil' })).toBeInTheDocument();
         expect(screen.getByText('E-Form Request')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Masalah sudah selesai' })).toBeNull();
+        expect(screen.queryByText('Perkiraan waktu')).not.toBeInTheDocument();
+        expect(screen.queryByText('SLA dijeda')).not.toBeInTheDocument();
+        expect(screen.getByText('Menunggu konfirmasi pemohon')).toBeInTheDocument();
+        expect(screen.getByText(/Menunggu konfirmasi pemohon · \d+ hari/)).toBeInTheDocument();
     });
 
     it('shows "Masalah sudah selesai" as the requester primary action on an open ticket', async () => {

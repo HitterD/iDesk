@@ -118,6 +118,13 @@ export class EFormNotificationListener {
       for (const u of ictUsers) if (u.email) await this.mailDispatch.send({ to: u.email, subject: siteLabel + 'Provisioning Diperlukan - ' + payload.request.formType + ' dari ' + payload.request.requesterName, template: 'eform-request', context: { request: payload.request, recipientName: u.fullName || u.email, link: buildAppUrl('/eform/' + payload.request.id), siteLabel: siteLabel.trim(), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.direct-to-ict failed: ' + e.message); }
   }
+  private async resolveRequesterEmail(request: EFormRequest): Promise<string | null> {
+    if (request.requesterEmail) return request.requesterEmail;
+    if (!request.requesterId) return null;
+    const user = await this.userRepo.findOne({ where: { id: request.requesterId } as any, select: ['id', 'email'] });
+    return user?.email ?? null;
+  }
+
   @OnEvent('eform.fulfilled')
   async handleEFormFulfilled(payload: { request: EFormRequest }) {
     // A request-flow e-form tells its requester once, from the flow ("akses siap dicoba").
@@ -128,7 +135,7 @@ export class EFormNotificationListener {
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.fulfilled: ' + error.message); }
     try {
-      const to = (payload.request as any).requesterEmail; if (to) await this.mailDispatch.send({ to, subject: 'Akses ' + payload.request.formType + ' Aktif', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
+      const to = await this.resolveRequesterEmail(payload.request); if (to) await this.mailDispatch.send({ to, subject: 'Akses ' + payload.request.formType + ' Aktif', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.fulfilled failed: ' + e.message); }
   }
   @OnEvent('eform.ict-confirmed')
@@ -139,7 +146,7 @@ export class EFormNotificationListener {
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.ict-confirmed: ' + error.message); }
     try {
-      const to = (payload.request as any).requesterEmail; if (to) await this.mailDispatch.send({ to, subject: 'Akses ' + payload.request.formType + ' Aktif', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
+      const to = await this.resolveRequesterEmail(payload.request); if (to) await this.mailDispatch.send({ to, subject: 'Akses ' + payload.request.formType + ' Aktif', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.ict-confirmed failed: ' + e.message); }
   }
   @OnEvent('eform.rejected')
@@ -149,7 +156,7 @@ export class EFormNotificationListener {
       this.notificationCenter.emitActionItemsRefresh(payload.request.requesterId, 'EFORM', payload.request.id);
     } catch (error: any) { this.logger.error('Failed to notify requester for eform.rejected: ' + error.message); }
     try {
-      const to = (payload.request as any).requesterEmail; if (to) await this.mailDispatch.send({ to, subject: 'Permintaan ' + payload.request.formType + ' Ditolak', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
+      const to = await this.resolveRequesterEmail(payload.request); if (to) await this.mailDispatch.send({ to, subject: 'Permintaan ' + payload.request.formType + ' Ditolak', template: 'eform-request', context: { request: payload.request, recipientName: payload.request.requesterName, link: buildAppUrl('/eform/' + payload.request.id), year: new Date().getFullYear() } });
     } catch (e: any) { this.logger.warn('Email for eform.rejected failed: ' + e.message); }
   }
 }

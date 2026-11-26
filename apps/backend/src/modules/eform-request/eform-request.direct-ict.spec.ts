@@ -103,6 +103,21 @@ describe('EFormRequestService - Synology direct-to-IT flow', () => {
       await createSynology();
       expect(eformRepo.save).toHaveBeenCalledWith(expect.objectContaining({ requesterId: 'u-requester', siteId: SITE_SPJ }));
     });
+
+    it('persists requesterEmail from the requester record in createRequest and createForTicket', async () => {
+      userRepo.findOne.mockResolvedValue({ id: 'u-requester', siteId: SITE_SPJ, email: 'req@example.com' });
+      await createSynology();
+      expect(eformRepo.save).toHaveBeenCalledWith(expect.objectContaining({ requesterEmail: 'req@example.com' }));
+
+      const txCreate = jest.fn((_e: unknown, v: any) => v);
+      const txSave = jest.fn(async (_e: unknown, v: any) => ({ id: 'eform-2', ...v }));
+      const txMgr = { query: jest.fn(async () => [{ maxSeq: null }]), create: txCreate, save: txSave };
+      await service.createForTicket(txMgr as any, 'u-requester', 'Requester', {
+        ...baseDto,
+        formType: EFormType.VPN,
+      } as any, 'ticket-1');
+      expect(txCreate).toHaveBeenCalledWith(EFormRequest, expect.objectContaining({ requesterEmail: 'req@example.com' }));
+    });
     it('sends Synology straight to IT with no approver assigned', async () => {
       await createSynology();
 

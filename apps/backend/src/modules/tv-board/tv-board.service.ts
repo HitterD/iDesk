@@ -7,6 +7,7 @@ import { resolveInitialHandlingTeam } from '../ticketing/utils/oracle-ticket-acc
 import { SlaConfig } from '../ticketing/entities/sla-config.entity';
 import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { buildSlaClockInfo, SlaClockInfo } from '../sla-config/sla-clock-info';
+import { findNonSlaTicketIds } from '../ticketing/utils/non-sla-ticket.util';
 
 export interface TvBoardCard {
     id: string;
@@ -19,6 +20,7 @@ export interface TvBoardCard {
     priority: string;
     slaTarget: string | null;
     isOverdue: boolean;
+    isNonSla: boolean;
     isOracleRequest: boolean;
     handlingTeam: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
     category?: string | null;
@@ -110,7 +112,8 @@ export class TvBoardService {
             order: { createdAt: 'ASC' },
         });
 
-        const [waitingVendorCount, schedule, slaConfigs] = await Promise.all([
+        const [nonSlaIds, waitingVendorCount, schedule, slaConfigs] = await Promise.all([
+            findNonSlaTicketIds(this.ticketRepo.manager, tickets),
             this.ticketRepo.count({ where: buildBoardTicketFilter(site, TicketStatus.WAITING_VENDOR) }),
             this.businessHours.getSchedule(),
             this.slaConfigRepo.find(),
@@ -118,6 +121,7 @@ export class TvBoardService {
 
         const toCard = (t: Ticket): TvBoardCard => {
             const team = t.handlingTeam || resolveInitialHandlingTeam(t.category, t.ticketType);
+            const nonSla = nonSlaIds.has(t.id);
             return {
                 id: t.id,
                 ticketNumber: t.ticketNumber || t.id.slice(0, 8),
@@ -128,8 +132,9 @@ export class TvBoardService {
                     t.user?.department?.code || t.user?.department?.name || null,
                 assignedToName: t.assignedTo?.fullName ?? null,
                 priority: t.priority,
-                slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
-                isOverdue: t.isOverdue,
+                slaTarget: nonSla ? null : (t.slaTarget ? t.slaTarget.toISOString() : null),
+                isOverdue: nonSla ? false : t.isOverdue,
+                isNonSla: nonSla,
                 isOracleRequest:
                     team === HandlingTeam.ORACLE_DEV ||
                     t.ticketType === TicketType.ORACLE_REQUEST ||

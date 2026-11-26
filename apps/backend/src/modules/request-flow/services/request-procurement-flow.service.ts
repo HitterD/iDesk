@@ -46,20 +46,31 @@ export class RequestProcurementFlowService {
 
     async procure(actor: FlowActor, ticketId: string, dto: ProcureDto): Promise<{ status: string }> {
         this.assertIct(actor, ticketId);
-        const { ctx, outcome } = await this.dataSource.transaction(async (manager) => {
+        const { ctx, outcome, publish } = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.loadHardware(ticketId, manager, actor);
             if (ctx.hardware!.status !== RequestStatus.PROCUREMENT) throw new ConflictException(MESSAGES.notProcurement);
             const outcome = await this.procurement.recordWith(manager, ctx.hardware!.id, actor.userId, { lines: dto.lines, note: dto.note });
-            // Nothing bought: the request is over, so its document is final and locked like any refused request.
+            let publish: (() => Promise<void>) | undefined;
+            // Nothing bought: the request is over, so its document is final and locked and the linked ticket is cancelled.
             if (outcome.approvedItems === 0) {
                 await this.documents.bump(ctx.flow.id, 'FIN', `Pembelian dibatalkan oleh ${actor.fullName} · terkunci`, actor.userId, manager);
+                const reason = dto.note?.trim() || null;
+                publish = await this.stepper.tellWithin(manager, ctx, {
+                    actorId: actor.userId,
+                    phase: 'REJECTED',
+                    target: TicketStatus.CANCELLED,
+                    reason,
+                    text: reason ? `Semua barang ditolak pada pengadaan: ${reason}` : 'Semua barang ditolak pada pengadaan — permintaan ditolak',
+                });
             }
-            return { ctx, outcome };
+            return { ctx, outcome, publish };
         });
 
-        // The listeners tell the ticket and the people concerned; all rejected is told by the rejection card instead.
+        // Listeners notify requesters; request-flow sync listener skips REJECTED because the flow already updated the ticket.
         this.procurement.announce(outcome, actor.userId);
-        if (outcome.approvedItems > 0) {
+        if (publish) {
+            await publish();
+        } else if (outcome.approvedItems > 0) {
             const total = outcome.approvedItems + outcome.rejectedItems;
             await this.stepper.tell(ctx, {
                 actorId: actor.userId, phase: 'REVIEWED', text: `Pembelian dicatat: ${outcome.approvedItems} dari ${total} barang`,

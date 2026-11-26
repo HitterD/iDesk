@@ -47,6 +47,7 @@ import { Button } from '@/components/ui/button';
 import { TicketHardwareSection } from '../ticket-hardware';
 import { TicketEFormSection } from '../ticket-eform';
 import { useTicketHold } from './useTicketHold';
+import { isNonSlaTicket } from '../../utils/nonSlaTicket';
 
 interface TicketSidebarProps {
     ticket: TicketDetail;
@@ -93,6 +94,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
     const isClosed = isTerminalStatus(ticket.status);
     // Requester-side viewers (e.g. the agent who filed it) can't change properties.
     const isLocked = isClosed || ticket.viewerAccess === 'requester';
+    const nonSla = isNonSlaTicket(ticket);
     const hold = useTicketHold(ticket);
     const [copiedEmail, setCopiedEmail] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
@@ -340,7 +342,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <StatusDropdown value={localStatus} onChange={handleStatusSelectChange} disabled={isLocked || saving.status} />
                 </PropertyRow>
                 <PropertyRow icon={AlertCircle} label="Prioritas" saving={saving.priority} saved={saved.priority}>
-                    <span title={currentSlaHours ? `${currentSlaHours}h SLA` : undefined}>
+                    <span title={!nonSla && currentSlaHours ? `${currentSlaHours}h SLA` : undefined}>
                         <PriorityDropdown value={localPriority} onChange={handlePriorityChange} disabled={isLocked || saving.priority} />
                     </span>
                 </PropertyRow>
@@ -366,9 +368,35 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                     <DeviceBubble value={localDevice} devices={attributes.devices} locked={isLocked}
                         disabled={saving.device} onChange={handleDeviceChange} />
                 </PropertyRow>
+
+                {nonSla && (
+                    <div className="mt-2 pt-2 border-t border-border/60 space-y-2">
+                        <div className="td-kvs">
+                            <InfoRow label="Dibuat">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                            <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                        </div>
+                        {!isLocked && (
+                            <div className="td-pair">
+                                <Button variant="soft" className="ticket-action-reminder" onClick={openReminder} title="Atur pengingat email untuk agent">
+                                    <Bell aria-hidden="true" /><span>{nextReminder ? 'Ubah pengingat' : 'Atur pengingat'}</span>
+                                </Button>
+                            </div>
+                        )}
+                        {nextReminder && (
+                            <button type="button" onClick={openReminder} className="td-reminder-chip"
+                                title={nextReminder.note ? `"${nextReminder.note}"` : 'Lihat atau ubah jadwal pengingat email'}>
+                                <BellRing aria-hidden="true" />
+                                <span className="min-w-0 truncate">
+                                    Reminder: {formatDateTimeID(nextReminder.remindAt)} · {formatDistanceToNow(new Date(nextReminder.remindAt), { addSuffix: true, locale: idLocale })}
+                                </span>
+                            </button>
+                        )}
+                    </div>
+                )}
             </SidebarCard>
 
-            {/* SLA & Tracking */}
+            {/* SLA & Tracking (hidden for Hardware & E-Form tickets) */}
+            {!nonSla && (
             <SidebarCard
                 title="SLA"
                 accessory={
@@ -486,6 +514,7 @@ export const TicketSidebar: React.FC<TicketSidebarProps> = ({
                         </div>
                     )}
             </SidebarCard>
+            )}
 
             {/* 3. Ticket Participants (All Tickets / Multi-user Group) */}
             <TicketParticipantsSection

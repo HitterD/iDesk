@@ -13,7 +13,7 @@ import { TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { TicketMessage } from '../../ticketing/entities/ticket-message.entity';
 import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { assertSiteAccess } from '../../../shared/core/utils/site-scope.util';
+import { assertSiteAccess, resolveSiteScope } from '../../../shared/core/utils/site-scope.util';
 import { validateFileMagicBytes } from '../../../shared/core/validators/magic-bytes.validator';
 import { canChangeRoute, type ApprovalRoute } from '../domain/approval-route';
 import { REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
@@ -185,9 +185,13 @@ export class RequestFlowReviewService {
         this.assertTicketId(ticketId);
         const done = await this.dataSource.transaction(async (manager) => {
             const ctx = await this.reader.load(ticketId, manager, true);
-            const isIt = REQUEST_PROCESSOR_ROLES.includes(actor.role);
-            if (isIt) assertSiteAccess(actor, ctx.ticket.siteId);
-            else if (actor.userId !== ctx.requesterId) throw new ForbiddenException(MESSAGES.cancelDenied);
+            const scope = resolveSiteScope(actor);
+            const hasSiteAccess = scope.mode === 'all' || (scope.mode === 'site' && scope.siteId === ctx.ticket.siteId);
+            const isIt = REQUEST_PROCESSOR_ROLES.includes(actor.role) && hasSiteAccess;
+            if (!isIt && actor.userId !== ctx.requesterId) {
+                if (REQUEST_PROCESSOR_ROLES.includes(actor.role)) assertSiteAccess(actor, ctx.ticket.siteId);
+                throw new ForbiddenException(MESSAGES.cancelDenied);
+            }
             if (!isIt && ctx.phase === 'other') throw new ConflictException(MESSAGES.cancelLate);
 
             let announce: () => void = () => undefined;
@@ -355,7 +359,11 @@ export class RequestFlowReviewService {
             await manager.update(EFormApproval, { eformRequestId: eformId, action: 'PENDING' }, { action: 'REJECTED', actionAt: new Date(), notes: reason });
         }
         const version = await this.documents.bump(ctx.flow.id, 'FIN', `Ditolak oleh ${actor.fullName} · terkunci`, actor.userId, manager);
-        return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName };
+        const publish = await this.stepper.tellWithin(manager, ctx, {
+            actorId: actor.userId, phase: 'REJECTED', target: TicketStatus.CANCELLED, reason,
+            text: `${actor.fullName} menolak permintaan ini: ${reason}`,
+        });
+        return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName, publish };
     }
 
     private async afterDecision(actor: FlowActor, dto: ApproveDto, outcome: { ctx: FlowContext; kind: string; reason?: string; next?: 'MANAGER' | 'GM' | null; step?: 'MANAGER' | 'GM'; signerName: string; version?: number; publish?: () => Promise<void> }): Promise<void> {
@@ -370,7 +378,8 @@ export class RequestFlowReviewService {
             await this.notifyIct(ctx, outcome.reason!);
             return;
         }
-        // Rejection: the existing listeners tell the requester and the ticket, as for any rejected request.
+        if (outcome.publish) await outcome.publish();
+        // Notify requester via existing notification listeners; sync listeners skip request-flow rows.
         if (ctx.hardware) {
             this.emitter.emit(HR_EVT.REJECTED, { requestId: ctx.hardware.id, actorId: actor.userId, occurredAt: new Date(), requesterId: ctx.requesterId, reason: outcome.reason });
         } else {

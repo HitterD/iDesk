@@ -133,4 +133,15 @@ describe('TicketSidebar inspector', () => {
         await user.click(within(list).getByRole('option', { name: /RM BAGASTYO/ }));
         expect(await screen.findByText('Alasan Pengalihan PIC')).toBeInTheDocument();
     });
+
+    it('hides the SLA section and shows reminder inside Properti for Hardware/E-Form tickets', () => {
+        renderSidebar(
+            { ticketType: 'HARDWARE_REQUEST', isNonSla: true, slaTarget: '2026-10-21T01:00:00Z' },
+        );
+        expect(screen.queryByRole('complementary')).toBeNull();
+        expect(screen.queryByText('Target SLA')).not.toBeInTheDocument();
+        expect(screen.queryByText('Riwayat Penundaan Target')).not.toBeInTheDocument();
+        expect(screen.getByText('Dibuat')).toBeInTheDocument();
+        expect(screen.getByText('Aktivitas terakhir')).toBeInTheDocument();
+    });
 });

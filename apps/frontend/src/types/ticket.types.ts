@@ -90,6 +90,9 @@ export interface Ticket {
     siteId?: string | null;
     /** Owning team; legacy rows without one are IT Support. */
     handlingTeam?: string | null;
+    ticketType?: string;
+    isNonSla?: boolean;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
 }
 
 export interface TicketStats {

@@ -101,4 +101,31 @@ describe('report metrics shared contract', () => {
         expect(sql.resolutionMinutes).not.toContain('updatedAt');
         expect(sql.responseMinutes).toContain('ticket.firstResponseAt');
     });
+
+    it('excludes non-SLA tickets from slaEvaluation when excludeNonSlaSql is supplied', () => {
+        const { DatabaseSync } = require('node:sqlite');
+        const db = new DatabaseSync(':memory:');
+        try {
+            db.exec('CREATE TABLE ticket(id TEXT, "ticketType" TEXT, status TEXT, createdAt TEXT, resolvedAt TEXT, slaTarget TEXT, lastPausedAt TEXT, waitingVendorAt TEXT)');
+            db.exec('CREATE TABLE request_flows("ticketId" TEXT)');
+            db.exec(`
+                INSERT INTO ticket VALUES
+                    ('hw', 'HARDWARE_REQUEST', 'RESOLVED', '2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z', '2026-01-02T12:00:00Z', NULL, NULL),
+                    ('flow_svc', 'SERVICE', 'RESOLVED', '2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z', '2026-01-02T12:00:00Z', NULL, NULL),
+                    ('regular', 'SERVICE', 'RESOLVED', '2026-01-01T00:00:00Z', '2026-01-02T10:00:00Z', '2026-01-02T12:00:00Z', NULL, NULL);
+                INSERT INTO request_flows VALUES ('flow_svc');
+            `);
+            const sql = reportMetricSql({
+                excludeNonSlaSql: `((ticket."ticketType" IS NOT NULL AND ticket."ticketType" IN ('HARDWARE_REQUEST', 'EFORM_REQUEST')) OR EXISTS (SELECT 1 FROM request_flows rf WHERE rf."ticketId" = ticket.id))`,
+            });
+            const rows = db.prepare(`SELECT id, ${sql.slaEvaluation} AS result FROM ticket ORDER BY id`).all({ asOf: '2026-01-03T00:00:00Z' });
+            expect(rows).toEqual([
+                { id: 'flow_svc', result: null },
+                { id: 'hw', result: null },
+                { id: 'regular', result: 1 },
+            ]);
+        } finally {
+            db.close();
+        }
+    });
 });

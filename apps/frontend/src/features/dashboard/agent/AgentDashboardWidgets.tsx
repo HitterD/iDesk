@@ -9,6 +9,7 @@ import type { AgentDashboardData, AgentTicketStats, InstallItem } from './agentD
 import {
     cssVars, DASH_COLORS, DashBub, DashEmpty, DashMetric, DashMore, DashPanel, DashSkeletonList, DashStat, PRIORITY_DOT,
 } from '../components/DashboardParts';
+import { isNonSlaTicket } from '@/features/ticket-board/utils/nonSlaTicket';
 
 const ATTENTION_LIMIT = 6;
 
@@ -31,8 +32,9 @@ export const SummaryTiles: React.FC<{ stats: AgentTicketStats; ticketsHref?: str
     );
 };
 
-/** Mockup attention SLA bubble: red overdue, orange paused (waiting vendor), blue countdown. */
+/** Mockup attention SLA bubble: red overdue, orange paused (waiting vendor), blue countdown, gray Tanpa SLA. */
 const SlaBub: React.FC<{ ticket: AgentTicketStats['activeTickets'][number] }> = ({ ticket }) => {
+    if (isNonSlaTicket(ticket)) return <DashBub color={DASH_COLORS.gray}>Tanpa SLA</DashBub>;
     if (ticket.status === 'WAITING_VENDOR') return <DashBub color={DASH_COLORS.orange} ink={DASH_COLORS.inkOrange} icon={Pause}>Dijeda</DashBub>;
     if (!ticket.slaTarget) return <DashBub color={DASH_COLORS.gray}>Tanpa SLA</DashBub>;
     // The target time decides: a stale/extended `isOverdue` flag must not paint "Sisa …" red.

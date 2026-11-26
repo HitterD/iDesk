@@ -17,6 +17,7 @@ import { SlaClockService, SLA_RESPONDER_ROLES } from './sla-clock.service';
 import { presentInThread, presentThread, PresentedThreadMessage, ThreadMessage, withDeletedQuote } from '../utils/message-presenter.util';
 import { loadMentionNames } from '../utils/mention-names.util';
 import { TicketMentionService } from './ticket-mention.service';
+import { isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 @Injectable()
 export class TicketMessagingService {
@@ -238,12 +239,15 @@ export class TicketMessagingService {
             // === Track First Response Time & Work Start (public handler replies only) ===
             const isAgentOrAdmin = !isInternal && isHandler && SLA_RESPONDER_ROLES.includes(user.role);
             const isFirstAgentReply = !isInternal && isHandler && !ticket.firstResponseAt && SLA_RESPONDER_ROLES.includes(user.role);
+            const nonSla = (isFirstAgentReply || (isAgentOrAdmin && ticket.status === TicketStatus.TODO))
+                ? await isNonSlaTicket(manager, ticket)
+                : false;
 
             if (isFirstAgentReply) {
                 ticket.firstResponseAt = new Date();
 
-                // Check if first response SLA was breached
-                if (ticket.firstResponseTarget && ticket.firstResponseAt > new Date(ticket.firstResponseTarget)) {
+                // Check if first response SLA was breached (never for non-SLA tickets)
+                if (!nonSla && ticket.firstResponseTarget && ticket.firstResponseAt > new Date(ticket.firstResponseTarget)) {
                     ticket.isFirstResponseBreached = true;
                     this.logger.warn(`First Response SLA Breached for ticket #${ticket.ticketNumber}`);
                 } else {
@@ -256,8 +260,8 @@ export class TicketMessagingService {
             if (startedWork) {
                 ticket.status = TicketStatus.IN_PROGRESS;
 
-                // Also start SLA timer if not started
-                if (!ticket.slaStartedAt && await this.slaClock.startResolution(ticket)) {
+                // Also start SLA timer if not started (never for non-SLA tickets)
+                if (!nonSla && !ticket.slaStartedAt && await this.slaClock.startResolution(ticket)) {
                     this.logger.log(`SLA Timer started for ticket #${ticket.ticketNumber}. Target: ${ticket.slaTarget?.toISOString()}`);
                 }
             }

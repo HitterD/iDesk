@@ -8,6 +8,7 @@ import { Site } from '../sites/entities/site.entity';
 import { ReportQueryDto, ReportType, ReportPeriod, ManagerReportSection } from './dto';
 import { SiteActor, resolveSiteScope } from '../../shared/core/utils/site-scope.util';
 import { ReportTeam, applyTeamFilter, rolesForTeam, teamLabel, teamWhere } from '../reports/utils/report-team-scope.util';
+import { findNonSlaTicketIds, isNonSlaTicketType } from '../ticketing/utils/non-sla-ticket.util';
 
 const MS_PER_DAY = 86_400_000;
 const MONTH_LOOKBACK_DAYS = 30;
@@ -276,6 +277,7 @@ export class ManagerReportsService {
                 ...(siteIds.length ? { siteId: In(siteIds) } : {}),
             },
         });
+        const nonSlaIds = await findNonSlaTicketIds(this.ticketRepo.manager, resolvedTickets);
         const resolvedByAgent = new Map<string, typeof resolvedTickets>();
         for (const ticket of resolvedTickets) {
             const agentId = ticket.assignedToId as string;
@@ -302,12 +304,13 @@ export class ManagerReportsService {
                 avgResolutionHours = Math.round((totalHours / agentResolvedTickets.length) * 10) / 10;
             }
 
-            // SLA compliance
-            const slaBreached = agentResolvedTickets.filter(t =>
+            // SLA compliance (excludes Hardware & E-Form tickets)
+            const slaTickets = agentResolvedTickets.filter(t => !nonSlaIds.has(t.id) && !isNonSlaTicketType(t) && t.slaTarget);
+            const slaBreached = slaTickets.filter(t =>
                 t.slaTarget && t.resolvedAt && t.resolvedAt > t.slaTarget
             ).length;
-            const slaCompliance = agentResolvedTickets.length > 0
-                ? Math.round(((agentResolvedTickets.length - slaBreached) / agentResolvedTickets.length) * 100)
+            const slaCompliance = slaTickets.length > 0
+                ? Math.round(((slaTickets.length - slaBreached) / slaTickets.length) * 100)
                 : 100;
 
             performances.push({
@@ -332,9 +335,11 @@ export class ManagerReportsService {
                 resolvedAt: Between(startDate, endDate),
             },
         });
+        const nonSlaIds = await findNonSlaTicketIds(this.ticketRepo.manager, resolvedTickets);
+        const slaEligibleTickets = resolvedTickets.filter(t => !nonSlaIds.has(t.id) && !isNonSlaTicketType(t));
 
-        const totalTickets = resolvedTickets.length;
-        const breached = resolvedTickets.filter(t =>
+        const totalTickets = slaEligibleTickets.length;
+        const breached = slaEligibleTickets.filter(t =>
             t.slaTarget && t.resolvedAt && t.resolvedAt > t.slaTarget
         ).length;
         const onTime = totalTickets - breached;
@@ -360,8 +365,8 @@ export class ManagerReportsService {
                 totalResolutionHours += (t.resolvedAt.getTime() - t.createdAt.getTime()) / (1000 * 60 * 60);
             }
         });
-        const avgResolutionTimeHours = totalTickets > 0
-            ? Math.round((totalResolutionHours / totalTickets) * 10) / 10
+        const avgResolutionTimeHours = resolvedTickets.length > 0
+            ? Math.round((totalResolutionHours / resolvedTickets.length) * 10) / 10
             : 0;
 
         return {

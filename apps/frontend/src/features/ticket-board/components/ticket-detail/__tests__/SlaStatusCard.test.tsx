@@ -31,4 +31,11 @@ describe('SlaStatusCard', () => {
         render(<SlaStatusCard ticket={{ ...ticket, status: 'IN_PROGRESS' }} />);
         expect(screen.getAllByText(/^Target:/)).toHaveLength(2);
     });
+
+    it('renders nothing for Hardware & E-Form non-SLA tickets', () => {
+        const { container } = render(
+            <SlaStatusCard ticket={{ ...ticket, status: 'IN_PROGRESS', ticketType: 'HARDWARE_REQUEST', isNonSla: true }} />,
+        );
+        expect(container).toBeEmptyDOMElement();
+    });
 });

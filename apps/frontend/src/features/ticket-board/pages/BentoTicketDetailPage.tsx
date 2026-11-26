@@ -117,7 +117,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
     });
 
     // A Hardware / E-Form ticket is driven by its request flow; ordinary tickets never load it.
-    const isRequestTicket = Boolean(ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const isRequestTicket = Boolean(ticket?.isNonSla || ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
     const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const isAdmin = user?.role === 'ADMIN';
@@ -174,7 +174,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
             requestAnimationFrame(() => chatRef.current?.focusInput());
         },
         onResolve: () => {
-            if (ticket && !isTerminalStatus(ticket.status) && ticket.viewerAccess !== 'requester') {
+            if (ticket && !isRequestTicket && !isTerminalStatus(ticket.status) && ticket.viewerAccess !== 'requester') {
                 setResolveOpen(true);
             }
         },
@@ -422,7 +422,7 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
     // Filed by me but handled by another team: view & chat only.
     const isRequesterView = ticket.viewerAccess === 'requester';
     const canAct = !isClosed && !isRequesterView;
-    const canExtendSla = canAct && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
+    const canExtendSla = canAct && !isRequestTicket && (isAdmin || Boolean(user?.role?.startsWith('AGENT')));
     const pinsWithAccess = pinsOf(ticket.messages).map((p) => ({
         ...p,
         canUnpin: Boolean(p.canUnpin || isAdmin || (user?.id && ticket.assignedTo?.id === user.id)),
@@ -455,7 +455,14 @@ const BentoTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id }) 
                 onSetReminder={canAct ? () => setReminderOpen(true) : undefined}
                 isSidebarOpen={isSidebarOpen || mainTab === 'details'}
                 onToggleSidebar={handleToggleSidebar}
-                flow={requestFlow ? { kind: requestFlow.kind, phase: requestFlow.phase, phaseLabel: requestFlow.phaseLabel, paused: ['appr_mgr', 'appr_gm', 'procure', 'delivery'].includes(requestFlow.phase) } : undefined}
+                flow={requestFlow ? {
+                    kind: requestFlow.kind,
+                    phase: requestFlow.phase,
+                    phaseLabel: requestFlow.phaseLabel,
+                    paused: ['appr_mgr', 'appr_gm', 'procure', 'delivery'].includes(requestFlow.phase),
+                    phaseSince: requestFlow.phaseSince,
+                    installScheduledAt: requestFlow.installScheduledAt,
+                } : undefined}
                 onDownloadPdf={requestFlow ? () => void downloadRequestPdf(ticket.id, requestFlow.documentVersion) : undefined}
                 resolveOpen={resolveOpen}
                 onResolveOpenChange={setResolveOpen}

@@ -8,6 +8,7 @@ import { TicketMessage } from '../entities/ticket-message.entity';
 import { SlaClockService } from './sla-clock.service';
 import { EventsGateway } from '../presentation/gateways/events.gateway';
 import { presentMessage } from '../utils/message-presenter.util';
+import { isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 /** Tickets with a started resolution clock, including a vendor hold, may be extended. */
 const EXTENDABLE_STATUSES: TicketStatus[] = [TicketStatus.IN_PROGRESS, TicketStatus.TODO, TicketStatus.WAITING_VENDOR];
@@ -62,6 +63,9 @@ export class TicketSlaExtendService {
     ): Promise<{ ticket: Ticket; adjustment: SlaAdjustment }> {
         const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
         if (!ticket) throw new NotFoundException(`Ticket with ID ${ticketId} not found`);
+        if (await isNonSlaTicket(this.ticketRepo.manager, ticket)) {
+            throw new BadRequestException('Tiket Hardware & E-Form tidak menggunakan SLA');
+        }
         if (!EXTENDABLE_STATUSES.includes(ticket.status)) {
             throw new ConflictException(
                 `Ticket is ${ticket.status}; SLA can only be extended for ${EXTENDABLE_STATUSES.join(' or ')} tickets`,

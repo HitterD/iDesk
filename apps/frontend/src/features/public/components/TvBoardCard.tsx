@@ -3,6 +3,7 @@ import { DIVISION_CONFIGS, resolveCardDivision, type DivisionKey } from '../util
 import { formatSlaDeadline, formatSlaStatus } from '../utils/tvBoardTime';
 import { useSlaClock } from '@/lib/slaCountdown';
 import { toDisplayName } from '@/features/ticket-board/components/ticket-detail/messageThread';
+import { isNonSlaTicket } from '@/features/ticket-board/utils/nonSlaTicket';
 
 export const APPLE_RED = '#FF3B30';
 
@@ -24,7 +25,9 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
     const divisionKey = resolveCardDivision(card);
     const division = DIVISION_CONFIGS[divisionKey];
     const slaClock = useSlaClock(false);
-    const sla = formatSlaStatus(card.slaTarget, card.isOverdue, now, { priority: card.priority, info: slaClock });
+    const nonSla = isNonSlaTicket(card);
+    const overdue = !nonSla && card.isOverdue;
+    const sla = formatSlaStatus(nonSla ? null : card.slaTarget, overdue, now, { priority: card.priority, info: slaClock });
     const title = card.title || card.description;
     // On the dev hub board, tickets from other sites carry their origin site.
     const foreignSite = card.siteCode && boardSiteCode && card.siteCode !== boardSiteCode ? card.siteCode : null;
@@ -39,10 +42,10 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
     return (
         <li
             data-testid="tv-board-card"
-            data-overdue={card.isOverdue || undefined}
+            data-overdue={overdue || undefined}
             className="relative grid grid-cols-[minmax(0,1fr)_12.5rem] items-center gap-x-[1.5rem] px-[1.6rem] py-[1rem]"
         >
-            {card.isOverdue && <span className="absolute inset-y-[0.9rem] left-0 w-[0.3rem] rounded-r-full" style={{ backgroundColor: APPLE_RED }} aria-hidden="true" />}
+            {overdue && <span className="absolute inset-y-[0.9rem] left-0 w-[0.3rem] rounded-r-full" style={{ backgroundColor: APPLE_RED }} aria-hidden="true" />}
             <div className="min-w-0">
                 <h3 className="truncate text-[1.6rem] font-semibold leading-[1.25] tracking-[-0.015em] text-[var(--tv-text)]" title={title}>
                     {title}
@@ -89,7 +92,7 @@ export function TvBoardTicketRow({ card, now, boardSiteCode }: { card: TvBoardCa
                     <div
                         className="mt-[0.35rem] text-[1rem] font-medium tabular-nums leading-none"
                         style={{ color: sla.overdue ? APPLE_RED : 'var(--tv-text-tertiary)' }}
-                        title={card.slaTarget ? `Target SLA: ${formatSlaDeadline(card.slaTarget)}` : undefined}
+                        title={!nonSla && card.slaTarget ? `Target SLA: ${formatSlaDeadline(card.slaTarget)}` : undefined}
                     >
                         {sla.label}
                     </div>

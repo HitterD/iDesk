@@ -15,12 +15,14 @@ describe('TicketHardwareLinkService', () => {
         ticket = { id: 'ticket-1', siteId: 'site-1', status: TicketStatus.IN_PROGRESS, assignedToId: 'agent-1' };
         request = { id: 'req-1', requestNumber: 'HR-2026-0012', sourceTicketId: 'ticket-1' };
         const reqRepo = { findOne: jest.fn(async () => request) };
+        const linkedCounts = (running = '0', proposals = '0') => async (sql: string) =>
+            sql.includes('FROM request_flows') ? [] : [{ running, proposals }];
         manager = {
             findOne: jest.fn(async (entity: any) => (entity.name === 'User' ? { id: 'user-1', fullName: 'Budi' } : ticket)),
             save: jest.fn(async (_e: unknown, row: any) => ({ id: 'msg-1', ...row })),
             create: jest.fn((_e: unknown, row: any) => row),
             // The other requests raised from the ticket: [hardware_requests, eform_requests] counts of running and unanswered.
-            query: jest.fn(async () => [{ running: '0', proposals: '0' }]),
+            query: jest.fn(linkedCounts()),
         };
         slaClock = { hold: jest.fn(), release: jest.fn(), resumeOnOriginalTarget: jest.fn() };
         vendorVisit = { clear: jest.fn() };
@@ -186,7 +188,9 @@ describe('TicketHardwareLinkService', () => {
 
         it('a silent resume posts nothing and reports false while another request keeps the ticket held', async () => {
             ticket.status = TicketStatus.WAITING_VENDOR;
-            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+            manager.query.mockImplementation(async (sql: string) =>
+                sql.includes('FROM request_flows') ? [] : [{ running: '1', proposals: '0' }],
+            );
 
             const moved = await service.resumeForInstallation('req-1', 'agent-1', { silentUnlessMoved: true });
 
@@ -209,7 +213,9 @@ describe('TicketHardwareLinkService', () => {
 
         it('the first (non-silent) resume keeps posting its card even when the ticket stays held', async () => {
             ticket.status = TicketStatus.WAITING_VENDOR;
-            manager.query.mockResolvedValue([{ running: '1', proposals: '0' }]);
+            manager.query.mockImplementation(async (sql: string) =>
+                sql.includes('FROM request_flows') ? [] : [{ running: '1', proposals: '0' }],
+            );
 
             await expect(service.resumeForInstallation('req-1', 'agent-1')).resolves.toBe(false);
 
@@ -289,7 +295,10 @@ describe('TicketHardwareLinkService', () => {
         expect(sql).toContain('"sourceTicketId" = $1');
         expect(params.slice(0, 2)).toEqual(['ticket-1', 'req-1']);
         // Both kinds of linked request are checked: hardware and e-form.
-        expect(manager.query.mock.calls.map((c: any[]) => c[0].match(/FROM (\w+)/)[1])).toEqual(['hardware_requests', 'eform_requests']);
+        const linkTables = manager.query.mock.calls
+            .map((c: any[]) => c[0].match(/FROM (\w+)/)[1])
+            .filter((table: string) => table !== 'request_flows');
+        expect(linkTables).toEqual(['hardware_requests', 'eform_requests']);
     });
 
     it('ignores requests that did not come from a ticket', async () => {

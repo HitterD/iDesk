@@ -37,18 +37,28 @@ describe('loadFlowListFields', () => {
         const manager = { query: jest.fn(async () => []) };
         const map = await loadFlowListFields(manager as never, [{ id: 'a', ticketType: 'SERVICE' }, { id: 'b', ticketType: null }], IT);
         expect(manager.query).toHaveBeenCalledTimes(1);
-        expect(map.get('a')).toEqual({ requestKind: null, flowPhase: null, flowPhaseLabel: null, flowPaused: false, needsMyAction: false });
+        expect(map.get('a')).toEqual({
+            requestKind: null, flowPhase: null, flowPhaseLabel: null,
+            flowPhaseSince: null, installScheduledAt: null, flowPaused: false, needsMyAction: false,
+        });
     });
 
-    it('reads every request of the page in one batch', async () => {
+    it('reads every request of the page in one batch and maps phaseSince + installScheduledAt', async () => {
         const manager = {
             query: jest.fn(async (sql: string) => {
-                if (sql.includes('request_flows')) return [{ ticketId: 't-1', kind: 'HARDWARE', status: 'APPROVED', route: 'MANAGER', returnedReason: null, managerId: 'm', gmId: null, requesterId: 'r', managerSigned: true, gmSigned: false, hasOpenSchedule: false }];
+                if (sql.includes('request_flows')) return [{
+                    ticketId: 't-1', kind: 'HARDWARE', status: 'APPROVED', route: 'MANAGER', returnedReason: null,
+                    managerId: 'm', gmId: null, requesterId: 'r', managerSigned: true, gmSigned: false, hasOpenSchedule: false,
+                    hwApprovedAt: '2026-11-20T08:00:00.000Z', installScheduledAt: '2026-12-03T02:00:00.000Z',
+                }];
                 return [];
             }),
         };
         const map = await loadFlowListFields(manager as never, [{ id: 't-1', ticketType: 'SERVICE' }], IT);
         expect(manager.query).toHaveBeenCalledTimes(1);
-        expect(map.get('t-1')).toMatchObject({ requestKind: 'HARDWARE', flowPhase: 'procure', needsMyAction: true });
+        expect(map.get('t-1')).toMatchObject({
+            requestKind: 'HARDWARE', flowPhase: 'procure', needsMyAction: true,
+            flowPhaseSince: '2026-11-20T08:00:00.000Z', installScheduledAt: '2026-12-03T02:00:00.000Z',
+        });
     });
 });

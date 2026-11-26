@@ -24,6 +24,7 @@ import { TicketPill, PRIORITY_TONES, STATUS_TONES, type TicketPillTone } from '.
 import { formatDateTimeID } from '@/lib/utils/dateFormat';
 import { formatSlaTime, offHoursLabel, slaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { formatSlaTarget } from '@/lib/utils/slaDuration';
+import { describeNonSlaStage, isNonSlaTicket } from '@/features/ticket-board/utils/nonSlaTicket';
 import './ticket-quick-preview.css';
 
 export interface TicketPreviewData {
@@ -38,6 +39,13 @@ export interface TicketPreviewData {
     source?: 'WEB' | 'TELEGRAM' | 'EMAIL' | string;
     /** Connected app that filed it (source API), e.g. 'EBBK'. */
     externalSource?: string | null;
+    ticketType?: string | null;
+    isNonSla?: boolean;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhase?: string | null;
+    flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
     device?: string;
     software?: string;
     createdAt: string;
@@ -136,6 +144,11 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
     // SLA Relative Countdown Context
     const slaClock = useSlaClock();
     const slaInfo = useMemo((): { type: SlaKind; label: string; detail: string } | null => {
+        if (isNonSlaTicket(ticket)) {
+            const stage = describeNonSlaStage(ticket);
+            return { type: 'active', label: 'Tanpa SLA', detail: stage.chipText };
+        }
+
         if (ticket.status === 'RESOLVED') {
             return { type: 'resolved', label: 'Tiket Selesai', detail: 'Target SLA terpenuhi' };
         }
@@ -168,7 +181,7 @@ export const TicketQuickPreview: React.FC<TicketQuickPreviewProps> = ({
         }
 
         return null;
-    }, [ticket.status, ticket.scheduledDate, ticket.scheduledTime, ticket.slaTarget, ticket.isOverdue, ticket.priority, slaClock]);
+    }, [ticket, slaClock]);
 
     const SlaIcon = slaInfo ? SLA_ICON[slaInfo.type] : null;
 

@@ -1257,6 +1257,21 @@ button.queue-hw-link:hover { background: color-mix(in srgb, hsl(var(--ticket-amb
 .sla-cell > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 550; color: hsl(var(--sla-ink)); font-variant-numeric: tabular-nums; }
 .sla-cell.is-soon, .sla-cell.is-pause { --sla: var(--ticket-amber); --sla-ink: var(--ticket-amber-ink); }
 .sla-cell.is-late { --sla: var(--ticket-red); --sla-ink: var(--ticket-red-ink); }
+.sla-cell.is-stage {
+  --sla: var(--ticket-neutral); --sla-ink: var(--ticket-neutral-ink);
+  box-shadow: inset 2px 0 0 hsl(var(--ticket-neutral) / .55);
+  background: color-mix(in srgb, hsl(var(--ticket-neutral)) 9%, transparent);
+}
+.sla-cell.is-stage.is-long {
+  background: color-mix(in srgb, hsl(var(--ticket-neutral)) 20%, transparent);
+  box-shadow: inset 2px 0 0 hsl(var(--ticket-neutral));
+}
+.sla-cell.is-stage.is-long > span { font-weight: 750; }
+.queue-nosla {
+  display: block; margin-top: 3px; font-size: 11px; font-weight: 550;
+  color: hsl(var(--idesk-text-secondary) / .8);
+}
+.req-phase .queue-nosla { margin-top: 0; }
 .sla-cell-ext { position: absolute; top: -6px; right: -6px; display: inline-flex; align-items: center; gap: 1px; height: 15px; padding: 0 4px; border-radius: 8px;
   font-style: normal; font-size: 9.5px; font-weight: 700; color: hsl(var(--ticket-amber-ink)); background: hsl(var(--idesk-surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, hsl(var(--ticket-amber)) 45%, transparent); }

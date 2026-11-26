@@ -19,6 +19,7 @@ import { resolveInitialHandlingTeam } from '../utils/oracle-ticket-access.util';
 import { departmentDivision, generateNextTicketNumber, withTicketNumberRetry } from '../utils/ticket-number-generator';
 import { SlaClockService } from './sla-clock.service';
 import { HandlingSiteService } from '../../sites/handling-site.service';
+import { clearTicketSlaColumns, isNonSlaTicketType } from '../utils/non-sla-ticket.util';
 
 /** An external system that filed the ticket; (source, ref) is unique, so retries are idempotent. */
 export interface ExternalTicketRef {
@@ -203,6 +204,8 @@ export class TicketCreateService {
             }
             ticket.slaStartedAt = new Date();
             ticket.firstResponseTarget = null; // No first response SLA for hardware installation
+        } else if (isNonSlaTicketType(ticket)) {
+            clearTicketSlaColumns(ticket);
         } else {
             // === Standard SLA Logic ===
             const priority = createTicketDto.priority || 'MEDIUM';

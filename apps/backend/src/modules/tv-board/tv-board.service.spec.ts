@@ -251,4 +251,29 @@ describe('TvBoardService', () => {
             expect(ticketRepo.find.mock.calls[0][0].relations).toContain('site');
         });
     });
+
+    it('strips slaTarget, clears isOverdue, and marks isNonSla on HARDWARE_REQUEST cards', async () => {
+        siteRepo.findOne.mockResolvedValue({ id: 'site-1', name: 'SPJ', code: 'SPJ' });
+        ticketRepo.find.mockResolvedValue([
+            {
+                id: 'hw-1',
+                status: TicketStatus.TODO,
+                description: 'Pengadaan laptop',
+                ticketType: TicketType.HARDWARE_REQUEST,
+                priority: TicketPriority.HIGH,
+                slaTarget: new Date('2026-07-01T00:00:00Z'),
+                isOverdue: true,
+                user: { fullName: 'Budi' },
+            },
+        ]);
+
+        const data = await service.getBoardData('site-1');
+
+        expect(data.open[0]).toMatchObject({
+            id: 'hw-1',
+            slaTarget: null,
+            isOverdue: false,
+            isNonSla: true,
+        });
+    });
 });

@@ -110,6 +110,14 @@ describe('RequestFlowQueryService.view', () => {
         await expect(service.view(viewer('mgr-1', UserRole.USER, 'site-9'), TID)).resolves.toMatchObject({ kind: 'HARDWARE' });
     });
 
+    it('lets cross-site IT who are designated manager, GM, or requester keep their flow role instead of 403', async () => {
+        const ctx = context('HARDWARE', { signed: { manager: false, gm: false }, step: 'MANAGER', approverId: 'mgr-1' }, { route: 'MANAGER_GM', gmId: 'gm-1' });
+        const { service } = setup(ctx);
+        expect((await service.view(viewer('mgr-1', UserRole.AGENT, 'site-2'), TID)).viewerRoleInFlow).toBe('APPROVER_CURRENT');
+        expect((await service.view(viewer('gm-1', UserRole.AGENT, 'site-2'), TID)).viewerRoleInFlow).toBe('APPROVER');
+        expect((await service.view(viewer('req-1', UserRole.AGENT, 'site-2'), TID)).viewerRoleInFlow).toBe('REQUESTER');
+    });
+
     it('projects hardware items, recipients, schedule slots and assets without any signature', async () => {
         const slots = [{ start: '2026-11-25T02:00:00.000Z', end: '2026-11-25T03:00:00.000Z' }, { start: '2026-11-26T02:00:00.000Z', end: '2026-11-26T03:00:00.000Z' }];
         const ctx = context('HARDWARE', { hardware: { ...context('HARDWARE').hardware!, status: RequestStatus.INSTALLATION } as never, phase: 'other', step: null, approverId: null });
