@@ -110,31 +110,39 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
   });
 
   describe('getActionItems / fetchActionItemData scopes hardware and eform by site when provided', () => {
-    it('passes siteId into hardware_requests and eform_requests queries for non-cross-site role', async () => {
-      // getActionItems calls fetchActionItemData via cache getOrSet
-      // We just need to ensure the query strings contain the site filter and params include siteId.
+    it('passes siteId into hardware_requests and eform_requests queries for site-scoped IT staff (AGENT_ADMIN)', async () => {
+      await service.getActionItems('u1', UserRole.AGENT_ADMIN, 'site-spj');
 
-      await service.getActionItems('u1', 'MANAGER', 'site-spj');
-
-      // Find calls that target hardware_requests and eform_requests
       const hwCall = (entityManager.query as jest.Mock).mock.calls.find((c: any[]) =>
-        typeof c[0] === 'string' && c[0].includes('hardware_requests'),
+        typeof c[0] === 'string' && c[0].includes('FROM hardware_requests'),
       );
       const eformCall = (entityManager.query as jest.Mock).mock.calls.find((c: any[]) =>
-        typeof c[0] === 'string' && c[0].includes('eform_requests'),
+        typeof c[0] === 'string' && c[0].includes('FROM eform_requests'),
       );
 
       expect(hwCall).toBeTruthy();
       expect(eformCall).toBeTruthy();
 
-      // The query should include the site filter fragment we added
       expect(hwCall[0]).toMatch(/siteId/);
-      // params for hardware when site provided: [siteId]
       expect(hwCall[1]).toEqual(['site-spj']);
 
-      // For eform: first param is userId, second (when site) is siteId
       expect(eformCall[0]).toMatch(/siteId/);
       expect(eformCall[1]).toEqual(['u1', 'site-spj']);
+    });
+
+    it('does not show unapproved SUBMITTED/UNDER_REVIEW hardware triage items to MANAGER; queries only their designated approvals', async () => {
+      await service.getActionItems('mgr-1', UserRole.MANAGER, 'site-spj');
+
+      const triageHwCall = (entityManager.query as jest.Mock).mock.calls.find((c: any[]) =>
+        typeof c[0] === 'string' && c[0].includes("IN ('SUBMITTED', 'UNDER_REVIEW')"),
+      );
+      const flowApprovalCall = (entityManager.query as jest.Mock).mock.calls.find((c: any[]) =>
+        typeof c[0] === 'string' && c[0].includes('FROM request_flows'),
+      );
+
+      expect(triageHwCall).toBeUndefined();
+      expect(flowApprovalCall).toBeTruthy();
+      expect(flowApprovalCall[1]).toEqual(['mgr-1']);
     });
 
     it('omits site filter for cross-site role when no siteId provided (explicit all-sites)', async () => {
@@ -144,9 +152,7 @@ describe('NotificationCenterService site isolation (no global fanout)', () => {
         typeof c[0] === 'string' && c[0].includes('hardware_requests'),
       );
 
-      // When no siteId, the added fragment should not be present for hardware
       expect(hwCall[0]).not.toMatch(/siteId/);
-      // And params should be empty for the site part
       expect(hwCall[1]).toEqual([]);
     });
   });

@@ -1,9 +1,8 @@
-import { Injectable, Logger, OnModuleInit, forwardRef, Inject, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, forwardRef, Inject, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Repository, In, IsNull, LessThan, MoreThan, EntityManager } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
 import { ActionItemSnooze } from './entities/action-item-snooze.entity';
-import { addMinutes, addHours, addDays, startOfDay, setHours } from 'date-fns';
 import { EventsGateway } from '../ticketing/presentation/gateways/events.gateway';
 import { NotificationPreference, DigestFrequency } from './entities/notification-preference.entity';
 import { NotificationLog, DeliveryChannel, DeliveryStatus } from './entities/notification-log.entity';
@@ -19,19 +18,21 @@ import { PushChannelService } from './channels/push-channel.service';
 import { NotificationPushService } from './notification-push.service';
 import { getCategoryFromType } from './utils/category-mapper';
 import { PermissionPreset } from '../permissions/entities/permission-preset.entity';
-import { NotificationPreferenceGate } from './notification-preference-gate.service';
+import { NotificationPreferenceGate, isInQuietHours } from './notification-preference-gate.service';
 import { PageKey, getRoleDefaultPageAccess } from '../../shared/core/types/page-access.types';
 import { User } from '../users/entities/user.entity';
-import { UserRole } from '../users/enums/user-role.enum';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { EntityManager } from 'typeorm';
-import { ActionItemDto, ActionItemUrgency, ActionItemEntityType, ActionItemsResponseDto } from './dto/action-item.dto';
 import { CacheService } from '../../shared/core/cache/cache.service';
-import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline.util';
 import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
 import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 import { NOTIFICATIONS_READ_EVENT } from './notification-events';
-import { isSlaTicketSql } from '../ticketing/utils/non-sla-ticket.util';
+import {
+    DEFAULT_CATEGORY_SETTINGS,
+    fetchActionItemData,
+    mapQueriesToActionItems,
+    processAndFilterActionItems,
+    resolveSnoozedUntil,
+} from './action-center-items.helper';
 
 const GROUPED_INAPP_COOLDOWN_SECONDS = 120;
 
@@ -98,7 +99,7 @@ export class NotificationCenterService implements OnModuleInit {
 
         // Turned off in-app for this type: nothing is stored or shown.
         if (!this.allowsChannel(DeliveryChannel.IN_APP, payload.type, preferences)) return null;
-        const quiet = this.isInQuietHours(preferences);
+        const quiet = isInQuietHours(preferences, new Date());
 
         // Create or group notification record
         const { notification, groupedExisting } = await this.resolveOrCreateNotification(payload);
@@ -333,14 +334,6 @@ export class NotificationCenterService implements OnModuleInit {
     // Action Items
     // =====================
 
-    private resolveSnoozedUntil(duration: '30m' | '2h' | 'tomorrow'): Date {
-        const now = new Date();
-        if (duration === '30m') return addMinutes(now, 30);
-        if (duration === '2h') return addHours(now, 2);
-        const tomorrow = startOfDay(addDays(now, 1));
-        return setHours(tomorrow, 8);
-    }
-
     emitActionItemsRefresh(userId: string, entityType: string, entityId: string): void {
         try {
             // Instantly clear cached action items for this user across all roles & sites
@@ -354,7 +347,7 @@ export class NotificationCenterService implements OnModuleInit {
     }
 
     async snoozeActionItem(userId: string, entityType: string, entityId: string, duration: '30m' | '2h' | 'tomorrow'): Promise<{ snoozeUntil: string }> {
-        const snoozedUntil = this.resolveSnoozedUntil(duration);
+        const snoozedUntil = resolveSnoozedUntil(duration);
         await this.snoozeRepo.upsert(
             { userId, entityType, entityId, snoozedUntil },
             { conflictPaths: ['userId', 'entityType', 'entityId'] }
@@ -370,9 +363,8 @@ export class NotificationCenterService implements OnModuleInit {
 
     async getCategorySettings(userId: string): Promise<Record<string, boolean>> {
         const pref = await this.preferenceRepo.findOne({ where: { userId } });
-        const defaults = { TICKET: true, TICKET_NOTE: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
-        if (!pref?.categorySettings) return defaults;
-        return { ...defaults, ...pref.categorySettings };
+        if (!pref?.categorySettings) return { ...DEFAULT_CATEGORY_SETTINGS };
+        return { ...DEFAULT_CATEGORY_SETTINGS, ...pref.categorySettings };
     }
 
     async updateCategorySettings(userId: string, updates: Partial<Record<string, boolean>>): Promise<Record<string, boolean>> {
@@ -384,29 +376,24 @@ export class NotificationCenterService implements OnModuleInit {
         const updated = { ...current, ...updates };
         await this.preferenceRepo.update({ userId }, { categorySettings: updated as any });
         this.emitActionItemsRefresh(userId, 'SETTINGS', 'categories');
-        const defaults = { TICKET: true, TICKET_NOTE: true, HARDWARE_REQUEST: true, EFORM: true, RENEWAL: true, ZOOM: true };
-        return { ...defaults, ...updated };
+        return { ...DEFAULT_CATEGORY_SETTINGS, ...updated };
     }
 
     async getActionItems(userId: string, role: string, siteId?: string | null): Promise<any> {
-        // P0 perf: 30s cache per (user, role) to stop the manager+admin poll
-        // from full-table-scanning tickets/renewals/eform/hardware on every
-        // request. Cache is invalidated by snooze toggle / category settings
-        // mutations via the action-items:refresh event emitted elsewhere.
         const cacheKey = `action-items:${userId}:${role}:${siteId ?? 'all'}`;
         const existing = await this.cacheService.getOrSet(
             cacheKey,
             async () => {
                 const now = new Date();
                 const [data, activeSnoozes, categorySettings] = await Promise.all([
-                    this.fetchActionItemData(userId, role, siteId ?? null, now),
+                    fetchActionItemData(this.entityManager, userId, role, siteId ?? null, now),
                     this.snoozeRepo.find({
                         where: { userId, snoozedUntil: MoreThan(now) },
                     }),
                     this.getCategorySettings(userId),
                 ]);
-                const rawItems = this.mapQueriesToActionItems(data, now);
-                return this.processAndFilterActionItems(rawItems, activeSnoozes, categorySettings);
+                const rawItems = mapQueriesToActionItems(data, now);
+                return processAndFilterActionItems(rawItems, activeSnoozes, categorySettings);
             },
             30,
         );
@@ -416,223 +403,7 @@ export class NotificationCenterService implements OnModuleInit {
             this.snoozeRepo.find({ where: { userId, snoozedUntil: MoreThan(new Date()) } }),
             this.getCategorySettings(userId),
         ]);
-        return this.processAndFilterActionItems([...existing.items, ...notes], snoozes, settings);
-    }
-
-    private async fetchActionItemData(userId: string, role: string, siteId: string | null, now: Date) {
-        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-        const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-        const agentRoles = [
-            UserRole.AGENT,
-            UserRole.AGENT_OPERATIONAL_SUPPORT,
-            UserRole.AGENT_ORACLE,
-            UserRole.AGENT_WEB_DEV,
-            UserRole.AGENT_MOBILE_DEV,
-            UserRole.AGENT_ADMIN,
-            UserRole.ADMIN,
-        ];
-        const isAgentOrAdmin = agentRoles.includes(role as any);
-        const isManagerOrAdmin = [UserRole.ADMIN, UserRole.MANAGER, UserRole.AGENT_ADMIN].includes(role as any);
-        const isUser = role === UserRole.USER;
-
-        // Build optional site filter per query, with correct parameter indices.
-        // Hardware query has no prior params → site uses $1.
-        // EForm query already has $1 (userId) → site uses $2.
-        const hwSiteFilterSql = siteId ? ' AND "siteId" = $1' : '';
-        const hwSiteFilterParams = siteId ? [siteId] : [];
-        const eformSiteFilterSql = siteId ? ' AND "siteId" = $2' : '';
-
-        const [
-            slaBreachedTickets,
-            unrespondedTickets,
-            resolvedTickets,
-            disputedTickets,
-            pendingHw,
-            userHwConfirmation,
-            agentHwInstallation,
-            pendingEform,
-            renewals,
-            zoomBookings,
-        ] = await Promise.all([
-            isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND "slaTarget" < $2 AND "deletedAt" IS NULL AND ${isSlaTicketSql('tickets')} ORDER BY "slaTarget" ASC LIMIT 50`,
-                [userId, now]
-            ).catch(() => []) : Promise.resolve([]),
-            isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'TODO' AND "createdAt" < $2 AND "deletedAt" IS NULL ORDER BY "createdAt" ASC LIMIT 50`,
-                [userId, oneHourAgo]
-            ).catch(() => []) : Promise.resolve([]),
-            isUser ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "updatedAt", "resolutionDeadlineAt" FROM tickets WHERE "userId" = $1 AND status = 'RESOLVED' AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT 50`,
-                [userId]
-            ).catch(() => []) : Promise.resolve([]),
-            // The requester disputed the resolution: the assigned agent must pick it up again.
-            isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "disputedAt" FROM tickets WHERE "assignedToId" = $1 AND status = 'IN_PROGRESS' AND "disputedAt" IS NOT NULL AND "deletedAt" IS NULL ORDER BY "disputedAt" DESC LIMIT 50`,
-                [userId]
-            ).catch(() => []) : Promise.resolve([]),
-            isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE status IN ('SUBMITTED', 'UNDER_REVIEW')${hwSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
-                hwSiteFilterParams
-            ).catch(() => []) : Promise.resolve([]),
-            isUser ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE "requesterId" = $1 AND status = 'AWAITING_USER_CONFIRMATION' ORDER BY "createdAt" DESC LIMIT 50`,
-                [userId]
-            ).catch(() => []) : Promise.resolve([]),
-            (isAgentOrAdmin && !isManagerOrAdmin && siteId) ? this.entityManager.query(
-                `SELECT id, "requestNumber", status, "createdAt" FROM hardware_requests WHERE "siteId" = $1 AND status IN ('APPROVED', 'INSTALLATION') ORDER BY "createdAt" DESC LIMIT 50`,
-                [siteId]
-            ).catch(() => []) : Promise.resolve([]),
-            isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "formType", "createdAt" FROM eform_requests WHERE "currentApproverId" = $1 AND status IN ('PENDING_MANAGER', 'PENDING_GM', 'PENDING_ICT')${eformSiteFilterSql} ORDER BY "createdAt" DESC LIMIT 50`,
-                siteId ? [userId, siteId] : [userId]
-            ).catch(() => []) : Promise.resolve([]),
-            isManagerOrAdmin ? this.entityManager.query(
-                `SELECT id, "vendorName", "description", "endDate", "status" FROM renewal_contracts WHERE "status" != 'EXPIRED' AND "endDate" < $1 AND "deletedAt" IS NULL ORDER BY "endDate" ASC LIMIT 50`,
-                [next7Days]
-            ).catch(() => []) : Promise.resolve([]),
-            this.entityManager.query(
-                `SELECT id, title, "bookingDate", "startTime", "endTime", status, "createdAt" FROM zoom_bookings WHERE "bookedByUserId" = $1 AND "bookingDate" = CURRENT_DATE AND status = 'CONFIRMED' ORDER BY "startTime" ASC LIMIT 20`,
-                [userId]
-            ).catch(() => []),
-        ]);
-
-        return {
-            slaBreachedTickets,
-            unrespondedTickets,
-            resolvedTickets,
-            disputedTickets,
-            pendingHw,
-            userHwConfirmation,
-            agentHwInstallation,
-            pendingEform,
-            renewals,
-            zoomBookings,
-        };
-    }
-
-    private mapQueriesToActionItems(data: any, now: Date): ActionItemDto[] {
-        const items: ActionItemDto[] = [];
-        const next1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-        data.slaBreachedTickets?.forEach((t: any) => items.push({
-            id: `tkt-sla-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `SLA Breached: ${t.ticketNumber}`,
-            description: t.title, urgency: ActionItemUrgency.CRITICAL, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
-        }));
-
-        data.unrespondedTickets?.forEach((t: any) => items.push({
-            id: `tkt-unresp-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Unresponded: ${t.ticketNumber}`,
-            description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.createdAt, isSnoozed: false
-        }));
-
-        data.resolvedTickets?.forEach((t: any) => items.push({
-            id: `tkt-res-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Ticket Resolved: ${t.ticketNumber}`,
-            description: t.resolutionDeadlineAt
-                ? `Konfirmasi selesai atau sanggah sebelum ${formatResolutionDeadline(t.resolutionDeadlineAt)}`
-                : 'Konfirmasi apakah tiket sudah selesai',
-            urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/client/tickets/${t.id}`, createdAt: t.updatedAt, isSnoozed: false
-        }));
-
-        data.disputedTickets?.forEach((t: any) => items.push({
-            id: `tkt-dispute-${t.id}`, entityType: ActionItemEntityType.TICKET, title: `Resolusi Disanggah: ${t.ticketNumber}`,
-            description: t.title, urgency: ActionItemUrgency.HIGH, entityId: t.id, link: `/tickets/${t.id}`, createdAt: t.disputedAt, isSnoozed: false
-        }));
-
-        data.pendingHw?.forEach((hw: any) => items.push({
-            id: `hw-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Hardware Approval Pending`,
-            description: `Request ${hw.requestNumber}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
-        }));
-
-        data.userHwConfirmation?.forEach((hw: any) => items.push({
-            id: `hw-confirm-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Konfirmasi Penerimaan Hardware`,
-            description: `Request ${hw.requestNumber} siap dikonfirmasi`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
-        }));
-
-        data.agentHwInstallation?.forEach((hw: any) => items.push({
-            id: `hw-install-${hw.id}`, entityType: ActionItemEntityType.HARDWARE_REQUEST, title: `Instalasi Hardware: ${hw.requestNumber}`,
-            description: `Status: ${hw.status}`, urgency: ActionItemUrgency.HIGH, entityId: hw.id, link: `/hardware-requests/${hw.id}`, createdAt: hw.createdAt, isSnoozed: false
-        }));
-
-        data.pendingEform?.forEach((ef: any) => items.push({
-            id: `ef-${ef.id}`, entityType: ActionItemEntityType.EFORM, title: `E-Form Approval Pending`,
-            description: `${ef.formType} Request`, urgency: ActionItemUrgency.HIGH, entityId: ef.id, link: `/eform-access/${ef.id}`, createdAt: ef.createdAt, isSnoozed: false
-        }));
-
-        data.renewals?.forEach((r: any) => {
-            const isCritical = new Date(r.endDate) < next1Day;
-            const label = r.vendorName || r.description || 'Unknown Contract';
-            items.push({
-                id: `ren-${r.id}`, entityType: ActionItemEntityType.RENEWAL, title: isCritical ? `Renewal Critical` : `Renewal Expiring Soon`,
-                description: label, urgency: isCritical ? ActionItemUrgency.CRITICAL : ActionItemUrgency.HIGH, entityId: r.id, link: '/renewal?tab=contracts', createdAt: new Date(), isSnoozed: false
-            });
-        });
-
-        data.zoomBookings?.forEach((z: any) => {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const startTimePart = z.startTime ? z.startTime.slice(0, 5) : '00:00';
-            const endTimePart = z.endTime ? z.endTime.slice(0, 5) : '23:59';
-            const startDateTime = new Date(`${todayStr}T${startTimePart}:00`);
-            const endDateTime = new Date(`${todayStr}T${endTimePart}:00`);
-            const isSoonOrActive = !isNaN(startDateTime.getTime()) &&
-                (now.getTime() >= startDateTime.getTime() - 2 * 60 * 60 * 1000) &&
-                (now.getTime() <= endDateTime.getTime());
-
-            items.push({
-                id: `zoom-${z.id}`,
-                entityType: ActionItemEntityType.ZOOM,
-                title: `Zoom Meeting: ${z.title}`,
-                description: `Pukul ${startTimePart} - ${endTimePart}`,
-                urgency: isSoonOrActive ? ActionItemUrgency.HIGH : ActionItemUrgency.NORMAL,
-                entityId: z.id,
-                link: `/zoom-calendar?booking=${encodeURIComponent(z.id)}`,
-                createdAt: z.createdAt ? new Date(z.createdAt) : new Date(),
-                isSnoozed: false,
-            });
-        });
-
-        return items;
-    }
-
-    private processAndFilterActionItems(items: ActionItemDto[], activeSnoozes: any[], categorySettings: Record<string, boolean>) {
-        const snoozeMap = new Map(
-            activeSnoozes.map(s => [`${s.entityType}:${s.entityId}`, s.snoozedUntil])
-        );
-
-        // Annotate items dengan snooze info + filter disabled categories
-        const annotatedItems = items
-            .filter(item => {
-                const catKey = item.entityType as string;
-                return categorySettings[catKey] !== false;
-            })
-            .map(item => {
-                const key = `${item.entityType}:${item.entityId}`;
-                const snoozeUntil = snoozeMap.get(key);
-                return {
-                    ...item,
-                    isSnoozed: !!snoozeUntil,
-                    snoozeUntil: snoozeUntil?.toISOString(),
-                };
-            });
-
-        // Recalculate counts (exclude snoozed items)
-        const activeItems = annotatedItems.filter(i => !i.isSnoozed);
-        const counts = {
-            critical: activeItems.filter(i => i.urgency === ActionItemUrgency.CRITICAL).length,
-            high: activeItems.filter(i => i.urgency === ActionItemUrgency.HIGH).length,
-            normal: activeItems.filter(i => i.urgency === ActionItemUrgency.NORMAL).length,
-            total: activeItems.length,
-        };
-
-        const sortedItems = annotatedItems.sort((a, b) => {
-            const urgencyWeight: Record<string, number> = { 'CRITICAL': 3, 'HIGH': 2, 'NORMAL': 1 };
-            if (urgencyWeight[b.urgency] !== urgencyWeight[a.urgency]) {
-                return urgencyWeight[b.urgency] - urgencyWeight[a.urgency];
-            }
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
-
-        return { items: sortedItems, counts };
+        return processAndFilterActionItems([...existing.items, ...notes], snoozes, settings);
     }
 
     // =====================
@@ -804,48 +575,6 @@ export class NotificationCenterService implements OnModuleInit {
                 return preferences.pushEnabled;
             default:
                 return false;
-        }
-    }
-
-    // =====================
-    // Quiet Hours
-    // =====================
-
-    private isInQuietHours(preferences: NotificationPreference): boolean {
-        if (!preferences.quietHoursEnabled || !preferences.quietHoursStart || !preferences.quietHoursEnd) {
-            return false;
-        }
-
-        const now = new Date();
-        const timezone = preferences.timezone || 'UTC';
-
-        try {
-            const formatter = new Intl.DateTimeFormat('en-US', {
-                timeZone: timezone,
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-            });
-
-            const currentTime = formatter.format(now);
-            const [currentHour, currentMinute] = currentTime.split(':').map(Number);
-            const currentMinutes = currentHour * 60 + currentMinute;
-
-            const [startHour, startMinute] = preferences.quietHoursStart.split(':').map(Number);
-            const startMinutes = startHour * 60 + startMinute;
-
-            const [endHour, endMinute] = preferences.quietHoursEnd.split(':').map(Number);
-            const endMinutes = endHour * 60 + endMinute;
-
-            // Handle overnight quiet hours (e.g., 22:00 - 07:00)
-            if (startMinutes > endMinutes) {
-                return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-            }
-
-            return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-        } catch (error) {
-            this.logger.error('Error checking quiet hours:', error);
-            return false;
         }
     }
 

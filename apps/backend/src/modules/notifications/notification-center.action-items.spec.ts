@@ -151,4 +151,71 @@ describe('NotificationCenterService Action Items', () => {
         const slaSql = entityManager.query.mock.calls.map((c: any[]) => c[0]).find((sql: string) => sql.includes('slaTarget'));
         expect(slaSql).toContain("'CLOSED'");
     });
+
+    it('routes HW/E-Form flow approvals via /client/tickets/:ticketId for USER and /tickets/:ticketId for staff, and skips non-active turn', async () => {
+        entityManager.query.mockImplementation((sql: string) => {
+            if (sql.includes('FROM request_flows f')) {
+                return Promise.resolve([
+                    {
+                        ticketId: 'tkt-hw-1', kind: 'HARDWARE', route: 'MANAGER_GM', returnedReason: null,
+                        managerId: 'approver-u', gmId: 'gm-2', id: 'hw-10', number: 'HR-2026-0010',
+                        formType: null, status: 'UNDER_REVIEW', requesterId: 'req-1', createdAt: new Date(),
+                        managerSigned: false, gmSigned: false,
+                    },
+                    {
+                        // GM turn only — manager already signed, so not approver-u's turn if approver-u is manager
+                        ticketId: 'tkt-hw-2', kind: 'HARDWARE', route: 'MANAGER_GM', returnedReason: null,
+                        managerId: 'approver-u', gmId: 'gm-2', id: 'hw-11', number: 'HR-2026-0011',
+                        formType: null, status: 'UNDER_REVIEW', requesterId: 'req-1', createdAt: new Date(),
+                        managerSigned: true, gmSigned: false,
+                    },
+                    {
+                        ticketId: 'tkt-ef-1', kind: 'EFORM', route: 'MANAGER', returnedReason: null,
+                        managerId: 'approver-u', gmId: null, id: 'ef-10', number: 'F/ICT/04/0010',
+                        formType: 'VPN', status: 'PENDING_MANAGER', requesterId: 'req-1', createdAt: new Date(),
+                        managerSigned: false, gmSigned: false,
+                    },
+                ]);
+            }
+            return Promise.resolve([]);
+        });
+
+        const userResult = await service.getActionItems('approver-u', UserRole.USER, 'site-1');
+        expect(userResult.items.map((i: any) => ({ id: i.id, title: i.title, link: i.link }))).toEqual([
+            { id: 'hw-hw-10', title: 'Hardware Approval Pending', link: '/client/tickets/tkt-hw-1' },
+            { id: 'ef-ef-10', title: 'E-Form Approval Pending', link: '/client/tickets/tkt-ef-1' },
+        ]);
+
+        const agentResult = await service.getActionItems('approver-u', UserRole.AGENT, 'site-2');
+        expect(agentResult.items.map((i: any) => ({ id: i.id, link: i.link }))).toEqual([
+            { id: 'hw-hw-10', link: '/tickets/tkt-hw-1' },
+            { id: 'ef-ef-10', link: '/tickets/tkt-ef-1' },
+        ]);
+    });
+
+    it('gives AGENT_OPERATIONAL_SUPPORT E-Form review/provisioning items and HW confirmation link to /client/tickets for USER', async () => {
+        entityManager.query.mockImplementation((sql: string, params: any[]) => {
+            if (sql.includes("ef.status IN ('PENDING_REVIEW', 'PENDING_ICT')")) {
+                return Promise.resolve([
+                    { id: 'ef-20', formType: 'VPN', status: 'PENDING_ICT', createdAt: new Date(), ticketId: 'tkt-ef-20' },
+                ]);
+            }
+            if (sql.includes('hardware_requests') && sql.includes('AWAITING_USER_CONFIRMATION') && params[0] === 'req-1') {
+                return Promise.resolve([
+                    { id: 'hw-1', requestNumber: 'HR-001', status: 'AWAITING_USER_CONFIRMATION', createdAt: new Date(), ticketId: 'tkt-hw-1' },
+                ]);
+            }
+            return Promise.resolve([]);
+        });
+
+        const opsResult = await service.getActionItems('ops-1', UserRole.AGENT_OPERATIONAL_SUPPORT, 'site-1');
+        expect(opsResult.items).toEqual([
+            expect.objectContaining({ id: 'ef-ict-ef-20', title: 'E-Form Provisioning Pending', link: '/tickets/tkt-ef-20' }),
+        ]);
+
+        const userResult = await service.getActionItems('req-1', UserRole.USER);
+        expect(userResult.items).toEqual([
+            expect.objectContaining({ id: 'hw-confirm-hw-1', link: '/client/tickets/tkt-hw-1' }),
+        ]);
+    });
 });
