@@ -178,7 +178,8 @@ export class IpopOidcClient {
             const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
             meta = res.ok ? await res.json() as Partial<ProviderMetadata> : null;
         } catch (error) {
-            this.logger.warn(`iPop discovery failed: ${(error as Error).message}`);
+            const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+            this.logger.warn(`iPop discovery failed for ${url}: ${(error as Error).message}${cause ? ` (cause: ${cause.code ?? cause.message})` : ''}`);
             meta = null;
         }
         if (!meta?.issuer || !meta.authorization_endpoint || !meta.token_endpoint || !meta.jwks_uri) {
