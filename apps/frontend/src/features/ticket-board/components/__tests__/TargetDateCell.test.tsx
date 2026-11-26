@@ -154,4 +154,27 @@ describe('TargetDateCell', () => {
 
         expect(screen.getByText('Selesai')).toBeInTheDocument();
     });
+
+    it('renders neutral stage pill without SLA countdown or overdue styling for Hardware/E-Form tickets', () => {
+        const { container } = render(
+            <TargetDateCell
+                ticket={{
+                    status: 'IN_PROGRESS',
+                    priority: 'HIGH',
+                    createdAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+                    slaTarget: '2020-01-01T00:00:00Z',
+                    requestKind: 'HARDWARE',
+                    flowPhase: 'appr_gm',
+                    flowPhaseLabel: 'Menunggu GM',
+                    flowPhaseSince: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+                }}
+            />,
+        );
+
+        expect(screen.getByText('Menunggu GM')).toBeInTheDocument();
+        expect(screen.getByText('8 hari · lama')).toBeInTheDocument();
+        expect(container.querySelector('.sla-cell.is-stage.is-long')).not.toBeNull();
+        expect(container.querySelector('.sla-cell.is-late')).toBeNull();
+        expect(screen.queryByTitle(/SLA Target:/)).toBeNull();
+    });
 });

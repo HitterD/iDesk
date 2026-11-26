@@ -32,6 +32,11 @@ export interface TicketDetail {
     category: string;
     ticketType?: string;
     requestKind?: 'HARDWARE' | 'EFORM' | null;
+    isNonSla?: boolean;
+    flowPhase?: string | null;
+    flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'MOBILE_DEV' | 'WEB_DEV' | string;
     siteId?: string | null;
     site?: { id?: string; code: string; name: string } | null;

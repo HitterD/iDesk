@@ -90,6 +90,39 @@ describe('BentoTvBoardPage', () => {
         expect(normalCard?.textContent).not.toMatch(/Terlambat/);
     });
 
+    it('never marks Hardware/E-Form non-SLA cards as overdue on the TV board even with legacy SLA fields', async () => {
+        const api = (await import('@/lib/api')).default;
+        (api.get as any).mockResolvedValueOnce({
+            data: {
+                siteName: 'Sampoerna Jaya',
+                siteCode: 'SPJ',
+                open: [
+                    {
+                        id: 't-hw',
+                        description: 'Permintaan Laptop HR-2026-0099',
+                        requesterName: 'Siti',
+                        requesterDepartment: 'HR',
+                        assignedToName: null,
+                        priority: 'HIGH',
+                        slaTarget: '2020-01-01T00:00:00.000Z',
+                        isOverdue: true,
+                        isOracleRequest: false,
+                        ticketType: 'HARDWARE_REQUEST',
+                        isNonSla: true,
+                    },
+                ],
+                inProgress: [],
+                waitingVendorCount: 0,
+                ringtones: { newTicket: null, inProgress: null, closing: null, closingTime: null },
+            },
+        });
+        renderBoard();
+
+        const hwCard = (await screen.findByText('Permintaan Laptop HR-2026-0099')).closest('[data-testid="tv-board-card"]');
+        expect(hwCard).not.toHaveAttribute('data-overdue');
+        expect(hwCard?.textContent).not.toMatch(/Terlambat/);
+    });
+
     it('scales the whole board with the viewport via the root font size', async () => {
         const { unmount } = renderBoard();
         await screen.findByText('Sampoerna Jaya');

@@ -77,7 +77,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
     });
 
     // A Hardware / E-Form ticket is driven by its request flow; the requester and the approver answer from its panel.
-    const isRequestTicket = Boolean(ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
+    const isRequestTicket = Boolean(ticket?.isNonSla || ticket?.requestKind) || ticket?.ticketType === 'HARDWARE_REQUEST' || ticket?.ticketType === 'EFORM_REQUEST';
     const { data: requestFlow } = useRequestFlow(id, isRequestTicket);
 
     const replyMutation = useMutation({
@@ -212,7 +212,7 @@ const ClientTicketDetailContent: React.FC<{ id: string | undefined }> = ({ id })
                 onToggleSidebar={handleToggleSidebar}
                 canSelfResolve={canSelfResolve}
                 canCancel={isRequester && !isRequestTicket}
-                flow={requestFlow ? { kind: requestFlow.kind, phaseLabel: requestFlow.phaseLabel } : undefined}
+                flow={requestFlow ? { kind: requestFlow.kind, phase: requestFlow.phase, phaseLabel: requestFlow.phaseLabel, phaseSince: requestFlow.phaseSince, installScheduledAt: requestFlow.installScheduledAt } : undefined}
                 tabs={(
                     <DetailTabs
                         requestDocumentVersion={isRequestTicket ? requestFlow?.documentVersion ?? null : undefined}

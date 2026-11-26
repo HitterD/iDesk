@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { isTerminalStatus } from './constants';
 import { formatSlaTime, offHoursLabel, slaCountdown, SlaCountdown, useSlaClock } from '@/lib/slaCountdown';
 import { formatSlaSpan } from '@/lib/utils/slaDuration';
+import { isNonSlaTicket } from '../../utils/nonSlaTicket';
 
 interface SlaStatusCardProps {
     ticket: TicketDetail & {
@@ -95,6 +96,8 @@ export const SlaStatusCard: React.FC<SlaStatusCardProps> = ({
 
         return () => clearInterval(interval);
     }, [ticket, isResolved, slaClock]);
+
+    if (isNonSlaTicket(ticket)) return null;
 
     // Get Resolution Status
     const getResolutionStatus = () => {

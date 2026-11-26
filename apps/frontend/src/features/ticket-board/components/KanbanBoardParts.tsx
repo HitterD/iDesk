@@ -23,6 +23,14 @@ export interface KanbanTicket {
     externalSource?: string | null;
     status: 'TODO' | 'IN_PROGRESS' | 'WAITING_VENDOR' | 'RESOLVED' | 'CLOSED' | 'CANCELLED';
     priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'HARDWARE_INSTALLATION';
+    ticketType?: string | null;
+    isNonSla?: boolean;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhase?: string | null;
+    flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
+    scheduledDate?: string;
     isOverdue?: boolean;
     slaTarget?: string;
     slaRemainingMinutes?: number | null;

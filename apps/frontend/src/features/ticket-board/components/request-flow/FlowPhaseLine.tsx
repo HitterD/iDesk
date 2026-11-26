@@ -1,22 +1,30 @@
-import { Pause } from 'lucide-react';
+import { isNonSlaTicket } from '../../utils/nonSlaTicket';
 
 export interface FlowFields {
     requestKind?: 'HARDWARE' | 'EFORM' | null;
+    ticketType?: string | null;
+    isNonSla?: boolean;
     flowPhase?: string | null;
     flowPhaseLabel?: string | null;
-    /** The SLA clock is on hold while IT waits on someone else. */
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
+    /** @deprecated Hardware & E-Form tickets do not use SLA; kept on type for backward compatibility. */
     flowPaused?: boolean;
     /** The viewer is the one who must act next. */
     needsMyAction?: boolean;
 }
 
-/** The phase of a request ticket under its status, with the SLA pause and "your turn" markers. Nothing for IT tickets. */
+/** The phase of a request ticket under its status with a quiet "Tanpa SLA" marker. Nothing for IT tickets. */
 export function FlowPhaseLine({ ticket }: { ticket: FlowFields }) {
-    if (!ticket.requestKind || !ticket.flowPhaseLabel) return null;
+    const nonSla = isNonSlaTicket(ticket);
+    if (!nonSla && !ticket.flowPhaseLabel) return null;
+    if (!ticket.flowPhaseLabel) {
+        return <span className="queue-nosla">Tanpa SLA</span>;
+    }
     return (
         <span className="req-phase" data-flow-phase={ticket.flowPhase ?? undefined}>
             <span className="req-phase__label">{ticket.flowPhaseLabel}</span>
-            {ticket.flowPaused && <span className="req-phase__pause" title="SLA dijeda"><Pause aria-hidden="true" />Dijeda</span>}
+            <span className="queue-nosla">Tanpa SLA</span>
         </span>
     );
 }

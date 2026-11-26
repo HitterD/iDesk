@@ -52,6 +52,17 @@ describe('computeTeamStats — overdue and SLA compliance', () => {
     it('has no SLA compliance when nothing in the range had a target', () => {
         expect(computeTeamStats([ticket({ status: 'TODO' })], 7, NOW).slaCompliance).toBeNull();
     });
+
+    it('excludes Hardware & E-Form non-SLA tickets from overdue and SLA compliance', () => {
+        const s = computeTeamStats([
+            ticket({ status: 'TODO', ticketType: 'HARDWARE_REQUEST', slaStartedAt: at(21, 8), slaTarget: at(21, 10), isOverdue: true }),
+            ticket({ status: 'IN_PROGRESS', ticketType: 'EFORM_REQUEST', slaStartedAt: at(21, 8), slaTarget: at(21, 10), isOverdue: true }),
+            ticket({ status: 'RESOLVED', ticketType: 'HARDWARE_REQUEST', resolvedAt: at(20), slaStartedAt: at(1), slaTarget: at(19) }),
+            ticket({ status: 'RESOLVED', isNonSla: true, resolvedAt: at(20), slaStartedAt: at(1), slaTarget: at(21) }),
+        ], 7, NOW);
+        expect(s.overdue).toBe(0);
+        expect(s.slaCompliance).toBeNull();
+    });
 });
 
 describe('computeTeamStats', () => {

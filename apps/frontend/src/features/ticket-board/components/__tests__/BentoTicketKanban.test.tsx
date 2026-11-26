@@ -91,4 +91,10 @@ describe('isCountedOverdue (overdue filter + stat)', () => {
     it.each(['RESOLVED', 'CLOSED', 'CANCELLED'] as const)('excludes finished %s tickets', (status) => {
         expect(isCountedOverdue({ status, isOverdue: true })).toBe(false);
     });
+
+    it('excludes Hardware & E-Form non-SLA tickets even if status is active and isOverdue is true', () => {
+        expect(isCountedOverdue({ status: 'IN_PROGRESS', isOverdue: true, ticketType: 'HARDWARE_REQUEST' })).toBe(false);
+        expect(isCountedOverdue({ status: 'TODO', isOverdue: true, ticketType: 'EFORM_REQUEST' })).toBe(false);
+        expect(isCountedOverdue({ status: 'IN_PROGRESS', isOverdue: true, isNonSla: true })).toBe(false);
+    });
 });

@@ -28,15 +28,37 @@ const renderRow = (ticket: TicketRowData) => render(
 );
 
 describe('TicketListRow request tickets', () => {
-    it('shows the type tag next to the number and the phase under the status', () => {
-        renderRow({ ...base, requestKind: 'EFORM', flowPhase: 'appr_mgr', flowPhaseLabel: 'Menunggu Atasan', flowPaused: false });
+    it('shows the type tag next to the number, stage in the SLA column, and "Tanpa SLA" under the status', () => {
+        const { container } = renderRow({
+            ...base,
+            requestKind: 'EFORM',
+            flowPhase: 'appr_mgr',
+            flowPhaseLabel: 'Menunggu Atasan',
+            flowPhaseSince: new Date().toISOString(),
+            flowPaused: false,
+        });
         expect(screen.getAllByText('E-Form').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Menunggu Atasan').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Tanpa SLA').length).toBeGreaterThan(0);
+        expect(container.querySelector('.queue-status-cell .queue-nosla')).toHaveTextContent('Tanpa SLA');
+        expect(container.querySelector('.sla-cell.is-stage')).not.toBeNull();
     });
 
-    it('a paused phase says the SLA is on hold', () => {
-        renderRow({ ...base, requestKind: 'HARDWARE', flowPhase: 'delivery', flowPhaseLabel: 'Menunggu barang tiba', flowPaused: true });
-        expect(screen.getAllByText('Dijeda').length).toBeGreaterThan(0);
+    it('shows neutral stage and age pill instead of Dijeda or overdue even if legacy SLA flags remain', () => {
+        const { container } = renderRow({
+            ...base,
+            requestKind: 'HARDWARE',
+            flowPhase: 'delivery',
+            flowPhaseLabel: 'Menunggu barang tiba',
+            flowPhaseSince: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+            flowPaused: true,
+            isOverdue: true,
+        });
+        expect(screen.queryByText('Dijeda')).toBeNull();
+        expect(screen.getAllByText('Menunggu barang tiba').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('8 hari · lama').length).toBeGreaterThan(0);
+        expect(container.querySelector('.sla-cell.is-stage.is-long')).not.toBeNull();
+        expect(container.querySelector('.sla-cell.is-late')).toBeNull();
     });
 
     it('marks the row with the action I must take, named after the step, in the ticket cell', () => {
@@ -53,10 +75,11 @@ describe('TicketListRow request tickets', () => {
         expect(screen.queryByText('Tinjau permintaan')).toBeNull();
     });
 
-    it('an ordinary IT ticket shows no tag, phase or pause', () => {
+    it('an ordinary IT ticket shows no tag, phase or Tanpa SLA', () => {
         renderRow(base);
         expect(screen.queryByText('Hardware')).toBeNull();
         expect(screen.queryByText('E-Form')).toBeNull();
         expect(screen.queryByText('Dijeda')).toBeNull();
+        expect(screen.queryByText('Tanpa SLA')).toBeNull();
     });
 });

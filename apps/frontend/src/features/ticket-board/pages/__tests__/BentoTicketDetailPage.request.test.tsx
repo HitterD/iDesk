@@ -206,4 +206,14 @@ describe('BentoTicketDetailPage request ticket', () => {
         expect(await screen.findByText(/Bagastyo meninjau permintaan\. Persetujuan: Tanpa persetujuan · Stok IT\./)).toBeInTheDocument();
         expect(screen.queryByText(/TICKET DETAIL ERROR/i)).toBeNull();
     });
+
+    it('hides Target SLA, SlaProgress, SlaStatusCard, and Perpanjang SLA while keeping Atur pengingat on request tickets', async () => {
+        stubApi({ ...REQUEST_TICKET, isNonSla: true });
+        renderDetailPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+        await screen.findByRole('button', { name: 'Tinjau sekarang' });
+        expect(screen.queryByText('Target SLA')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Perpanjang SLA' })).not.toBeInTheDocument();
+        expect(screen.queryByText('SLA dijeda')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Atur pengingat/i })).toBeInTheDocument();
+    });
 });

@@ -17,6 +17,7 @@ export interface TvBoardCard {
     handlingTeam?: 'OPS_SUPPORT' | 'ORACLE_DEV' | 'WEB_DEV' | 'MOBILE_DEV' | string;
     category?: string | null;
     ticketType?: string | null;
+    isNonSla?: boolean;
     /** Origin site code; absent from older servers. */
     siteCode?: string | null;
     /** Team it was last forwarded from; absent from older servers. */

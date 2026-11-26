@@ -15,6 +15,7 @@ import { PriorityPill, PropertyRow, StatusPill } from '../../ticket-board/compon
 import { TicketHardwareSection } from '../../ticket-board/components/ticket-hardware';
 import { TicketEFormSection } from '../../ticket-board/components/ticket-eform';
 import { useTicketHold } from '../../ticket-board/components/ticket-detail/useTicketHold';
+import { isNonSlaTicket } from '../../ticket-board/utils/nonSlaTicket';
 
 const PAUSED_STATUS = 'WAITING_VENDOR';
 const COPIED_RESET_MS = 2000;
@@ -85,6 +86,7 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
     const { user } = useAuth();
     const isClosed = isTerminalStatus(ticket.status);
     const isPaused = ticket.status === PAUSED_STATUS;
+    const nonSla = isNonSlaTicket(ticket);
     const hold = useTicketHold(ticket);
     const canManageParticipants = user?.role === 'ADMIN' || user?.role === 'AGENT' || Boolean(user?.role?.startsWith('AGENT_')) || user?.role === 'MANAGER';
     const canAddParticipants = canManageParticipants || ticket.user?.id === user?.id || Boolean(ticket.participants?.some(p => p.userId === user?.id));
@@ -109,31 +111,39 @@ export const ClientTicketInspector: React.FC<{ ticket: TicketDetail }> = ({ tick
                         <p className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">{ticket.criticalReason}</p>
                     </div>
                 )}
+                {nonSla && (
+                    <div className="td-kvs pt-2 border-t border-border/60">
+                        <InfoRow label="Diajukan">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                        <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                    </div>
+                )}
             </SidebarCard>
 
-            <SidebarCard title="Perkiraan waktu">
-                <SlaProgress
-                    variant="requester"
-                    aside={ticket.slaTarget && !isPaused && !isClosed ? TARGET_DAY.format(new Date(ticket.slaTarget)) : undefined}
-                    status={ticket.status}
-                    priority={ticket.priority}
-                    createdAt={ticket.createdAt}
-                    slaStartedAt={ticket.slaStartedAt}
-                    slaTarget={ticket.slaTarget}
-                    slaRemainingMinutes={ticket.slaRemainingMinutes}
-                    pausedAt={ticket.lastPausedAt}
-                    pausedLabel={hold?.label}
-                />
-                <div className="td-kvs">
-                    {isPaused ? (
-                        <InfoRow label="Dijeda sejak">{ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}</InfoRow>
-                    ) : ticket.slaTarget && (
-                        <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
-                    )}
-                    <InfoRow label="Diajukan">{formatDateTimeID(ticket.createdAt)}</InfoRow>
-                    <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
-                </div>
-            </SidebarCard>
+            {!nonSla && (
+                <SidebarCard title="Perkiraan waktu">
+                    <SlaProgress
+                        variant="requester"
+                        aside={ticket.slaTarget && !isPaused && !isClosed ? TARGET_DAY.format(new Date(ticket.slaTarget)) : undefined}
+                        status={ticket.status}
+                        priority={ticket.priority}
+                        createdAt={ticket.createdAt}
+                        slaStartedAt={ticket.slaStartedAt}
+                        slaTarget={ticket.slaTarget}
+                        slaRemainingMinutes={ticket.slaRemainingMinutes}
+                        pausedAt={ticket.lastPausedAt}
+                        pausedLabel={hold?.label}
+                    />
+                    <div className="td-kvs">
+                        {isPaused ? (
+                            <InfoRow label="Dijeda sejak">{ticket.lastPausedAt ? formatDateTimeID(ticket.lastPausedAt) : '—'}</InfoRow>
+                        ) : ticket.slaTarget && (
+                            <InfoRow label="Target SLA">{formatDateTimeID(ticket.slaTarget)}</InfoRow>
+                        )}
+                        <InfoRow label="Diajukan">{formatDateTimeID(ticket.createdAt)}</InfoRow>
+                        <InfoRow label="Aktivitas terakhir">{formatRelativeTime(ticket.updatedAt)}</InfoRow>
+                    </div>
+                </SidebarCard>
+            )}
 
             <TicketParticipantsSection
                 ticketId={ticket.id}

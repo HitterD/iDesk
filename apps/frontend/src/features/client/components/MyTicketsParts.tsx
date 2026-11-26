@@ -22,8 +22,11 @@ export interface MyTicketItem {
     ticketType?: string;
     /** Set on Hardware / E-Form request tickets (GET /tickets/paginated). */
     requestKind?: 'HARDWARE' | 'EFORM' | null;
+    isNonSla?: boolean;
     flowPhase?: string | null;
     flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
     flowPaused?: boolean;
     needsMyAction?: boolean;
     createdAt: string;

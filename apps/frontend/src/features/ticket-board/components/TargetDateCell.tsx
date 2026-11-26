@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, AlertTriangle, CheckCircle2, Calendar, Timer, Hourglass, History, Pause } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle2, Calendar, Timer, Hourglass, History, Pause, CircleDashed } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TicketPill } from '@/components/ui/ticket-pill';
 import { format } from 'date-fns';
@@ -8,6 +8,7 @@ import { offHoursLabel, slaCountdown, useSlaClock, type SlaClockInfo } from '@/l
 import {
     describeWorkingHours, formatSlaSpan, formatSlaTarget, formatSlaTargetFull, MS_PER_MINUTE, workingDayMinutes,
 } from '@/lib/utils/slaDuration';
+import { describeNonSlaStage, isNonSlaTicket } from '../utils/nonSlaTicket';
 
 export interface TargetDateCellProps {
     ticket?: {
@@ -21,6 +22,13 @@ export interface TargetDateCellProps {
         slaAdjustments?: SlaAdjustment[];
         vendorVisitAt?: string | null;
         vendorNote?: string | null;
+        ticketType?: string | null;
+        isNonSla?: boolean;
+        requestKind?: 'HARDWARE' | 'EFORM' | null;
+        flowPhase?: string | null;
+        flowPhaseLabel?: string | null;
+        flowPhaseSince?: string | null;
+        installScheduledAt?: string | null;
     };
     slaTarget?: string;
     slaRemainingMinutes?: number | null;
@@ -30,6 +38,13 @@ export interface TargetDateCellProps {
     priority?: string;
     createdAt?: string;
     slaAdjustments?: SlaAdjustment[];
+    ticketType?: string | null;
+    isNonSla?: boolean;
+    requestKind?: 'HARDWARE' | 'EFORM' | null;
+    flowPhase?: string | null;
+    flowPhaseLabel?: string | null;
+    flowPhaseSince?: string | null;
+    installScheduledAt?: string | null;
 }
 
 /** Amber once this much working time is left. */
@@ -69,6 +84,13 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     createdAt,
     slaAdjustments,
     slaRemainingMinutes,
+    ticketType,
+    isNonSla,
+    requestKind,
+    flowPhase,
+    flowPhaseLabel,
+    flowPhaseSince,
+    installScheduledAt,
 }) => {
     const [now, setNow] = useState(() => new Date());
     const slaClock = useSlaClock();
@@ -78,15 +100,21 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
     const effectiveIsHw = ticket?.isHardwareInstallation ?? isHardwareInstallation ?? false;
     const effectivePriority = ticket?.priority ?? priority;
     const effectiveCreatedAt = ticket?.createdAt ?? createdAt;
+    const nonSlaInput = {
+        isNonSla: ticket?.isNonSla ?? isNonSla,
+        requestKind: ticket?.requestKind ?? requestKind,
+        ticketType: ticket?.ticketType ?? ticketType,
+    };
+    const nonSla = isNonSlaTicket(nonSlaInput);
 
-    // Determine target date: either explicit slaTarget or derived from createdAt + priority
-    let targetDate = ticket?.slaTarget ?? slaTarget;
-    if (!targetDate && effectiveCreatedAt && Number.isFinite(Date.parse(effectiveCreatedAt)) && effectivePriority && effectivePriority !== 'HARDWARE_INSTALLATION') {
+    // Determine target date: either explicit slaTarget or derived from createdAt + priority (regular IT tickets only)
+    let targetDate = nonSla ? undefined : (ticket?.slaTarget ?? slaTarget);
+    if (!nonSla && !targetDate && effectiveCreatedAt && Number.isFinite(Date.parse(effectiveCreatedAt)) && effectivePriority && effectivePriority !== 'HARDWARE_INSTALLATION') {
         const minutes = DEFAULT_SLA_MINUTES[effectivePriority] || DEFAULT_SLA_MINUTES.MEDIUM;
         targetDate = new Date(new Date(effectiveCreatedAt).getTime() + minutes * MS_PER_MINUTE).toISOString();
     }
 
-    const ticking = Boolean(targetDate) && !['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'].includes(effectiveStatus) && !effectiveIsHw;
+    const ticking = !nonSla && Boolean(targetDate) && !['RESOLVED', 'CLOSED', 'CANCELLED', 'WAITING_VENDOR'].includes(effectiveStatus) && !effectiveIsHw;
     useEffect(() => {
         if (!ticking) return;
         setNow(new Date());
@@ -103,6 +131,35 @@ export const TargetDateCell: React.FC<TargetDateCellProps> = ({
                 <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                 Selesai
             </TicketPill>
+        );
+    }
+
+    if (nonSla) {
+        const stage = describeNonSlaStage({
+            ...nonSlaInput,
+            status: effectiveStatus,
+            flowPhase: ticket?.flowPhase ?? flowPhase,
+            flowPhaseLabel: ticket?.flowPhaseLabel ?? flowPhaseLabel,
+            flowPhaseSince: ticket?.flowPhaseSince ?? flowPhaseSince,
+            installScheduledAt: ticket?.installScheduledAt ?? installScheduledAt,
+            scheduledDate: effectiveScheduledDate,
+            createdAt: effectiveCreatedAt,
+        }, now);
+
+        if (stage.isCancelled) {
+            return <TicketPill tone="neutral" title={stage.tooltip} aria-label="Permintaan dibatalkan">Dibatalkan</TicketPill>;
+        }
+
+        const StageIcon = stage.isLong ? Hourglass : CircleDashed;
+        return (
+            <span
+                className={cn('sla-cell is-stage', stage.isLong && 'is-long')}
+                title={stage.tooltip}
+                aria-label={stage.tooltip}
+            >
+                <b><StageIcon aria-hidden="true" />{stage.top}</b>
+                {stage.bottom && <span>{stage.bottom}</span>}
+            </span>
         );
     }
 
