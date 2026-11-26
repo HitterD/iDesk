@@ -25,16 +25,13 @@ import {
 
 import { extractClientIp } from '../../../shared/security/client-ip';
 import { IpopGrantRejectedError, IpopOidcClient, newAuthorizationSecrets } from '../infrastructure/ipop-oidc.client';
+import { safeReturnTo, ssoFailureUrl } from './return-to';
 import { IpopAccountLinker } from '../application/ipop-account-linker.service';
 
 const OIDC_COOKIE_NAME = 'ipop_oidc';
 const OIDC_COOKIE_TTL_MS = 5 * 60 * 1000;
 
-/** Only same-origin relative paths; rejects //host, /\host and scheme URLs. */
-export function safeReturnTo(value: unknown): string {
-    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return '/';
-    return value;
-}
+export { safeReturnTo };
 
 /** Only credential endpoints are throttled; the office network shares one proxy IP. */
 export const AUTH_RATE_LIMIT = { limit: 30, ttl: 60000 } as const;
@@ -327,8 +324,10 @@ export class AuthController {
      */
     @Get('oidc/start')
     @ApiOperation({ summary: 'Start Sign in with iPop (redirects to iPop)' })
-    async oidcStart(@Query('returnTo') returnTo: string, @Res() res: Response) {
-        if (!this.ipopOidc.isEnabled()) return res.redirect('/login?sso_error=ipop_disabled');
+    async oidcStart(@Query('returnTo') returnTo: string, @Request() req: any, @Res() res: Response) {
+        if (!this.ipopOidc.isEnabled()) return res.redirect(ssoFailureUrl('ipop_disabled', returnTo));
+        // Already signed in to iDesk: skip iPop. Same validation as POST /auth/refresh; revoked/expired falls through to SSO.
+        if (await this.renewSession(req, res)) return res.redirect(safeReturnTo(returnTo));
         const secrets = newAuthorizationSecrets();
         try {
             const url = await this.ipopOidc.authorizationUrl(secrets);
@@ -339,14 +338,29 @@ export class AuthController {
             res.cookie(OIDC_COOKIE_NAME, flow, withCookieMaxAge(OIDC_COOKIE_TTL_MS));
             return res.redirect(url);
         } catch {
-            return res.redirect('/login?sso_error=ipop_unavailable');
+            return res.redirect(ssoFailureUrl('ipop_unavailable', returnTo));
+        }
+    }
+
+    /** True when the refresh cookie is still valid; the rotated session cookies are then set on `res`. */
+    private async renewSession(req: any, res: Response): Promise<boolean> {
+        const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+        if (!refreshToken) return false;
+        try {
+            const result = await this.authService.refreshToken(refreshToken, req);
+            res.cookie(ACCESS_COOKIE_NAME, result.access_token, withCookieMaxAge(this.parseExpiresIn(result.expiresIn)));
+            res.cookie(REFRESH_COOKIE_NAME, result.refresh_token, withCookieMaxAge(this.parseExpiresIn(result.refreshExpiresIn)));
+            return true;
+        } catch {
+            return false;
         }
     }
 
     @Get('oidc/callback')
     @ApiOperation({ summary: 'Sign in with iPop callback (sets the normal iDesk session cookies)' })
     async oidcCallback(@Query() query: Record<string, string>, @Request() req: any, @Res() res: Response) {
-        const fail = (code: string) => res.redirect(`/login?sso_error=${code}`);
+        let returnTo: string | undefined;
+        const fail = (code: string) => res.redirect(ssoFailureUrl(code, returnTo));
         const raw = req.cookies?.[OIDC_COOKIE_NAME];
         res.clearCookie(OIDC_COOKIE_NAME, clearCookieOptions());
 
@@ -356,6 +370,7 @@ export class AuthController {
         } catch {
             return fail('ipop_expired');
         }
+        returnTo = flow.returnTo;
         if (flow.typ !== 'ipop-oidc' || !flow.state || !flow.nonce || !flow.verifier) return fail('ipop_expired');
         if (query.state !== flow.state) return fail('ipop_expired');
         if (query.error) return fail(query.error === 'access_denied' ? 'ipop_denied' : 'ipop_failed');
