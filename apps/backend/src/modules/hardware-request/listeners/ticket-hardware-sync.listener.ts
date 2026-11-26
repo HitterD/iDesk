@@ -36,7 +36,9 @@ export class TicketHardwareSyncListener {
     }
 
     @OnEvent(HR_EVT.REJECTED)
-    onRejected(e: HrRejected) {
+    async onRejected(e: HrRejected) {
+        // On a request ticket the flow tells the ticket itself (one rejection card + CANCELLED).
+        if (await this.flows.has(e.requestId)) return undefined;
         return this.link.record(e.requestId, 'REJECTED', { actorId: e.actorId, reason: e.reason });
     }
 
@@ -55,8 +57,9 @@ export class TicketHardwareSyncListener {
 
     @OnEvent(HardwareEvents.ProcurementCompleted)
     async onProcurementDone(e: ProcurementCompletedPayload) {
-        // A request-flow ticket gets exactly one message for the purchase (written by the flow itself).
-        if (e.approvedItems > 0) return (await this.flows.has(e.requestId)) ? undefined : this.link.record(e.requestId, 'PROCUREMENT_DONE');
+        // A request-flow ticket gets its own single message and ticket status transition from the flow itself.
+        if (await this.flows.has(e.requestId)) return undefined;
+        if (e.approvedItems > 0) return this.link.record(e.requestId, 'PROCUREMENT_DONE');
         // Nothing was approved: procurement ends the request as REJECTED without the regular rejection event, so the
         // ticket would otherwise keep waiting on a request that is already over.
         const request = await this.reqRepo.findOne({ where: { id: e.requestId }, select: { id: true, rejectReason: true } });

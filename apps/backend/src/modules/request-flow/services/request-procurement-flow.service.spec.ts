@@ -37,7 +37,7 @@ function setup(ctx: FlowContext) {
     const reader = { load: jest.fn(async () => ctx) };
     const outcome = { request: { id: 'hr-1', status: RequestStatus.AWAITING_DELIVERY, requesterId: 'req-1' }, approvedItems: 2, rejectedItems: 0 };
     const procurement = { recordWith: jest.fn(async () => outcome), announce: jest.fn() };
-    const stepper = { tell: jest.fn(async () => undefined) };
+    const stepper = { tell: jest.fn(async () => undefined), tellWithin: jest.fn(async () => async () => undefined) };
     const hardwareLink = { resumeForInstallation: jest.fn(async (..._args: unknown[]): Promise<boolean> => true) };
     const documents = { bump: jest.fn(async (..._args: unknown[]) => 2) };
     const service = new RequestProcurementFlowService(dataSource as never, reader as never, procurement as never, stepper as never, hardwareLink as never, documents as never);
@@ -73,12 +73,18 @@ describe('RequestProcurementFlowService.procure', () => {
         expect(documents.bump).not.toHaveBeenCalled();
     });
 
-    it('does not tell the ticket twice when everything was rejected (the rejection listener does)', async () => {
-        const { service, procurement, stepper, outcome } = setup(context(RequestStatus.PROCUREMENT, [unit('a')]));
+    it('cancels the linked ticket in the same transaction when everything is rejected', async () => {
+        const { service, manager, procurement, stepper, outcome } = setup(context(RequestStatus.PROCUREMENT, [unit('a')]));
         procurement.recordWith.mockResolvedValue({ ...outcome, request: { ...outcome.request, status: RequestStatus.REJECTED }, approvedItems: 0, rejectedItems: 1 });
 
         await service.procure(IT, TID, { lines: [{ itemIds: ['a'], decision: 'REJECTED' }], note: 'Stok vendor habis' });
 
+        expect(stepper.tellWithin).toHaveBeenCalledWith(manager, expect.anything(), expect.objectContaining({
+            actorId: 'it-1',
+            phase: 'REJECTED',
+            target: TicketStatus.CANCELLED,
+            reason: 'Stok vendor habis',
+        }));
         expect(stepper.tell).not.toHaveBeenCalled();
         expect(procurement.announce).toHaveBeenCalledTimes(1);
     });

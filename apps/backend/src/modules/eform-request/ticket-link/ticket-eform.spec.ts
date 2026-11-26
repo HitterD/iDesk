@@ -112,11 +112,14 @@ describe('TicketEFormSyncListener for a request-flow e-form', () => {
     const link = { record: jest.fn() };
     const flows = { has: jest.fn(async () => true) };
     const listener = new TicketEFormSyncListener(link as any, flows as any);
-    const request = { id: EFORM_ID } as any;
+    const request = { id: EFORM_ID, rejectionReason: 'Ditolak' } as any;
 
-    it('posts no legacy GRANTED card (the flow posts its own message)', async () => {
+    beforeEach(() => link.record.mockClear());
+
+    it('posts no legacy GRANTED or REJECTED card (the flow posts its own message)', async () => {
         await listener.onCredentialsIssued({ request });
         await listener.onFulfilled({ request });
+        await listener.onRejected({ request, userId: 'u-mgr' });
         expect(link.record).not.toHaveBeenCalled();
     });
 });

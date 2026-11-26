@@ -355,7 +355,11 @@ export class RequestFlowReviewService {
             await manager.update(EFormApproval, { eformRequestId: eformId, action: 'PENDING' }, { action: 'REJECTED', actionAt: new Date(), notes: reason });
         }
         const version = await this.documents.bump(ctx.flow.id, 'FIN', `Ditolak oleh ${actor.fullName} · terkunci`, actor.userId, manager);
-        return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName };
+        const publish = await this.stepper.tellWithin(manager, ctx, {
+            actorId: actor.userId, phase: 'REJECTED', target: TicketStatus.CANCELLED, reason,
+            text: `${actor.fullName} menolak permintaan ini: ${reason}`,
+        });
+        return { kind: 'REJECT' as const, reason, version, signerName: actor.fullName, publish };
     }
 
     private async afterDecision(actor: FlowActor, dto: ApproveDto, outcome: { ctx: FlowContext; kind: string; reason?: string; next?: 'MANAGER' | 'GM' | null; step?: 'MANAGER' | 'GM'; signerName: string; version?: number; publish?: () => Promise<void> }): Promise<void> {
@@ -370,7 +374,8 @@ export class RequestFlowReviewService {
             await this.notifyIct(ctx, outcome.reason!);
             return;
         }
-        // Rejection: the existing listeners tell the requester and the ticket, as for any rejected request.
+        if (outcome.publish) await outcome.publish();
+        // Notify requester via existing notification listeners; sync listeners skip request-flow rows.
         if (ctx.hardware) {
             this.emitter.emit(HR_EVT.REJECTED, { requestId: ctx.hardware.id, actorId: actor.userId, occurredAt: new Date(), requesterId: ctx.requesterId, reason: outcome.reason });
         } else {

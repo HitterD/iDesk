@@ -81,6 +81,13 @@ describe('TicketHardwareSyncListener', () => {
         expect(link.record).toHaveBeenCalledWith('req-1', 'REJECTED', { reason: 'Stok vendor kosong' });
     });
 
+    it('skips REJECTED and 0-approved procurement sync for request-flow hardware requests', async () => {
+        flows.has.mockResolvedValue(true);
+        await listener.onRejected({ ...base, actorId: 'mgr-1', reason: 'Ditolak' });
+        await listener.onProcurementDone({ requestId: 'req-1', ownerId: 'user-1', approvedItems: 0, rejectedItems: 2 });
+        expect(link.record).not.toHaveBeenCalled();
+    });
+
     it('tells the ticket when the requester asks for another installation time', async () => {
         await listener.onRescheduleRequested({ requestId: 'req-1', scheduleId: 's-1', technicianId: 't-1', reason: 'Saya cuti hari itu', rescheduleCount: 1 });
         expect(link.record).toHaveBeenCalledWith('req-1', 'RESCHEDULE_REQUESTED', { actorId: 'user-1', reason: 'Saya cuti hari itu' });
