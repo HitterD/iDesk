@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, DataSource, In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { HardwareRequest } from '../domain/entities/hardware-request.entity';
 import { HardwareRequestItem } from '../domain/entities/hardware-request-item.entity';
@@ -114,21 +114,28 @@ export class MutualSchedulingService {
         }
       }
 
-      // P1 fix: pre-load the technician's busy slots once for the entire
-      // candidate window, then filter in memory. Was an N×M per-candidate
-      // findOne loop inside a separate validation step. Now one query.
-      const earliest = new Date(Math.min(...dto.slots.map(s => new Date(s.start).getTime())));
-      const latest = new Date(Math.max(...dto.slots.map(s => new Date(s.end).getTime())));
+      // Load all active/pending schedules for the technician so intervals starting before
+      // the candidate window (or secondary slots on PROPOSED_AWAITING_USER) are never missed.
       const busy = await schedRepo.find({
         where: {
           technicianId: dto.technicianId,
           status: In([InstallStatus.PROPOSED_AWAITING_USER, InstallStatus.CONFIRMED, InstallStatus.IN_PROGRESS]),
-          scheduledStart: Between(earliest, latest),
         },
-        select: ['requestId', 'scheduledStart', 'scheduledEnd'],
+        select: ['id', 'requestId', 'status', 'scheduledStart', 'scheduledEnd', 'proposedSlots'],
       });
+      const slotsOf = (b: InstallationSchedule): Array<{ start: Date; end: Date }> => {
+        if (b.status === InstallStatus.PROPOSED_AWAITING_USER && Array.isArray(b.proposedSlots) && b.proposedSlots.length > 0) {
+          return b.proposedSlots.map((s) => ({ start: new Date(s.start), end: new Date(s.end) }));
+        }
+        return b.scheduledStart && b.scheduledEnd
+          ? [{ start: new Date(b.scheduledStart), end: new Date(b.scheduledEnd) }]
+          : [];
+      };
       const hasConflict = (start: Date, end: Date) =>
-        busy.some(b => b.requestId !== requestId && !(end <= b.scheduledStart! || start >= b.scheduledEnd!));
+        busy.some((b) =>
+          b.requestId !== requestId &&
+          slotsOf(b).some((slot) => !(end <= slot.start || start >= slot.end)),
+        );
       for (const slot of dto.slots) {
         const start = new Date(slot.start);
         const end = new Date(slot.end);

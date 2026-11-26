@@ -125,6 +125,55 @@ describe('MutualSchedulingService', () => {
         await expect(service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [slot] }, { id: 'ict-1' }))
           .rejects.toThrow(/conflicting slot/i);
       });
+
+      it('queries active technician schedules without Between so schedules starting earlier are checked for overlap', async () => {
+        const slotEarly = futureSlot(48); // e.g. 48..50h
+        const candidateStart = new Date(new Date(slotEarly.start).getTime() + 3600_000); // 49..51h
+        const candidateEnd = new Date(candidateStart.getTime() + 2 * 3600_000);
+        const otherEarly = {
+          id: 'other', requestId: 'r2', status: InstallStatus.CONFIRMED,
+          scheduledStart: new Date(slotEarly.start), scheduledEnd: new Date(slotEarly.end),
+        };
+        arrange([], [otherEarly]);
+
+        await expect(service.proposeSchedule('r1', {
+          itemIds: ['i1'], technicianId: 't1',
+          slots: [{ start: candidateStart.toISOString(), end: candidateEnd.toISOString() }],
+        }, { id: 'ict-1' })).rejects.toThrow(/conflicting slot/i);
+
+        const busyCall = mockDataSource._schedRepo.find.mock.calls.find(([arg]: any) => arg?.where?.technicianId);
+        expect(busyCall[0].where.scheduledStart).toBeUndefined();
+      });
+
+      it('checks all proposedSlots (including 2nd/3rd slot) on PROPOSED_AWAITING_USER schedules', async () => {
+        const first = futureSlot(24);
+        const second = futureSlot(72);
+        const pendingOther = {
+          id: 'other', requestId: 'r2', status: InstallStatus.PROPOSED_AWAITING_USER,
+          scheduledStart: new Date(first.start), scheduledEnd: new Date(first.end),
+          proposedSlots: [first, second],
+        };
+        arrange([], [pendingOther]);
+
+        await expect(service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [second] }, { id: 'ict-1' }))
+          .rejects.toThrow(/conflicting slot/i);
+      });
+
+      it('allows adjacent non-overlapping slots back-to-back', async () => {
+        const first = futureSlot(48); // 48..50h
+        const adjacent = {
+          start: first.end,
+          end: new Date(new Date(first.end).getTime() + 2 * 3600_000).toISOString(),
+        };
+        const other = {
+          id: 'other', requestId: 'r2', status: InstallStatus.CONFIRMED,
+          scheduledStart: new Date(first.start), scheduledEnd: new Date(first.end),
+        };
+        arrange([], [other]);
+
+        const result = await service.proposeSchedule('r1', { itemIds: ['i1'], technicianId: 't1', slots: [adjacent] }, { id: 'ict-1' });
+        expect(result.status).toBe(InstallStatus.PROPOSED_AWAITING_USER);
+      });
     });
 
     it('rejects if any item not ARRIVED', async () => {
