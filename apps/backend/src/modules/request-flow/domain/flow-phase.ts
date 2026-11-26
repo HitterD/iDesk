@@ -87,3 +87,55 @@ export function phaseOf(kind: RequestKind, status: string, ctx: PhaseContext): F
     if (status === RequestStatus.INSTALLATION) return ctx.hasOpenSchedule ? 'install' : 'schedule';
     return HARDWARE_PHASE[status] ?? unknownStatus(kind, status);
 }
+
+export interface PhaseTimestamps {
+    ticketCreatedAt?: Date | string | null;
+    flowCreatedAt?: Date | string | null;
+    reviewedAt?: Date | string | null;
+    submittedAt?: Date | string | null;
+    managerApprovedAt?: Date | string | null;
+    approvedAt?: Date | string | null;
+    procuredAt?: Date | string | null;
+    gmApprovedAt?: Date | string | null;
+    installMarkedDoneAt?: Date | string | null;
+    installStartedAt?: Date | string | null;
+    completedAt?: Date | string | null;
+    resolvedAt?: Date | string | null;
+    updatedAt?: Date | string | null;
+}
+
+function firstIso(...values: Array<Date | string | null | undefined>): string | null {
+    for (const v of values) {
+        if (!v) continue;
+        const d = v instanceof Date ? v : new Date(v);
+        if (!Number.isNaN(d.getTime())) return d.toISOString();
+    }
+    return null;
+}
+
+/** Timestamp when the request entered its current stage (used for neutral age/wait indicator). */
+export function phaseSinceOf(phase: FlowPhase, ts: PhaseTimestamps): string | null {
+    switch (phase) {
+        case 'review':
+            return firstIso(ts.submittedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'appr_mgr':
+            return firstIso(ts.reviewedAt, ts.submittedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'appr_gm':
+            return firstIso(ts.managerApprovedAt, ts.reviewedAt, ts.submittedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'procure':
+            return firstIso(ts.approvedAt, ts.gmApprovedAt, ts.managerApprovedAt, ts.reviewedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'delivery':
+            return firstIso(ts.procuredAt, ts.approvedAt, ts.updatedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'schedule':
+            return firstIso(ts.procuredAt, ts.approvedAt, ts.updatedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'install':
+            return firstIso(ts.installStartedAt, ts.updatedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'fulfill':
+            return firstIso(ts.gmApprovedAt, ts.managerApprovedAt, ts.reviewedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'confirm':
+            return firstIso(ts.installMarkedDoneAt, ts.resolvedAt, ts.updatedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+        case 'done':
+        case 'rejected':
+            return firstIso(ts.completedAt, ts.resolvedAt, ts.updatedAt, ts.flowCreatedAt, ts.ticketCreatedAt);
+    }
+}

@@ -464,6 +464,43 @@ describe('TicketUpdateService — status takeover', () => {
             expect(todo.slaStartedAt).toBeInstanceOf(Date);
             expect((todo as any).slaRemainingMinutes).toBeGreaterThan(0);
         });
+
+        it('never starts, holds, or recalculates SLA on HARDWARE_REQUEST or request_flows tickets', async () => {
+            ticket = {
+                ...makeTicket('hw-1'),
+                ticketType: TicketType.HARDWARE_REQUEST,
+                createdAt,
+                assignedToId: agentB.id,
+                assignedTo: agentB,
+                slaStartedAt: null,
+                slaTarget: null,
+                firstResponseTarget: null,
+                isOverdue: false,
+            };
+
+            const inProg = await service.updateTicket('hw-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+            expect(inProg.slaStartedAt).toBeNull();
+            expect(inProg.slaTarget).toBeNull();
+            expect(inProg.isOverdue).toBe(false);
+
+            ticket = { ...inProg, priority: TicketPriority.MEDIUM };
+            const highPrio = await service.updateTicket('hw-1', { priority: TicketPriority.HIGH }, agentB.id);
+            expect(highPrio.slaTarget).toBeNull();
+
+            manager.query = jest.fn(async () => [{ '?column?': 1 }]);
+            ticket = {
+                ...makeTicket('bf-1'),
+                ticketType: TicketType.SERVICE,
+                createdAt,
+                assignedToId: agentB.id,
+                assignedTo: agentB,
+                slaStartedAt: null,
+                slaTarget: null,
+            };
+            const backfillSaved = await service.updateTicket('bf-1', { status: TicketStatus.IN_PROGRESS }, agentB.id);
+            expect(backfillSaved.slaStartedAt).toBeNull();
+            expect(backfillSaved.slaTarget).toBeNull();
+        });
     });
 
     it('updateTicket takeover emits ticket.assigned marked as self-assigned (listener skips assignee-facing notices)', async () => {

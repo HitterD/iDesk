@@ -51,7 +51,7 @@ export function summarizeAgentMetrics<T extends MetricCounts>(rows: readonly T[]
  * Completion uses resolvedAt only: closedAt is an administrative event, not a resolution timestamp.
  * SLA is tri-state: 1 compliant, 0 breached, NULL not evaluated/unknown.
  */
-export function reportMetricSql() {
+export function reportMetricSql(options?: { excludeNonSlaSql?: string }) {
     const done = `ticket.status IN (${TICKET_DONE_STATUSES_SQL})`;
     const pending = `ticket.status IN ('TODO', 'IN_PROGRESS', 'WAITING_VENDOR')`;
     const completion = 'ticket.resolvedAt';
@@ -60,6 +60,7 @@ export function reportMetricSql() {
     const resolutionMinutes = `CASE WHEN ${done} AND ${validCompletion} THEN EXTRACT(EPOCH FROM (${completion} - ticket.createdAt)) / 60 ELSE NULL END`;
     const pause = 'COALESCE(ticket.lastPausedAt, ticket.waitingVendorAt)';
     const activeClock = `CASE WHEN ticket.status = 'WAITING_VENDOR' THEN ${pause} ELSE :asOf END`;
-    const slaEvaluation = `CASE WHEN ticket.slaTarget IS NULL OR ticket.status = 'CANCELLED' THEN NULL WHEN ${done} AND ${validCompletion} THEN CASE WHEN ${completion} > ticket.slaTarget THEN 0 ELSE 1 END WHEN ${pending} AND (${activeClock}) >= ticket.createdAt AND (${activeClock}) <= :asOf AND (${activeClock}) > ticket.slaTarget THEN 0 ELSE NULL END`;
+    const excludeClause = options?.excludeNonSlaSql ? ` OR ${options.excludeNonSlaSql}` : '';
+    const slaEvaluation = `CASE WHEN ticket.slaTarget IS NULL OR ticket.status = 'CANCELLED'${excludeClause} THEN NULL WHEN ${done} AND ${validCompletion} THEN CASE WHEN ${completion} > ticket.slaTarget THEN 0 ELSE 1 END WHEN ${pending} AND (${activeClock}) >= ticket.createdAt AND (${activeClock}) <= :asOf AND (${activeClock}) > ticket.slaTarget THEN 0 ELSE NULL END`;
     return { done, pending, responseMinutes, resolutionMinutes, slaEvaluation };
 }

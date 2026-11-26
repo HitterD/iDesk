@@ -81,21 +81,29 @@ describe('TicketQueryService', () => {
     });
 
     it.each([
-        ['started TODO past its target', 'TODO', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
-        ['started IN_PROGRESS past its target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 1],
-        ['target still ahead', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T13:00:00Z', 0],
+        ['started TODO past its target', 'TODO', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'SERVICE', false, 1],
+        ['started IN_PROGRESS past its target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'SERVICE', false, 1],
+        ['null ticketType still counts as SLA-eligible', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', null, false, 1],
+        ['target still ahead', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T13:00:00Z', 'SERVICE', false, 0],
         // Legacy rows got a stored projected target before the clock started; that is not a deadline.
-        ['clock never started, stale stored target', 'TODO', null, '2026-10-28T09:00:00Z', 0],
-        ['waiting on a vendor', 'WAITING_VENDOR', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
-        ['resolved', 'RESOLVED', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 0],
-        ['no target', 'TODO', '2026-10-28T08:00:00Z', null, 0],
-    ])('OVERDUE_SQL: %s', (_label, status, slaStartedAt, slaTarget, expected) => {
+        ['clock never started, stale stored target', 'TODO', null, '2026-10-28T09:00:00Z', 'SERVICE', false, 0],
+        ['waiting on a vendor', 'WAITING_VENDOR', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'SERVICE', false, 0],
+        ['resolved', 'RESOLVED', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'SERVICE', false, 0],
+        ['no target', 'TODO', '2026-10-28T08:00:00Z', null, 'SERVICE', false, 0],
+        ['hardware request is excluded even if past target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'HARDWARE_REQUEST', false, 0],
+        ['e-form request is excluded even if past target', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'EFORM_REQUEST', false, 0],
+        ['service ticket with request_flows row is excluded', 'IN_PROGRESS', '2026-10-28T08:00:00Z', '2026-10-28T09:00:00Z', 'SERVICE', true, 0],
+    ])('OVERDUE_SQL: %s', (_label, status, slaStartedAt, slaTarget, ticketType, hasFlow, expected) => {
         // Execute the production predicate itself; NOW() pinned to 12:00 for the fixture.
         const { DatabaseSync } = require('node:sqlite');
         const db = new DatabaseSync(':memory:');
         try {
-            db.exec('CREATE TABLE ticket(status TEXT, "slaStartedAt" TEXT, "slaTarget" TEXT)');
-            db.prepare('INSERT INTO ticket VALUES (?, ?, ?)').run(status, slaStartedAt, slaTarget);
+            db.exec('CREATE TABLE ticket(id TEXT, status TEXT, "slaStartedAt" TEXT, "slaTarget" TEXT, "ticketType" TEXT)');
+            db.exec('CREATE TABLE request_flows("ticketId" TEXT)');
+            db.prepare('INSERT INTO ticket VALUES (?, ?, ?, ?, ?)').run('t-1', status, slaStartedAt, slaTarget, ticketType);
+            if (hasFlow) {
+                db.prepare('INSERT INTO request_flows VALUES (?)').run('t-1');
+            }
             const sql = OVERDUE_SQL.replace('NOW()', `'2026-10-28T12:00:00Z'`);
             expect(db.prepare(`SELECT COUNT(*) AS n FROM ticket WHERE ${sql}`).get().n).toBe(expected);
         } finally { db.close(); }
@@ -337,6 +345,35 @@ describe('TicketQueryService.findOne', () => {
 
         expect(ticketRepo.findOne.mock.calls[0][0].relations).toContain('createdBy');
         expect(result.createdBy).toEqual({ id: 'agent-1', fullName: 'Rm Bagastyo' });
+    });
+
+    it('never synthesizes SLA target and strips legacy SLA columns for HARDWARE_REQUEST and request_flows tickets', async () => {
+        const hwTicket = {
+            id: 't-hw', ticketType: 'HARDWARE_REQUEST', priority: 'HIGH', createdAt: new Date('2026-10-01T00:00:00Z'),
+            slaTarget: new Date('2026-10-02T00:00:00Z'), originalSlaTarget: new Date('2026-10-02T00:00:00Z'),
+            slaStartedAt: new Date('2026-10-01T00:00:00Z'), firstResponseTarget: new Date('2026-10-01T01:00:00Z'),
+            slaRemainingMinutes: 60, firstResponseRemainingMinutes: 10,
+            isOverdue: true, isFirstResponseBreached: true, slaWarningSent: true,
+            userId: 'req-1', siteId: 's-1', handlingTeam: 'OPS_SUPPORT',
+            messages: [], participants: [], user: { id: 'req-1' },
+        };
+        const slaConfigRepo = { findOne: jest.fn() };
+        const ticketRepo = { findOne: jest.fn().mockResolvedValue(hwTicket), manager: { query: jest.fn().mockResolvedValue([]) }, save: jest.fn() };
+        const service = new TicketQueryService(ticketRepo as any, slaConfigRepo as any, {} as any);
+
+        const result = await service.findOne('t-hw', { id: 'req-1', role: UserRole.USER, siteId: 's-1' });
+
+        expect(slaConfigRepo.findOne).not.toHaveBeenCalled();
+        expect(result.isNonSla).toBe(true);
+        expect(result.slaTarget).toBeNull();
+        expect(result.originalSlaTarget).toBeNull();
+        expect(result.slaStartedAt).toBeNull();
+        expect(result.firstResponseTarget).toBeNull();
+        expect(result.slaRemainingMinutes).toBeNull();
+        expect(result.firstResponseRemainingMinutes).toBeNull();
+        expect(result.isOverdue).toBe(false);
+        expect(result.isFirstResponseBreached).toBe(false);
+        expect(result.slaWarningSent).toBe(false);
     });
 });
 

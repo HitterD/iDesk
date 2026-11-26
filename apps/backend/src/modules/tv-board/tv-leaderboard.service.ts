@@ -6,6 +6,7 @@ import { BusinessHoursService } from '../sla-config/business-hours.service';
 import { BusinessSchedule, DEFAULT_TIMEZONE, localDateKey } from '../sla-config/business-hours.calc';
 import { wibStartOfMonth, wibStartOfToday } from '../../shared/core/utils/wib-date.util';
 import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
+import { isSlaTicketSql } from '../ticketing/utils/non-sla-ticket.util';
 import { DEV_HANDLING_TEAMS } from './tv-board.service';
 
 /** Leaderboard hour on working days, WIB: 12:00 up to (not including) 13:00. */
@@ -173,8 +174,8 @@ export class TvLeaderboardService {
         const rows: AgentRow[] = await this.dataSource.query(
             `SELECT t."assignedToId" AS "agentId", u."fullName" AS name, u."avatarUrl" AS "avatarUrl",
                     COUNT(*) AS resolved,
-                    COUNT(*) FILTER (WHERE t."slaTarget" IS NOT NULL) AS "slaEvaluated",
-                    COUNT(*) FILTER (WHERE t."slaTarget" IS NOT NULL AND t."resolvedAt" <= t."slaTarget") AS "slaCompliant",
+                    COUNT(*) FILTER (WHERE t."slaTarget" IS NOT NULL AND ${isSlaTicketSql('t')}) AS "slaEvaluated",
+                    COUNT(*) FILTER (WHERE t."slaTarget" IS NOT NULL AND t."resolvedAt" <= t."slaTarget" AND ${isSlaTicketSql('t')}) AS "slaCompliant",
                     AVG(EXTRACT(EPOCH FROM (t."resolvedAt" - t."createdAt")) / 60) AS "resolutionMinutes",
                     AVG(EXTRACT(EPOCH FROM (t."firstResponseAt" - t."createdAt")) / 60) FILTER (WHERE t."firstResponseAt" >= t."createdAt") AS "responseMinutes",
                     COUNT(*) FILTER (WHERE t.priority IN ('CRITICAL', 'HIGH')) AS "criticalResolved"

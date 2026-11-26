@@ -6,7 +6,7 @@ import { HardwareRequest } from '../../hardware-request/domain/entities/hardware
 import { HardwareRequestActivity } from '../../hardware-request/domain/entities/hardware-request-activity.entity';
 import { Ticket } from '../../ticketing/entities/ticket.entity';
 import { activeStep, approvalPhaseOf, type ApprovalStep, type FlowPhase } from '../domain/approval-phase';
-import { signedSlots } from '../domain/hardware-signatures';
+import { signedSlots, STEP_SIGNATURE_ACTION } from '../domain/hardware-signatures';
 import type { RequestKind } from '../domain/request-kind';
 import { RequestFlow } from '../entities/request-flow.entity';
 
@@ -29,6 +29,8 @@ export interface FlowContext {
     step: ApprovalStep | null;
     /** Who must sign that step. */
     approverId: string | null;
+    /** Timestamp when the manager approved (if any). */
+    managerApprovedAt?: Date | null;
 }
 
 const MANAGER_ROLE = 'MANAGER';
@@ -55,12 +57,16 @@ export class RequestFlowReader {
         if (!hardware) throw new NotFoundException('Permintaan hardware tidak ditemukan');
         const activities = await manager.find(HardwareRequestActivity, { where: { requestId: hardware.id }, order: { createdAt: 'ASC' } });
         const slots = signedSlots(activities, '');
+        const managerActivity = [...activities]
+            .reverse()
+            .find((a) => a.action === STEP_SIGNATURE_ACTION && a.metadata?.step === MANAGER_ROLE);
         return this.build(flow, ticket, {
             requesterId: hardware.requesterId,
             requesterName: hardware.requester?.fullName ?? '',
             number: hardware.requestNumber,
             status: hardware.status,
             signed: { manager: Boolean(slots.MANAGER), gm: Boolean(slots.GM) },
+            managerApprovedAt: managerActivity?.createdAt ?? null,
             hardware,
             eform: null,
         });
@@ -71,12 +77,14 @@ export class RequestFlowReader {
         if (!eform) throw new NotFoundException('Pengajuan akses tidak ditemukan');
         const approvals = await manager.find(EFormApproval, { where: { eformRequestId: eform.id } });
         const signedBy = (role: string) => approvals.some((a) => a.role === role && a.action === APPROVED);
+        const managerApproval = approvals.find((a) => a.role === MANAGER_ROLE && a.action === APPROVED);
         return this.build(flow, ticket, {
             requesterId: eform.requesterId,
             requesterName: eform.requesterName,
             number: eform.documentNumber ?? '',
             status: eform.status,
             signed: { manager: signedBy(MANAGER_ROLE), gm: signedBy(GM_ROLE) || Boolean(eform.gmApprovedAt) },
+            managerApprovedAt: managerApproval?.actionAt ?? null,
             hardware: null,
             eform,
         });
@@ -84,7 +92,7 @@ export class RequestFlowReader {
 
     private build(
         flow: RequestFlow, ticket: Ticket,
-        parts: Pick<FlowContext, 'requesterId' | 'requesterName' | 'number' | 'signed' | 'hardware' | 'eform'> & { status: string },
+        parts: Pick<FlowContext, 'requesterId' | 'requesterName' | 'number' | 'signed' | 'hardware' | 'eform' | 'managerApprovedAt'> & { status: string },
     ): FlowContext {
         const { status, ...rest } = parts;
         const phase = approvalPhaseOf(flow.kind, status, flow.route, flow.returnedReason);

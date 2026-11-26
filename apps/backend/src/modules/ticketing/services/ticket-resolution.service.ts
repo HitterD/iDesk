@@ -18,6 +18,7 @@ import { NotificationCenterService } from '../../notifications/notification-cent
 import { NotificationType } from '../../notifications/entities/notification.entity';
 import { reopenAsDispute, TICKET_CLOSED_MESSAGE } from '../utils/resolution-deadline.util';
 import { SlaClockService } from './sla-clock.service';
+import { isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 /** Actor id recorded for transitions made by the auto-close cron. */
 export const SYSTEM_ACTOR_ID = 'system';
@@ -88,7 +89,8 @@ export class TicketResolutionService {
             if (ticket.status !== TicketStatus.RESOLVED) {
                 throw new BadRequestException(RESOLUTION_MESSAGES.NOT_AWAITING_CONFIRMATION);
             }
-            reopenAsDispute(ticket, this.slaClock);
+            const nonSla = await isNonSlaTicket(manager, ticket);
+            reopenAsDispute(ticket, nonSla ? null : this.slaClock);
             const reasonMessage = await this.saveMessage(manager, ticket.id, `Sanggahan penyelesaian: ${reason.trim()}`, owner.id, false);
             // Chat clients render user bubbles from the embedded sender, like a normal reply.
             const reasonWithSender = Object.assign(reasonMessage, { sender: { id: owner.id, fullName: owner.fullName, role: owner.role } });
@@ -107,7 +109,7 @@ export class TicketResolutionService {
             }
             const oldStatus = ticket.status;
             if (oldStatus === TicketStatus.WAITING_VENDOR) {
-                this.endVendorPause(ticket);
+                this.endVendorPause(ticket, await isNonSlaTicket(manager, ticket));
             }
             ticket.resolvedAt = new Date();
             this.close(ticket);
@@ -175,8 +177,8 @@ export class TicketResolutionService {
     }
 
     /** Same bookkeeping as leaving WAITING_VENDOR through a normal status change. */
-    private endVendorPause(ticket: Ticket): void {
-        if (ticket.lastPausedAt) {
+    private endVendorPause(ticket: Ticket, nonSla = false): void {
+        if (!nonSla && ticket.lastPausedAt) {
             const pausedMinutes = Math.floor((Date.now() - new Date(ticket.lastPausedAt).getTime()) / 60000);
             ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + pausedMinutes;
             ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + pausedMinutes;

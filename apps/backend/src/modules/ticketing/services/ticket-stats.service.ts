@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 
 import { Ticket } from '../entities/ticket.entity';
 import { TICKET_DONE_STATUSES_SQL, TICKET_INACTIVE_STATUSES_SQL } from '../utils/ticket-status-sql.util';
+import { isSlaTicketSql } from '../utils/non-sla-ticket.util';
 import { CacheService, CacheKeys, CacheInvalidationService } from '../../../shared/core/cache';
 import { UserRole } from '../../users/enums/user-role.enum';
 
@@ -70,11 +71,12 @@ export class TicketStatsService {
         const statusCounts = await this.ticketRepo
             .createQueryBuilder('ticket')
             .select('COUNT(*)', 'total')
+            .addSelect(`SUM(CASE WHEN ${isSlaTicketSql('ticket')} THEN 1 ELSE 0 END)`, 'slaEligible')
             .addSelect(`SUM(CASE WHEN ticket.status = 'TODO' THEN 1 ELSE 0 END)`, 'open')
             .addSelect(`SUM(CASE WHEN ticket.status = 'IN_PROGRESS' THEN 1 ELSE 0 END)`, 'inProgress')
             .addSelect(`SUM(CASE WHEN ticket.status = 'WAITING_VENDOR' THEN 1 ELSE 0 END)`, 'waitingVendor')
             .addSelect(`SUM(CASE WHEN ticket.status IN (${TICKET_DONE_STATUSES_SQL}) THEN 1 ELSE 0 END)`, 'resolved')
-            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() THEN 1 ELSE 0 END)`, 'overdue')
+            .addSelect(`SUM(CASE WHEN ticket.status NOT IN (${TICKET_INACTIVE_STATUSES_SQL}) AND ticket.status <> 'WAITING_VENDOR' AND ticket."slaStartedAt" IS NOT NULL AND ticket."slaTarget" IS NOT NULL AND ticket."slaTarget" < NOW() AND ${isSlaTicketSql('ticket')} THEN 1 ELSE 0 END)`, 'overdue')
             .getRawOne();
 
         const total = parseInt(statusCounts.total) || 0;
@@ -83,7 +85,8 @@ export class TicketStatsService {
         const waitingVendor = parseInt(statusCounts.waitingVendor) || 0;
         const resolved = parseInt(statusCounts.resolved) || 0;
         const overdue = parseInt(statusCounts.overdue) || 0;
-        const slaCompliance = total > 0 ? Math.round(((total - overdue) / total) * 100) : 100;
+        const slaEligible = statusCounts.slaEligible !== undefined ? (parseInt(statusCounts.slaEligible) || 0) : total;
+        const slaCompliance = slaEligible > 0 ? Math.max(0, Math.round(((slaEligible - overdue) / slaEligible) * 100)) : 100;
 
         // 2. Priority counts
         const priorityCounts = await this.ticketRepo

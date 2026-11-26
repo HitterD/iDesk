@@ -5,6 +5,7 @@ import { User } from '../../users/entities/user.entity';
 import { HandlingTeam, Ticket, TicketStatus } from '../../ticketing/entities/ticket.entity';
 import { DEV_HANDLING_TEAMS, ReportTeam, applyTeamFilter } from '../utils/report-team-scope.util';
 import { MetricCounts, metricRate, rankAgents, reportMetricSql } from '../utils/report-metrics.util';
+import { nonSlaTicketSql } from '../../ticketing/utils/non-sla-ticket.util';
 
 export interface AgentMetrics extends MetricCounts {
     agentId: string;
@@ -34,7 +35,7 @@ export class AgentPerformanceReport {
 
     async generate(dateRange: DateRange, options?: { siteId?: string; team?: ReportTeam }): Promise<ReportResult<AgentMetrics[]>> {
         const asOf = new Date();
-        const sql = reportMetricSql();
+        const sql = reportMetricSql({ excludeNonSlaSql: nonSlaTicketSql('ticket') });
         const rows = await this.scopedQuery(dateRange, asOf, options)
             .select('ticket.assignedToId', 'agentId')
             .addSelect('user.fullName', 'agentName')

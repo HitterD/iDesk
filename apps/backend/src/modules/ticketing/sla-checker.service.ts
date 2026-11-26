@@ -10,6 +10,7 @@ import { NotificationCenterService } from '../notifications/notification-center.
 import { UserRole } from '../users/enums/user-role.enum';
 import { User } from '../users/entities/user.entity';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { isSlaTicketSql } from './utils/non-sla-ticket.util';
 
 type BreachKind = 'resolution' | 'first_response';
 
@@ -47,6 +48,7 @@ export class SlaCheckerService {
             `UPDATE "tickets" SET "isOverdue" = true
              WHERE "status" IN ($1, $2) AND "isOverdue" = false
                AND "slaTarget" IS NOT NULL AND "slaStartedAt" IS NOT NULL AND "slaTarget" < $3
+               AND ${isSlaTicketSql('"tickets"')}
              RETURNING "id"`,
             [TicketStatus.IN_PROGRESS, TicketStatus.TODO, new Date()],
         );
@@ -61,6 +63,7 @@ export class SlaCheckerService {
              WHERE "firstResponseAt" IS NULL AND "firstResponseTarget" IS NOT NULL
                AND "isFirstResponseBreached" = false AND "firstResponseTarget" < $1
                AND "status" <> ALL($2::text[])
+               AND ${isSlaTicketSql('"tickets"')}
              RETURNING "id"`,
             [new Date(), excluded],
         );

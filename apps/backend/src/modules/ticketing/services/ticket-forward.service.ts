@@ -15,6 +15,7 @@ import { NotificationService } from '../../notifications/notification.service';
 import { validateTicketAccess } from '../utils/oracle-ticket-access.util';
 import { validateTicketSiteAccess } from '../utils/site-access.util';
 import { presentMessage } from '../utils/message-presenter.util';
+import { clearTicketSlaColumns, isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 /**
  * Move a ticket between ops-support (within or across self-handled sites) and developer teams.
@@ -273,6 +274,10 @@ export class TicketForwardService {
      * not the handling team).
      */
     private async resetResolutionSla(ticket: Ticket, notes: string[]): Promise<void> {
+        if (await isNonSlaTicket(this.ticketRepo.manager, ticket)) {
+            clearTicketSlaColumns(ticket);
+            return;
+        }
         const now = new Date();
         ticket.slaStartedAt = now;
         ticket.isOverdue = false;

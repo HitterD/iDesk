@@ -113,5 +113,7 @@ describe('TvLeaderboardService', () => {
         const [sql, params] = dataSource.query.mock.calls[0];
         expect(sql).toContain(`t."handlingTeam" = ANY($4)`);
         expect(params[3]).toEqual(['ORACLE_DEV', 'WEB_DEV', 'MOBILE_DEV']);
+        expect(sql).toContain(`NOT EXISTS (SELECT 1 FROM request_flows rf WHERE rf."ticketId" = t.id)`);
+        expect(sql).toContain(`'HARDWARE_REQUEST', 'EFORM_REQUEST'`);
     });
 });

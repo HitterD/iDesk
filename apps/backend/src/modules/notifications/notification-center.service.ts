@@ -31,6 +31,7 @@ import { formatResolutionDeadline } from '../ticketing/utils/resolution-deadline
 import { TicketNoteActionItemsService } from '../ticketing/notes/ticket-note-action-items.service';
 import { TicketNoteVisibilityService } from '../ticketing/notes/ticket-note-visibility.service';
 import { NOTIFICATIONS_READ_EVENT } from './notification-events';
+import { isSlaTicketSql } from '../ticketing/utils/non-sla-ticket.util';
 
 const GROUPED_INAPP_COOLDOWN_SECONDS = 120;
 
@@ -455,7 +456,7 @@ export class NotificationCenterService implements OnModuleInit {
             zoomBookings,
         ] = await Promise.all([
             isAgentOrAdmin ? this.entityManager.query(
-                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND "slaTarget" < $2 AND "deletedAt" IS NULL ORDER BY "slaTarget" ASC LIMIT 50`,
+                `SELECT id, "ticketNumber", title, "createdAt", "updatedAt" FROM tickets WHERE "assignedToId" = $1 AND status NOT IN ('RESOLVED', 'CLOSED', 'CANCELLED') AND "slaTarget" < $2 AND "deletedAt" IS NULL AND ${isSlaTicketSql('tickets')} ORDER BY "slaTarget" ASC LIMIT 50`,
                 [userId, now]
             ).catch(() => []) : Promise.resolve([]),
             isAgentOrAdmin ? this.entityManager.query(

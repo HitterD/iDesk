@@ -18,6 +18,7 @@ import {
     dashboardWindows,
     normalizePeriod,
 } from './agent-dashboard.calc';
+import { findNonSlaTicketIds } from '../ticketing/utils/non-sla-ticket.util';
 
 const CACHE_TTL_SECONDS = 30;
 const MS_PER_DAY = 86_400_000;
@@ -140,12 +141,12 @@ export class AgentDashboardService {
     }
 
     /** Assigned tickets that are still open, or were created/resolved inside the widest window. */
-    private loadTickets(agentId: string, since: Date): Promise<DashboardTicket[]> {
-        return this.ticketRepo
+    private async loadTickets(agentId: string, since: Date): Promise<DashboardTicket[]> {
+        const tickets = await this.ticketRepo
             .createQueryBuilder('ticket')
             .select([
                 'ticket.id', 'ticket.ticketNumber', 'ticket.title', 'ticket.status', 'ticket.priority',
-                'ticket.category', 'ticket.createdAt', 'ticket.updatedAt', 'ticket.resolvedAt', 'ticket.slaTarget',
+                'ticket.category', 'ticket.ticketType', 'ticket.createdAt', 'ticket.updatedAt', 'ticket.resolvedAt', 'ticket.slaTarget',
             ])
             .where('ticket.assignedToId = :agentId', { agentId })
             .andWhere(
@@ -153,6 +154,8 @@ export class AgentDashboardService {
                 { inactive: TICKET_INACTIVE_STATUSES, since },
             )
             .getMany();
+        const nonSlaIds = await findNonSlaTicketIds(this.ticketRepo.manager, tickets);
+        return tickets.map((t) => ({ ...t, isNonSla: nonSlaIds.has(t.id) }));
     }
 
     private async loadRating(agentId: string): Promise<AgentDashboard['rating']> {

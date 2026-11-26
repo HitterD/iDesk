@@ -13,6 +13,7 @@ import * as crypto from 'crypto';
 import { MailDispatchService } from '../../shared/mail/mail-dispatch.service';
 import { Ticket, TicketStatus } from '../ticketing/entities/ticket.entity';
 import { TICKET_DONE_STATUSES_SQL } from '../ticketing/utils/ticket-status-sql.util';
+import { isSlaTicketSql } from '../ticketing/utils/non-sla-ticket.util';
 import { TicketModule } from '../ticketing/entities/ticket-module.entity';
 import { Site } from '../sites/entities/site.entity';
 import { Department } from './entities/department.entity';
@@ -557,6 +558,7 @@ export class UserCrudService implements OnModuleInit {
             .addSelect(`COUNT(*) FILTER (WHERE ticket."isOverdue" = false OR ticket.status IN (${TICKET_DONE_STATUSES_SQL}))`, 'withinSla')
             .where('ticket."assignedToId" IN (:...agentIds)', { agentIds })
             .andWhere('ticket."slaTarget" IS NOT NULL')
+            .andWhere(isSlaTicketSql('ticket'))
             .groupBy('ticket."assignedToId"')
             .getRawMany();
 

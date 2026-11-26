@@ -3,7 +3,9 @@ import {
     TICKET_INACTIVE_STATUSES,
     TicketPriority,
     TicketStatus,
+    TicketType,
 } from '../ticketing/entities/ticket.entity';
+import { isNonSlaTicketType } from '../ticketing/utils/non-sla-ticket.util';
 import { DEFAULT_TIMEZONE, localDateKey, startOfLocalDay } from '../sla-config/business-hours.calc';
 
 /** Dashboard periods (days) the UI may ask for; anything else falls back to the default. */
@@ -31,6 +33,8 @@ export interface DashboardTicket {
     status: TicketStatus;
     priority: TicketPriority;
     category: string;
+    ticketType?: TicketType;
+    isNonSla?: boolean;
     createdAt: Date;
     updatedAt: Date;
     resolvedAt: Date | null;
@@ -45,6 +49,7 @@ export interface ActiveTicketItem {
     priority: TicketPriority;
     slaTarget: string | null;
     isOverdue: boolean;
+    isNonSla?: boolean;
 }
 
 export interface AgentTicketStats {
@@ -99,8 +104,8 @@ const resolvedTime = (t: DashboardTicket): Date | null => (isDone(t) ? t.resolve
 const percent = (part: number, whole: number) => Math.round((part / whole) * 100);
 
 function bySlaThenAge(a: DashboardTicket, b: DashboardTicket): number {
-    const sa = a.slaTarget?.getTime() ?? Number.POSITIVE_INFINITY;
-    const sb = b.slaTarget?.getTime() ?? Number.POSITIVE_INFINITY;
+    const sa = isNonSlaTicketType(a) ? Number.POSITIVE_INFINITY : (a.slaTarget?.getTime() ?? Number.POSITIVE_INFINITY);
+    const sb = isNonSlaTicketType(b) ? Number.POSITIVE_INFINITY : (b.slaTarget?.getTime() ?? Number.POSITIVE_INFINITY);
     return sa - sb || a.createdAt.getTime() - b.createdAt.getTime();
 }
 
@@ -148,12 +153,12 @@ export function computeAgentTicketStats(
     tz = AGENT_DASHBOARD_TIMEZONE,
 ): AgentTicketStats {
     const active = tickets.filter(isActive);
-    // WAITING_VENDOR freezes the SLA clock (sla-checker skips it too), so its stale target is not "overdue".
-    const overdueOf = (t: DashboardTicket) => t.status !== TicketStatus.WAITING_VENDOR && !!t.slaTarget && t.slaTarget < w.now;
+    // WAITING_VENDOR freezes the SLA clock; Hardware & E-Form tickets have no SLA.
+    const overdueOf = (t: DashboardTicket) => !isNonSlaTicketType(t) && t.status !== TicketStatus.WAITING_VENDOR && !!t.slaTarget && t.slaTarget < w.now;
     const resolvedSince = (from: Date) => tickets.filter((t) => (resolvedTime(t) ?? 0) >= from);
     const resolvedInPeriod = resolvedSince(w.periodStart);
 
-    const withSla = resolvedInPeriod.filter((t) => t.slaTarget);
+    const withSla = resolvedInPeriod.filter((t) => !isNonSlaTicketType(t) && t.slaTarget);
     const metSla = withSla.filter((t) => (resolvedTime(t) as Date) <= (t.slaTarget as Date));
     const totalResolveMs = resolvedInPeriod.reduce((sum, t) => sum + ((resolvedTime(t) as Date).getTime() - t.createdAt.getTime()), 0);
 
@@ -176,15 +181,19 @@ export function computeAgentTicketStats(
         slaCompliance: withSla.length > 0 ? percent(metSla.length, withSla.length) : null,
         avgResolveMinutes: resolvedInPeriod.length > 0 ? Math.round(totalResolveMs / resolvedInPeriod.length / MS_PER_MINUTE) : null,
         trend: dailyTrend(tickets, w, periodDays, tz),
-        activeTickets: [...active].sort(bySlaThenAge).slice(0, ACTIVE_TICKET_LIST_LIMIT).map((t) => ({
-            id: t.id,
-            ticketNumber: t.ticketNumber,
-            title: t.title,
-            status: t.status,
-            priority: t.priority,
-            slaTarget: t.slaTarget ? t.slaTarget.toISOString() : null,
-            isOverdue: overdueOf(t),
-        })),
+        activeTickets: [...active].sort(bySlaThenAge).slice(0, ACTIVE_TICKET_LIST_LIMIT).map((t) => {
+            const nonSla = isNonSlaTicketType(t);
+            return {
+                id: t.id,
+                ticketNumber: t.ticketNumber,
+                title: t.title,
+                status: t.status,
+                priority: t.priority,
+                slaTarget: nonSla ? null : (t.slaTarget ? t.slaTarget.toISOString() : null),
+                isOverdue: overdueOf(t),
+                ...(nonSla ? { isNonSla: true } : {}),
+            };
+        }),
         byStatus: countBy(active, (t) => t.status),
         byCategory,
         aging: agingBuckets(active, w.now),

@@ -13,6 +13,7 @@ import { TicketActivityChange, TicketSystemEvent } from '../utils/ticket-activit
 import { BusinessHoursService } from '../../sla-config/business-hours.service';
 import { SurveysService } from '../surveys.service';
 import { computeResolutionDeadline, reopenAsDispute } from '../utils/resolution-deadline.util';
+import { isNonSlaTicket } from '../utils/non-sla-ticket.util';
 
 interface RecordedPhase { ticket: Ticket; message: TicketMessage; moved: boolean }
 
@@ -177,28 +178,34 @@ export class TicketLinkedRequestService {
         if (target === TicketStatus.IN_PROGRESS && ticket.status !== TicketStatus.WAITING_VENDOR && ticket.status !== TicketStatus.RESOLVED) return [];
         const from = ticket.status;
         const now = new Date();
-        if (from === TicketStatus.WAITING_VENDOR && ticket.lastPausedAt) {
+        const nonSla = await isNonSlaTicket(manager, ticket);
+        if (!nonSla && from === TicketStatus.WAITING_VENDOR && ticket.lastPausedAt) {
             const waited = Math.floor((now.getTime() - new Date(ticket.lastPausedAt).getTime()) / MINUTE_MS);
             ticket.totalPausedMinutes = (ticket.totalPausedMinutes || 0) + waited;
             ticket.totalWaitingVendorMinutes = (ticket.totalWaitingVendorMinutes || 0) + waited;
             ticket.lastPausedAt = null;
             ticket.waitingVendorAt = null;
+        } else if (nonSla && from === TicketStatus.WAITING_VENDOR) {
+            ticket.lastPausedAt = null;
+            ticket.waitingVendorAt = null;
         }
         if (from === TicketStatus.WAITING_VENDOR) await this.vendorVisit.clear(manager, ticket);
         if (target === TicketStatus.WAITING_VENDOR) {
-            ticket.lastPausedAt = now;
-            ticket.waitingVendorAt = now;
-            await this.slaClock.hold(ticket, now);
+            if (!nonSla) {
+                ticket.lastPausedAt = now;
+                ticket.waitingVendorAt = now;
+                await this.slaClock.hold(ticket, now);
+            }
         } else if (target === TicketStatus.IN_PROGRESS && from === TicketStatus.RESOLVED) {
-            reopenAsDispute(ticket, this.slaClock, now);
+            reopenAsDispute(ticket, nonSla ? null : this.slaClock, now);
         } else if (target === TicketStatus.IN_PROGRESS) {
-            await this.slaClock.release(ticket, now);
+            if (!nonSla) await this.slaClock.release(ticket, now);
         } else if (target === TicketStatus.RESOLVED) {
             // Resolved like an agent's resolve: the requester has one working day to confirm or dispute, SLA held meanwhile.
             ticket.resolvedAt = now;
             ticket.disputedAt = null;
             ticket.resolutionDeadlineAt = await computeResolutionDeadline(this.businessHours, now);
-            await this.slaClock.hold(ticket, now);
+            if (!nonSla) await this.slaClock.hold(ticket, now);
         } else if (target === TicketStatus.CLOSED) {
             ticket.closedAt = now;
             ticket.resolutionDeadlineAt = null;

@@ -4,6 +4,7 @@ import { Repository, MoreThanOrEqual } from 'typeorm';
 import { Ticket, TicketStatus } from '../entities/ticket.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ITicketRepository } from './ticket.repository.interface';
+import { isSlaTicketSql } from '../utils/non-sla-ticket.util';
 
 export interface PaginationOptions {
     page?: number;
@@ -173,11 +174,14 @@ export class TicketRepository implements ITicketRepository {
      * Required by ITicketRepository interface
      */
     async findOverdue(): Promise<Ticket[]> {
-        return this.repo.find({
-            where: { isOverdue: true },
-            relations: ['user', 'assignedTo'],
-            order: { createdAt: 'DESC' },
-        });
+        return this.repo
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .where('ticket.isOverdue = true')
+            .andWhere(isSlaTicketSql('ticket'))
+            .orderBy('ticket.createdAt', 'DESC')
+            .getMany();
     }
 
     /**

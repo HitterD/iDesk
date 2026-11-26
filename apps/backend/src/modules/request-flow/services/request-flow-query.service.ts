@@ -9,7 +9,7 @@ import { User } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { assertSiteAccess, type SiteActor } from '../../../shared/core/utils/site-scope.util';
 import type { ApprovalRoute } from '../domain/approval-route';
-import { PHASE_LABEL, phaseOf, type FlowPhase } from '../domain/flow-phase';
+import { PHASE_LABEL, phaseOf, phaseSinceOf, type FlowPhase } from '../domain/flow-phase';
 import type { HardwareSource, RequestKind } from '../domain/request-kind';
 import { REQUEST_DOCUMENT_VIEWER_ROLES, REQUEST_PROCESSOR_ROLES } from '../domain/request-roles';
 import { RequestDocumentRevision, type RequestDocumentRevisionKind } from '../entities/request-document-revision.entity';
@@ -54,6 +54,8 @@ export interface RequestFlowView {
     kind: RequestKind;
     phase: FlowPhase;
     phaseLabel: string;
+    phaseSince: string | null;
+    installScheduledAt: string | null;
     route: ApprovalRoute | null;
     managerId: string | null;
     gmId: string | null;
@@ -121,16 +123,37 @@ export class RequestFlowQueryService {
         const people = await this.names([...revisions.map((r) => r.actorId), schedule?.technicianId]);
 
         const status = ctx.hardware?.status ?? ctx.eform!.status;
+        const hasOpenSchedule = Boolean(schedule && AGREED_SCHEDULE.includes(schedule.status));
         const phase = phaseOf(ctx.kind, status, {
             hasOpenSchedule: Boolean(schedule && AGREED_SCHEDULE.includes(schedule.status)),
             route: ctx.flow.route, signed: ctx.signed, returnedReason: ctx.flow.returnedReason,
         });
         const scheduleView = schedule ? this.scheduleView(schedule, people) : null;
         const { flow } = ctx;
+        const phaseSince = phaseSinceOf(phase, {
+            ticketCreatedAt: ctx.ticket.createdAt,
+            flowCreatedAt: flow.createdAt,
+            reviewedAt: flow.reviewedAt,
+            submittedAt: ctx.hardware?.submittedAt ?? ctx.eform?.submittedAt,
+            managerApprovedAt: ctx.managerApprovedAt,
+            approvedAt: ctx.hardware?.approvedAt,
+            procuredAt: ctx.hardware?.procuredAt,
+            gmApprovedAt: ctx.eform?.gmApprovedAt,
+            installMarkedDoneAt: ctx.hardware?.installMarkedDoneAt,
+            installStartedAt: schedule?.startedAt,
+            completedAt: ctx.hardware?.completedAt,
+            resolvedAt: ctx.eform?.resolvedAt,
+            updatedAt: ctx.hardware?.updatedAt ?? ctx.eform?.updatedAt ?? flow.updatedAt,
+        });
+        const installScheduledAt = hasOpenSchedule && schedule?.scheduledStart
+            ? new Date(schedule.scheduledStart).toISOString()
+            : null;
         return {
             kind: ctx.kind,
             phase,
             phaseLabel: this.labelOf(phase, scheduleView, schedule),
+            phaseSince,
+            installScheduledAt,
             route: flow.route,
             managerId: flow.managerId,
             gmId: flow.gmId,

@@ -219,4 +219,17 @@ describe('TicketSlaExtendService', () => {
         expect(messageRepo.create).toHaveBeenCalled();
         expect(messageRepo.save).toHaveBeenCalled();
     });
+
+    it.each(['HARDWARE_REQUEST', 'EFORM_REQUEST'])('rejects %s tickets from SLA extension', async (ticketType) => {
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, ticketType }));
+        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('Tiket Hardware & E-Form tidak menggunakan SLA');
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects legacy SERVICE ticket backed by request_flows from SLA extension', async () => {
+        ticketRepo.manager = { query: jest.fn().mockResolvedValue([{ '?column?': 1 }]) };
+        ticketRepo.findOne = jest.fn(async () => ({ ...baseTicket, ticketType: 'SERVICE' }));
+        await expect(service.extendSla('t1', dto, actor)).rejects.toThrow('Tiket Hardware & E-Form tidak menggunakan SLA');
+        expect(ticketRepo.save).not.toHaveBeenCalled();
+    });
 });
