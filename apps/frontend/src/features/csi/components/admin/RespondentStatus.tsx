@@ -79,7 +79,8 @@ function StatusBody({ scope, periodTitle, data, rows, sites, targetPct, reminder
                     sites={siteCards.length > 1 ? siteCards : []} />
             )}
             {data.pendingByDepartment && namesHidden && <PendingByDepartment rows={data.pendingByDepartment} />}
-            {!(data.pendingByDepartment && namesHidden) && (
+            {/* Read-only viewers get anonymous rows only: progress cards and department totals, never the person list. */}
+            {!readOnly && !(data.pendingByDepartment && namesHidden) && (
                 <PersonList scope={scope} periodTitle={periodTitle} rows={rows} sites={sites} canRemind={listed && !readOnly}
                     reminded={reminders.reminded} remindingId={reminders.rowId} onRemind={reminders.remindOne}
                     onRemovePending={onRemovePending} onResetResponse={onResetResponse} />
@@ -125,12 +126,12 @@ export function RespondentStatus({ scope, periodId, periodTitle, sites, hcTarget
             {!reminders.allPending && <BellRing aria-hidden="true" />}Ingatkan semua yang belum
         </Button>
     );
-    const exportCollapsed = namesHidden && rows.length > 0 && (
+    const exportCollapsed = !readOnly && namesHidden && rows.length > 0 && (
         <Button variant="soft" onClick={() => void handleExportAll()} loading={exporting}>
             {!exporting && <Download aria-hidden="true" />}Ekspor Excel
         </Button>
     );
-    const namesToggle = byDepartment && (
+    const namesToggle = !readOnly && byDepartment && (
         <Button variant="soft" onClick={() => setShowNames((value) => !value)}>{showNames ? 'Sembunyikan nama' : 'Tampilkan nama'}</Button>
     );
     const actions = <div className="flex flex-wrap items-center gap-2"><LiveStatusPill />{exportCollapsed}{namesToggle}{remindAll}</div>;
